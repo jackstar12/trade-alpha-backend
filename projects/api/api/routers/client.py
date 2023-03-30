@@ -385,7 +385,7 @@ async def get_balance(at: Optional[datetime],
     )
     balances = [Balance.from_orm(balance) for balance in balances]
     if balances:
-        return sum(balances[1:], balances[0])
+        return Balance.add(*balances)
     else:
         raise NotFound('No matching balance')
 

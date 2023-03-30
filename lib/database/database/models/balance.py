@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import itertools
 from datetime import datetime
 from decimal import Decimal
 from typing import Optional
@@ -39,10 +41,14 @@ class AmountBase(OrmBaseModel):
 
     def __add__(self, other: 'AmountBase'):
         self._assert_equal(other)
-        return AmountBase(
+        return Amount.construct(
             realized=self.realized + other.realized,
             unrealized=self.unrealized + other.unrealized,
-            currency=self.currency
+            currency=self.currency,
+            rate=(
+                (self.rate * self.realized + other.rate * other.realized) / (self.realized + other.realized)
+                if self.rate and other.rate else self.rate or other.rate
+            )
         )
 
 
@@ -51,11 +57,15 @@ class Amount(AmountBase):
 
     def __add__(self, other: 'Amount'):
         self._assert_equal(other)
-        return Amount(
+        return Amount.construct(
             realized=self.realized + other.realized,
             unrealized=self.unrealized + other.unrealized,
             currency=self.currency,
-            time=safe_cmp_default(max, self.time, other.time)
+            time=safe_cmp_default(max, self.time, other.time),
+            rate=(
+                (self.rate * self.realized + other.rate * other.realized) / (self.realized + other.realized)
+                if self.rate and other.rate else self.rate or other.rate
+            )
         )
 
 
@@ -71,12 +81,30 @@ class Balance(Amount):
 
     def __add__(self, other: Balance):
         self._assert_equal(other)
+        return self.add(self, other)
+
+    @classmethod
+    def add(cls, *balances: Balance):
+
+        currencies = set(
+            (amount.currency for balance in balances if balance.extra_currencies for amount in balance.extra_currencies)
+        )
+        extra_currencies = []
+        for currency in currencies:
+            amount = None
+            for balance in balances:
+                if amount:
+                    amount = amount + balance.get_currency(currency)
+                else:
+                    amount = balance.get_currency(currency)
+            extra_currencies.append(amount)
+
         return Balance(
-            realized=self.realized + other.realized,
-            unrealized=self.unrealized + other.unrealized,
-            time=safe_cmp_default(max, self.time, other.time),
-            extra_currencies=(self.extra_currencies or []) + (other.extra_currencies or []),
-            currency=self.currency
+            realized=sum(balance.realized for balance in balances),
+            unrealized=sum(balance.unrealized for balance in balances),
+            time=max(balance.time for balance in balances),
+            extra_currencies=extra_currencies,
+            currency=balances[0].currency
         )
 
     def set_gain(self, other: Balance, offset: Decimal):
@@ -98,16 +126,23 @@ class Balance(Amount):
 
         return string
 
-    def get_currency(self, currency: Optional[str]) -> Balance:
+    def get_currency(self, currency: Optional[str]) -> Amount:
         if currency:
-            for amount in self.extra_currencies:
-                if amount.currency == currency:
-                    return Balance(
-                        realized=amount.realized,
-                        unrealized=amount.unrealized,
-                        currency=currency,
-                        time=self.time
-                    )
+            realized = unrealized = rate = Decimal(0)
+            if self.extra_currencies:
+                for amount in self.extra_currencies:
+                    if amount.currency == currency:
+                        realized = amount.realized
+                        unrealized = amount.unrealized
+                        rate = amount.rate
+                        break
+            return Amount(
+                realized=realized,
+                unrealized=unrealized,
+                currency=currency,
+                time=self.time,
+                rate=rate
+            )
         else:
             return self
 

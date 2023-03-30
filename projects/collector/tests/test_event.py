@@ -22,4 +22,3 @@ async def test_event_messages(event_service, test_user, messenger, db):
         db.add(event)
         await db.commit()
         await listener.wait(5)
-        pass

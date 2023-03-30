@@ -1,8 +1,6 @@
 import pytest
 
 from common.exchanges import SANDBOX_CLIENTS
-from common.messenger import Category, TableNames
-from common.test_utils.fixtures import Channel
 from database.models.client import ClientCreate
 
 pytestmark = pytest.mark.anyio

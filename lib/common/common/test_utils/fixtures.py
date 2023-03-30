@@ -54,8 +54,9 @@ async def db(tables, engine, session_maker) -> AsyncSession:
 
 
 @pytest.fixture(scope='session')
-def redis() -> Redis:
-    return aioredis.from_url(ENV.REDIS_URL)
+async def redis() -> Redis:
+    async with aioredis.from_url(ENV.REDIS_URL) as redis:
+        yield redis
 
 
 @pytest.fixture(scope='session')
@@ -83,9 +84,9 @@ class Messages:
         try:
             result = await asyncio.wait_for(waiter, timeout)
             return result
-        except asyncio.exceptions.TimeoutError:
-            pytest.fail(f'Missed following messages:' + '\n\t'.join(
-                name for name, fut in self.results.values() if fut.cancelled()))
+        except (asyncio.TimeoutError, asyncio.CancelledError) as e:
+            pytest.fail(f'Missed following messages:\n' + '\n'.join(
+                name for name, fut in self.results.items() if fut.cancelled()))
 
     @classmethod
     def create(cls, *channels: Channel, messenger: Messenger):

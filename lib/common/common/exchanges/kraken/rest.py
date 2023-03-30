@@ -38,7 +38,8 @@ class KrakenRestClient(ExchangeWorker):
         response = await self.get('/0/private/TradeBalance')
         return dbmodels.BalanceDB(
             amount=response["e"] if upnl else response["tb"],
-            time=time
+            time=time,
+
         )
 
     async def _get_websocket_token(self):

@@ -893,6 +893,7 @@ class ExchangeWorker:
 
     @classmethod
     def get_symbol(cls, market: Market) -> str:
+        logger.warning(f'Exchange {cls.exchange} does not implement get_symbol')
         raise NotImplementedError
 
     @classmethod

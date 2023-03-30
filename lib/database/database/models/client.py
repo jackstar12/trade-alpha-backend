@@ -34,6 +34,7 @@ class ClientCreate(ClientApiInfo):
     name: Optional[str]
     exchange: str
     type: ClientType = ClientType.FULL
+    import_since: Optional[datetime]
 
     def get(self, user: User = None) -> Client:
         client = Client(user=user, **self.dict(exclude={'import_since'}))

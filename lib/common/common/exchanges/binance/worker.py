@@ -493,7 +493,7 @@ class BinanceSpot(_BinanceBaseClient):
             response = results[1]
             tickers = results[0]
 
-        total_balance = 0
+        total_balance = Decimal(0)
         extra_currencies: list[balance.Amount] = []
 
         ticker_prices = {
@@ -503,17 +503,19 @@ class BinanceSpot(_BinanceBaseClient):
         for cur_balance in data:
             currency = cur_balance['asset']
             amount = Decimal(cur_balance['free']) + Decimal(cur_balance['locked'])
-            price = 0
-            if currency == 'USDT':
-                price = 1
-            elif amount > 0 and currency != 'LDUSDT' and currency != 'LDSRM':
+            if amount > 0 and currency != 'LDUSDT' and currency != 'LDSRM':
+                price = 1 if self.usd_like(currency) else Decimal(ticker_prices.get(f'{currency}USDT', 0.0))
                 extra_currencies.append(
-                    balance.Amount(currency=currency, realized=amount, unrealized=amount)
+                    balance.Amount(currency=currency, realized=amount, unrealized=Decimal(0), rate=price)
                 )
-                price = Decimal(ticker_prices.get(f'{currency}USDT', 0.0))
-            total_balance += amount * price
+                total_balance += amount * price
 
-        return balance.Balance(realized=total_balance, unrealized=total_balance, time=time)
+        return balance.Balance(
+            realized=total_balance,
+            unrealized=Decimal(0),
+            time=time,
+            extra_currencies=extra_currencies
+        )
 
     # async def _get_executions(self,
     #                           since: datetime,

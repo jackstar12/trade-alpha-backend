@@ -3,20 +3,21 @@ import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Iterator
+from typing import Iterator, Optional
 
 import pytz
 
 from common.exchanges.channel import Channel
 from common.exchanges.exchangeticker import ExchangeTicker, Subscription
 from core import utc_now
-from database.dbmodels import Execution, Balance
+from database.dbmodels import Execution, Balance, Client
 from database.dbmodels.client import ClientType, ExchangeInfo
 from database.dbmodels.transfer import RawTransfer
-from database.enums import Side, ExecType
+from database.enums import Side, ExecType, MarketType
 from common.exchanges.exchangeworker import ExchangeWorker
 from database.models import BaseModel
 from database.models.client import ClientCreate
+from database.models.market import Market
 from database.models.miscincome import MiscIncome
 from database.models.ohlc import OHLC
 from database.models.ticker import Ticker
@@ -29,9 +30,12 @@ class RawExec(BaseModel):
     side: Side
     qty: Decimal
     price: Decimal
+    reduce: Optional[bool] = True
+    market_type: Optional[MarketType] = MarketType.DERIVATIVES
 
-    def to_exec(self):
+    def to_exec(self, client: Client):
         return Execution(**self.dict(),
+                         settle=client.currency,
                          time=utc_now(),
                          commission=Decimal(random.randint(50, 100) * .01),
                          type=ExecType.TRADE)
@@ -67,9 +71,6 @@ class MockTicker(ExchangeTicker):
         pass
 
 
-
-
-
 class MockExchange(ExchangeWorker):
     supports_extended_data = True
     exchange = 'mock'
@@ -102,7 +103,7 @@ class MockExchange(ExchangeWorker):
         while True:
             self._logger.info('Mock listening for execs')
             new = await self.__class__._queue.get()
-            execution = new.to_exec()
+            execution = new.to_exec(self.client)
             await self._on_execution(execution)
             self._execs.append(execution)
 
@@ -168,5 +169,10 @@ class MockExchange(ExchangeWorker):
         return Balance(
             realized=100,
             unrealized=0,
-            time=datetime.now(pytz.utc)
+            time=utc_now(),
+            extra_currencies=[]
         )
+
+    @classmethod
+    def get_symbol(cls, market: Market) -> str:
+        return market.base + market.quote

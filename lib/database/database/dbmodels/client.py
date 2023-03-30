@@ -202,7 +202,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
     # Identification
     id = Column(Integer, primary_key=True)
 
-    user_id = Column(GUID, ForeignKey('user.id', ondelete="CASCADE"), nullable=True)
+    user_id = Column(GUID, ForeignKey('user.id'), nullable=True)
     user = relationship('User', lazy='raise')
 
     oauth_account_id = Column(ForeignKey('oauth_account.account_id', ondelete='SET NULL'), nullable=True)

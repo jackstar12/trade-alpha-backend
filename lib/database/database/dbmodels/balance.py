@@ -109,19 +109,18 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                 self.realized += amount.realized * amount.rate
                 self.unrealized += amount.unrealized * amount.rate
 
-    def get_currency(self, ccy: str = None) -> BalanceModel:
+    def get_currency(self, ccy: str = None) -> AmountModel:
         if ccy:
             for amount in self.extra_currencies:
                 if amount.currency == ccy:
-                    return BalanceModel(
+                    return AmountModel(
                         realized=amount.realized,
                         unrealized=amount.unrealized,
                         currency=ccy,
                         time=self.time,
-                        extra_currencies=[]
                     )
         else:
-            return BalanceModel.from_orm(self)
+            return AmountModel.from_orm(self)
 
     def get_realized(self, ccy: str = None) -> Decimal:
         amount = self.get_currency(ccy)

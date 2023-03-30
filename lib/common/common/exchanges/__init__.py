@@ -40,24 +40,24 @@ EXCHANGE_TICKERS = {
 }
 
 SANDBOX_CLIENTS = [
-    ClientCreate(
-        exchange=BinanceFutures.exchange,
-        api_key="6ec9e23293ee07f187a8fbe4b575e6102da766daaa3e356db5d898ddfbb74684",
-        api_secret="e9d2849343a017e466873810431b256bf13333ec257ead90618becb0f1a59ac6",
-        sandbox=True
-    ),
+    #ClientCreate(
+    #    exchange=BinanceFutures.exchange,
+    #    api_key="6ec9e23293ee07f187a8fbe4b575e6102da766daaa3e356db5d898ddfbb74684",
+    #    api_secret="e9d2849343a017e466873810431b256bf13333ec257ead90618becb0f1a59ac6",
+    #    sandbox=True
+    #),
     ClientCreate(
         exchange=BybitDerivativesWorker.exchange,
-        api_key="82UvSdVteZHLWMI9sm",
-        api_secret="XA8mFgINADoMWLHxnOTVcRyubSGCGoJXQAyX",
+        api_key="SQbhitQi6ur9FfZ1mV",
+        api_secret="zlFeNqzCavgRn16CAfJ2ZLzYJjAEZn3MP9gO",
         sandbox=True,
     ),
-    ClientCreate(
-        exchange=BinanceSpot.exchange,
-        api_key="i4aHpzsGhRWFNyxf4JNrPm4AJEMrKYFMw0vhs9rk2AsIbIrAad2JwasIYkQA5krd",
-        api_secret="FmD8pLQl3bsdc5xmYldUAKJWarr0wPxyARtY4sjpod3tSKBoycH3lvhNNw98E22S",
-        sandbox=True
-    )
+    #ClientCreate(
+    #    exchange=BinanceSpot.exchange,
+    #    api_key="i4aHpzsGhRWFNyxf4JNrPm4AJEMrKYFMw0vhs9rk2AsIbIrAad2JwasIYkQA5krd",
+    #    api_secret="FmD8pLQl3bsdc5xmYldUAKJWarr0wPxyARtY4sjpod3tSKBoycH3lvhNNw98E22S",
+    #    sandbox=True
+    #)
 ]
 
 
@@ -84,7 +84,6 @@ __all__ = [
     "binance",
     "bitmex",
     "bybit",
-    "ftx",
     "kucoin",
     "okx",
     "EXCHANGES",

@@ -111,7 +111,7 @@ def test_get_all(event, api_client_logged_in):
     resp = api_client_logged_in.get('event/')
 
     assert resp.ok
-    results = resp.json().get('result')
+    results = resp.json()
     assert len(results) == 1
     result = EventInfo(**results[0])
     assert result.id == event.id

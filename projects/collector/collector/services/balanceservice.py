@@ -442,13 +442,16 @@ class ExtendedBalanceService(_BalanceServiceBase):
                     await self._db.commit()
                 if balances:
                     self._logger.debug(balances)
+                else:
+                    self._logger.debug('No balances to update')
 
                 for balance in balances:
                     await balance.client.as_redis(pipe).set_balance(balance)
+                    await self._messenger.pub_instance(balance, Category.LIVE)
 
                 await pipe.execute()
 
-                for balance in balances:
-                    await self._messenger.pub_instance(balance, Category.LIVE)
+                #for balance in balances:
+                #    await self._messenger.pub_instance(balance, Category.LIVE)
 
                 await asyncio.sleep(.5)

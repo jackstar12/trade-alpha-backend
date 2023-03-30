@@ -11,7 +11,7 @@ from api.app import app
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 def anyio_backend():
     return 'asyncio'
 
@@ -73,7 +73,7 @@ def confirm_clients(api_client, create_client, messenger):
             ) as messages:
                 resp = api_client.post('client/confirm', json={**resp.json()})
                 assert resp.status_code == 200
-                await messages.wait(.5)
+                #await messages.wait(.5)
 
             results.append(ClientInfo(**resp.json()))
 
@@ -86,7 +86,7 @@ def confirm_clients(api_client, create_client, messenger):
             ) as messages:
                 resp = api_client.delete(f'client/{result.id}')
                 assert resp.status_code == 200
-                await messages.wait(.5)
+                #await messages.wait(.5)
 
     return _confirm_clients
 

@@ -86,7 +86,6 @@ def event_service(data_service, service_args):
     return EventService(*service_args)
 
 
-
 @pytest.fixture
 async def test_user(db):
     user = await db_select(User,
@@ -126,7 +125,6 @@ async def db_client(pnl_service, request, time, db, test_user, messenger) -> Cli
             delete(Client).where(Client.id == client.id)
         )
         await db.commit()
-
 
 
 @pytest.fixture

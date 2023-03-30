@@ -137,12 +137,13 @@ class EventService(BaseService):
         self.schedule_job(event.id, event.registration_start, EVENT.REGISTRATION_START)
         self.schedule_job(event.id, event.registration_end, EVENT.REGISTRATION_END)
 
-        self._scheduler.add_job(
-            func=lambda: self._save_event(event.id),
-            trigger=IntervalTrigger(days=1),
-            id=f"event:{event.id}",
-            jitter=60
-        )
+        if not self._scheduler.get_job(f"event:{event.id}"):
+            self._scheduler.add_job(
+                func=lambda: self._save_event(event.id),
+                trigger=IntervalTrigger(days=1),
+                id=f"event:{event.id}",
+                jitter=60
+            )
 
     def _unregister(self, event_id: int):
 

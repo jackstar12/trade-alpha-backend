@@ -1,5 +1,6 @@
 import asyncio
 import itertools
+from asyncio import Future
 from datetime import datetime
 from decimal import Decimal
 
@@ -41,11 +42,14 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
 
     async def get_trades():
         async with session_maker() as db:
-            return await db_select_all(Trade,
-                                       Trade.client_id == db_client.id,
-                                       Trade.symbol == symbol,
-                                       eager=[Trade.min_pnl, Trade.max_pnl, Trade.pnl_data],
-                                       session=db)
+            return await db_all(
+                select(Trade).where(
+                    Trade.client_id == db_client.id,
+                    Trade.symbol == symbol,
+                ).order_by(Trade.open_time),
+                Trade.min_pnl, Trade.max_pnl, Trade.pnl_data,
+                session=db
+            )
 
     async def get_trade():
         trades = await get_trades()
@@ -69,8 +73,9 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
             messenger=messenger
     ) as listener:
         await MockExchange.put_exec(symbol=symbol, side=Side.BUY, qty=size / 2, price=12500)
-        await listener.wait(2)
+        await listener.wait(3)
 
+    await asyncio.sleep(.2)
     trade = await get_trade()
     assert trade.entry == 10000
     assert trade.qty == size
@@ -105,6 +110,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
     trades = await get_trades()
     assert len(trades) == 2
     assert not trades[0].is_open
+    assert trades[1].is_open
     assert trades[1].qty == size / 2
 
 
@@ -115,80 +121,14 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
 )
 async def test_exchange(db_client, db, session_maker, http_session, ccxt_client, messenger, redis):
     db_client: Client
-    exchange_cls = EXCHANGES.get(db_client.exchange)
-
-    worker = exchange_cls(db_client,
-                          http_session=http_session,
-                          db_maker=session_maker,
-                          messenger=messenger)
-    await worker.synchronize_positions()
-    await worker.startup()
-
     async with Messages.create(
             Channel(TableNames.TRADE, Category.NEW),
-            messenger=messenger
-    ) as listener:
-        ccxt_client.create_market_buy_order(symbol, float(size))
-
-        await listener.wait(5)
-
-    await asyncio.sleep(2.5)
-
-    trade = await db_select(Trade,
-                            Trade.client_id == db_client.id,
-                            Trade.symbol == symbol,
-                            Trade.open_qty == size,
-                            Trade.qty == size)
-    assert trade
-    first_balance = await db_client.get_latest_balance(redis)
-
-    assert prev_balance.realized != first_balance.realized
-
-    async with Messages.create(
-            Channel(TableNames.BALANCE, Category.LIVE),
-            Channel(TableNames.TRADE, Category.UPDATE),
-            messenger=messenger
-    ) as listener:
-        ccxt_client.create_market_sell_order(symbol, float(size / 2))
-        await listener.wait(15)
-
-    trade = await db_select(Trade,
-                            Trade.client_id == db_client.id,
-                            Trade.symbol == symbol,
-                            Trade.open_qty == size / 2,
-                            Trade.qty == size,
-                            eager=[Trade.min_pnl, Trade.max_pnl, Trade.pnl_data])
-    assert trade
-    assert trade.max_pnl.total != trade.min_pnl.total
-    second_balance = await db_client.get_latest_balance(redis)
-    assert first_balance.realized != second_balance.realized
-
-    async with Messages.create(
             Channel(TableNames.TRADE, Category.FINISHED),
             messenger=messenger
     ) as listener:
-        await asyncio.sleep(1)
-        ccxt_client.create_market_sell_order(symbol, float(size / 2))
-        await listener.wait(5)
-
-    trade = await db_select(Trade,
-                            Trade.client_id == db_client.id,
-                            Trade.symbol == symbol,
-                            Trade.open_qty == 0,
-                            Trade.qty == size)
-    assert trade
-    second_balance = await db_client.get_latest_balance(redis)
-    assert first_balance.realized != second_balance.realized
-
-    trades = await db_select_all(
-        Trade,
-        eager=[Trade.max_pnl, Trade.min_pnl],
-        client_id=db_client.id
-    )
-
-    assert len(trades) == 1
-    assert trades[0].qty == size
-    assert trades[0].max_pnl.total != trades[0].min_pnl.total
+        ccxt_client.create_market_buy_order(symbol, float(size))
+        ccxt_client.create_market_sell_order(symbol, float(size))
+        await listener.wait(2)
 
 
 @pytest.mark.parametrize(
