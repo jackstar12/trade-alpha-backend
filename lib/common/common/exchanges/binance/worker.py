@@ -24,6 +24,7 @@ from database.dbmodels.transfer import RawTransfer
 from database.enums import Side, ExecType
 from common.exchanges.binance.futures_websocket_client import FuturesWebsocketClient
 from common.exchanges.exchangeworker import ExchangeWorker, create_limit
+from database.errors import InvalidClientError
 from database.models.market import Market
 from database.models.miscincome import MiscIncome
 from database.models.ohlc import OHLC

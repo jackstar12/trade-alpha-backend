@@ -249,7 +249,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
         headers['X-BAPI-SIGN'] = sign
 
     @classmethod
-    def _check_for_error(cls, response_json: Dict, response: ClientResponse):
+    def _check_for_error(cls, response_json: dict, response: ClientResponse):
         # https://bybit-exchange.github.io/docs/inverse/?console#t-errors
         code = get_multiple(response_json, "ret_code", "retCode")
         if code != 0:
@@ -261,7 +261,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
                 error = RateLimitExceeded
 
             raise error(
-                root_error=ClientResponseError(response.request_info, (response,)),
+                response=response,
                 human=f'{get_multiple(response_json, "ret_msg", "retMsg")}, Code: {code}'
             )
 

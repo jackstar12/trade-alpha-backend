@@ -1,4 +1,4 @@
-from aiohttp import ClientResponseError
+from aiohttp import ClientResponseError, ClientResponse
 
 
 class UserInputError(Exception):
@@ -15,8 +15,10 @@ class InternalError(Exception):
 
 
 class ResponseError(Exception):
-    def __init__(self, root_error: ClientResponseError, human: str):
+    def __init__(self, human: str, root_error: ClientResponseError = None, response: ClientResponse = None):
         self.root_error = root_error
+        if response:
+            self.root_error = ClientResponseError(response.request_info, (response,))
         self.human = human
 
 

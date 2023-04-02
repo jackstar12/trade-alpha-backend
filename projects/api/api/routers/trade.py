@@ -163,7 +163,7 @@ def create_trade_endpoint(path: str,
 
         if not grant.is_root_for(AssociationType.TRADE):
             if chapter_id:
-                node = await db_first(Chapter.query_nodes(chapter_id, query_params), session=db)
+                node = await db_first(Chapter.query_nodes(chapter_id, query_params=query_params), session=db)
                 if not node:
                     raise Unauthorized()
             else:
@@ -189,7 +189,6 @@ def create_trade_endpoint(path: str,
 
         return OK(result=results)
         hits, misses = await cache.read(db)
-
 
         if misses:
             query_params.client_ids = misses
@@ -264,7 +263,7 @@ async def get_pnl_data(trade_id: list[InputID] = Query(default=[]),
                        db: AsyncSession = Depends(get_db)):
     if not grant.is_root_for(AssociationType.TRADE):
         if chapter_id:
-            node = await db_first(Chapter.query_nodes(chapter_id, None), session=db)
+            node = await db_first(Chapter.query_nodes(chapter_id), session=db)
             if not node:
                 raise Unauthorized()
         else:
@@ -291,9 +290,13 @@ async def get_pnl_data(trade_id: list[InputID] = Query(default=[]),
     return CustomJSONResponse(content={'by_trade': jsonable_encoder(result)})
 
 
+ExecFilters = FilterQueryParamsDep(TradeDB, BasicTrade)
+
+
 @router.get('/trades/executions', response_model=list[Execution])
 async def get_executions(trade_id: list[InputID] = Query(default=None),
                          query_params: TradeQueryParams = Depends(get_trade_params),
+                         filters: list[FilterParam] = Depends(ExecFilters),
                          grant: AuthGrant = Depends(auth),
                          db: AsyncSession = Depends(get_db)):
     if not grant.is_root_for(AssociationType.TRADE):
@@ -307,6 +310,7 @@ async def get_executions(trade_id: list[InputID] = Query(default=None),
         user_id=grant.user.id,
         query_params=query_params,
         db=db,
+        filters=filters,
         client_col=TradeDB.client,
     )
 

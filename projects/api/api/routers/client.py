@@ -6,18 +6,20 @@ import time
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Optional, Iterable
+from uuid import UUID
 
 import aiohttp
 import jwt
 import pytz
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import delete, select, asc, func, text, desc
+from sqlalchemy import delete, select, asc, func, text, desc, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 
 import api.utils.client as client_utils
+from database.dbmodels.authgrant import ChapterGrant, AuthGrant, AssociationType
 from database.dbmodels.transfer import Transfer as TransferDB
 from api.models.trade import Trade, BasicTrade
 from database.errors import InvalidClientError, ResponseError
@@ -28,13 +30,13 @@ from api.models.client import ClientConfirm, ClientEdit, \
     ClientOverview, Transfer, ClientCreateBody, ClientInfo, ClientCreateResponse, get_query_params, ClientDetailed, \
     ClientOverviewCache
 from api.settings import settings
-from api.users import CurrentUser
-from api.utils.responses import BadRequest, OK, CustomJSONResponse, NotFound, ResponseModel, InternalError
+from api.users import CurrentUser, get_auth_grant_dependency
+from api.utils.responses import BadRequest, OK, CustomJSONResponse, NotFound, ResponseModel, InternalError, Unauthorized
 import core
 from database.calc import create_daily
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, db_select_all, safe_op, safe_eq
-from database.dbmodels import TradeDB, BalanceDB, Execution
-from database.dbmodels.client import Client, add_client_checks
+from database.dbmodels import TradeDB, BalanceDB, Execution, Chapter
+from database.dbmodels.client import Client, add_client_checks, ClientState
 from database.dbmodels.client import ClientQueryParams
 from database.dbmodels.user import User
 from database.enums import IntervalType
@@ -48,7 +50,7 @@ from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 
 router = APIRouter(
     tags=["client"],
-    dependencies=[Depends(CurrentUser), Depends(get_messenger)],
+    dependencies=[Depends(get_messenger)],
     responses={
         401: {'detail': 'Wrong Email or Password'},
         400: {'detail': "Email is already used"}
@@ -65,11 +67,11 @@ async def new_client(body: ClientCreateBody,
         exchange_cls = EXCHANGES[body.exchange]
         if issubclass(exchange_cls, ExchangeWorker):
             # Check if required keyword args are given
-            if validate_kwargs(body.extra_kwargs or {}, exchange_cls.required_extra_args):
+            if validate_kwargs(body.extra or {}, exchange_cls.required_extra_args):
                 client = body.get()
 
                 try:
-                    worker = exchange_cls(client, http_session, db_maker=async_maker)
+                    worker = exchange_cls(client, http_session, commit=False, db_maker=async_maker)
                     init_balance = await worker.get_balance()
                 except InvalidClientError:
                     raise BadRequest('Invalid API credentials')
@@ -98,7 +100,7 @@ async def new_client(body: ClientCreateBody,
             else:
                 logging.error(
                     f'Not enough kwargs for exchange {exchange_cls.exchange} were given.'
-                    f'\nGot: {body.extra_kwargs}\nRequired: {exchange_cls.required_extra_args}'
+                    f'\nGot: {body.extra}\nRequired: {exchange_cls.required_extra_args}'
                 )
                 args_readable = '\n'.join(exchange_cls.required_extra_args)
                 raise BadRequest(
@@ -363,7 +365,7 @@ async def get_client_symbols(query_params: ClientQueryParams = Depends(get_query
 
 async def get_balance(at: Optional[datetime],
                       client_ids: Optional[set[InputID]],
-                      user: User,
+                      user_id: UUID,
                       db: AsyncSession,
                       latest=True) -> Balance:
     balances = await db_all(
@@ -377,7 +379,7 @@ async def get_balance(at: Optional[datetime],
             ).order_by(
                 BalanceDB.client_id, desc(BalanceDB.time) if latest else asc(BalanceDB.time)
             ),
-            user_id=user.id,
+            user_id=user_id,
             client_ids=client_ids
         ),
         BalanceDB.client,
@@ -390,20 +392,41 @@ async def get_balance(at: Optional[datetime],
         raise NotFound('No matching balance')
 
 
+auth = get_auth_grant_dependency(ChapterGrant)
+
+
 @router.get('/client/balance', response_model=Balance)
 async def get_client_balance(at: Optional[datetime] = Query(None),
                              gain_since: Optional[datetime] = Query(default=None),
                              client_id: Optional[set[InputID]] = Query(None),
-                             user: User = Depends(CurrentUser),
+                             chapter_id: Optional[InputID] = Query(None),
+                             grant: AuthGrant = Depends(auth),
                              db: AsyncSession = Depends(get_db)):
-    balance = await get_balance(at, client_id, user, db, latest=True)
+    if not grant.root:
+        if chapter_id:
+            node = await db_first(
+                Chapter.query_nodes(
+                    chapter_id,
+                    node_type='balanceDisplay',
+                    query_params=ClientQueryParams.construct(
+                        since=gain_since,
+                        to=at,
+                        client_ids=client_id
+                    )
+                ),
+                session=db
+            )
+            if not node:
+                raise Unauthorized()
+
+    balance = await get_balance(at, client_id, grant.user_id, db, latest=True)
 
     if gain_since or True:
-        gain_balance = await get_balance(gain_since, client_id, user, db, latest=False)
+        gain_balance = await get_balance(gain_since, client_id, grant.user_id, db, latest=False)
 
         offset = await Client.get_total_transfered(
             client_id,
-            user.id,
+            grant.user_id,
             since=gain_since,
             to=at,
             db=db
@@ -471,15 +494,17 @@ async def update_client(client_id: InputID,
                                                 db=db)
 
     if client:
-        for k, v in body.dict(exclude_none=True, exclude={'api'}).items():
+        for k, v in body.dict(exclude_unset=True, exclude={'api'}).items():
             setattr(client, k, v)
 
         if body.api:
             for k, v in body.api.dict().items():
                 setattr(client, k, v)
 
+            client.state = ClientState.OK
+
             exchange_cls = EXCHANGES[client.exchange]
-            async with exchange_cls(client, http_session, db_maker=async_maker) as worker:
+            async with exchange_cls(client, http_session, db_maker=async_maker, commit=False) as worker:
                 try:
                     await worker.get_balance()
                 except InvalidClientError:

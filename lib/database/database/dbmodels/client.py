@@ -3,14 +3,15 @@ import asyncio
 import logging
 from datetime import datetime, date, timedelta
 from enum import Enum
-from typing import Optional, Union, Literal, Any, TYPE_CHECKING, NamedTuple
+from typing import Optional, Union, Literal, Any, TYPE_CHECKING, NamedTuple, Iterable
 from uuid import UUID
 import sqlalchemy as sa
 import pytz
 from aioredis import Redis
 from fastapi_users_db_sqlalchemy import GUID
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, PickleType, or_, desc, Boolean, select, func, \
-    Date, UniqueConstraint
+    Date, UniqueConstraint, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import relationship, reconstructor, RelationshipProperty
 
@@ -216,7 +217,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
     )
     exchange = Column(String, nullable=False)
     subaccount = Column(String, nullable=True)
-    extra_kwargs = Column(PickleType, nullable=True)
+    extra = Column(JSON, nullable=True)
     currency = Column(String(10), default='USD')
     sandbox = Column(Boolean, default=False)
 
@@ -347,7 +348,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
 
     @classmethod
     async def get_total_transfered(cls,
-                                   client_ids: list[int],
+                                   client_ids: Iterable[int],
                                    user_id: UUID,
                                    ccy=None,
                                    since: datetime = None,
@@ -535,7 +536,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
 
 
 def add_client_checks(stmt: Union[Select, Delete, Update], user_id: UUID,
-                      client_ids: set[int] | list[int] = None,
+                      client_ids: Iterable[int] = None,
                       currency: str = None) -> Union[Select, Delete, Update]:
     """
     Commonly used utility to add filters that ensure authorized client access

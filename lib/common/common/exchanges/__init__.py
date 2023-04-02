@@ -4,6 +4,7 @@ from typing import Type
 from ccxt import Exchange
 
 from common.exchanges.exchangeworker import ExchangeWorker
+from database.dbmodels.client import ExchangeInfo
 from database.models.client import ClientCreate
 from common.exchanges.binance.worker import BinanceFutures, BinanceSpot
 from common.exchanges.binance.ticker import BinanceFuturesTicker

@@ -1,5 +1,6 @@
 import operator
 from datetime import datetime
+from sqlalchemy import or_
 from typing import Any, Type, TypeVar, Generic
 
 from database.dbsync import BaseMixin
@@ -102,10 +103,10 @@ class FilterParam(BaseModel, Generic[T]):
         col = getattr(table, self.field)
         cmp_func = self.cmp_func
 
-        return stmt.where(*[
+        return stmt.where(or_(
             cmp_func(col, value)
             for value in self.values
-        ])
+        ))
 
     def check(self, other: T):
         compare_value = getattr(other, self.field)

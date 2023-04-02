@@ -40,7 +40,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
 
     first_balance = await db_client.get_latest_balance(redis)
 
-    async def get_trades():
+    async def get_trades() -> list[Trade]:
         async with session_maker() as db:
             return await db_all(
                 select(Trade).where(
@@ -87,8 +87,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
     ) as listener:
         await MockExchange.put_exec(symbol=symbol, side=Side.SELL, qty=size / 2, price=17500)
         await listener.wait(3)
-
-        await asyncio.sleep(1)
+        await asyncio.sleep(.1)
 
     trade = await get_trade()
     assert trade.open_qty == size / 2
@@ -109,9 +108,12 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
 
     trades = await get_trades()
     assert len(trades) == 2
-    assert not trades[0].is_open
-    assert trades[1].is_open
-    assert trades[1].qty == size / 2
+    finished = trades[0]
+    new = trades[1]
+    assert not finished.is_open
+    assert finished.close_time != finished.open_time
+    assert new.is_open
+    assert new.qty == size / 2
 
 
 @pytest.mark.parametrize(

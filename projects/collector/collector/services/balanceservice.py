@@ -57,13 +57,10 @@ class _BalanceServiceBase(BaseService):
         self._updates = set()
         # self._worker_lock = Lock()
 
-        self._all_client_stmt = db_eager(
-            select(Client).where(
-                ~Client.state.in_([ClientState.ARCHIVED, ClientState.INVALID])
-            ),
-            Client.currently_realized,
-            (Client.open_trades, [Trade.max_pnl, Trade.min_pnl, Trade.init_balance]),
+        self._all_client_stmt = select(Client).where(
+            ~Client.state.in_([ClientState.ARCHIVED, ClientState.INVALID])
         )
+
         self._active_client_stmt = self._all_client_stmt.join(
             Trade,
             and_(
@@ -148,8 +145,6 @@ class _BalanceServiceBase(BaseService):
                 self._all_client_stmt.filter_by(id=client_id),
                 session=self._db
             )
-        # async with self._db_maker() as db:
-        #     client = await db.get(Client, client_id)
         if client:
             return await self.add_client(client)
         else:
@@ -221,10 +216,13 @@ class BasicBalanceService(_BalanceServiceBase):
     async def update_worker_queue(self, worker_queue: Deque[ExchangeWorker]):
         if worker_queue:
             worker = worker_queue[0]
-            balance = await worker.intelligent_get_balance()
-            if balance:
-                await self._balance_queue.put(balance)
-            worker_queue.rotate()
+            try:
+                balance = await worker.intelligent_get_balance()
+                if balance:
+                    await self._balance_queue.put(balance)
+                worker_queue.rotate()
+            except InvalidClientError:
+                await self._remove_worker(worker)
 
     async def init(self):
 
@@ -289,6 +287,12 @@ class ExtendedBalanceService(_BalanceServiceBase):
                 TRADE.FINISHED: self._on_trade_finished,
             }
         )
+        self._all_client_stmt = db_eager(
+            self._all_client_stmt,
+            Client.currently_realized,
+            (Client.open_trades, [Trade.max_pnl, Trade.min_pnl, Trade.init_balance])
+        )
+
         clients = await db_all(
             self._all_client_stmt.filter(
                 Client.type == ClientType.FULL,
@@ -361,7 +365,6 @@ class ExtendedBalanceService(_BalanceServiceBase):
                 return worker
             except InvalidClientError:
                 self._logger.exception(f'Error while adding {worker.client_id=}')
-
                 return None
             except Exception:
                 self._logger.exception(f'Error while adding {worker.client_id=}')

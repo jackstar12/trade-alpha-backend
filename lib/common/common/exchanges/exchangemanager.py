@@ -108,7 +108,7 @@ class ExchangeManager:
         self._api_key = client.api_key
         self._api_secret = client.api_secret
         self._subaccount = client.subaccount
-        self._extra_kwargs = client.extra_kwargs
+        self._extra = client.extra
 
         self._session = session
         self._last_fetch = datetime.fromtimestamp(0, tz=pytz.UTC)

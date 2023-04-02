@@ -32,7 +32,6 @@ def Unauthorized(detail: str = None):
 
 def InternalError(detail: str = None, code: int = None, **kwargs):
     return HTTPException(detail=detail or 'Internal Error', status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
-    return Response(detail or 'Internal Error', code, HTTPStatus.INTERNAL_SERVER_ERROR, **kwargs)
 
 
 def OK(detail: str = None, code: int = None, **kwargs):

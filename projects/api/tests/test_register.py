@@ -14,7 +14,7 @@ pytestmark = pytest.mark.anyio
             exchange="binance-futures",
             api_key="invalid-key",
             api_secret="invalid-secret",
-            extra_kwargs={}
+            extra={}
         )
     ],
 )

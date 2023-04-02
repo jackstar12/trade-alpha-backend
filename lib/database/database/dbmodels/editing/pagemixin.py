@@ -11,7 +11,7 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import aliased, declared_attr
 
 from core import safe_cmp, map_list
-from database.dbasync import db_all, safe_op
+from database.dbasync import db_all, safe_op, safe_eq
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbmodels.types import Document
 from database.models.document import DocumentModel
@@ -75,7 +75,11 @@ class PageMixin(EditsMixin):
         return select(other.id).where(self.id == other.parent_id)
 
     @classmethod
-    def query_nodes(cls, root_id: id, query_params: ClientQueryParams = None, trade_ids: list[int] = None):
+    def query_nodes(cls,
+                    root_id: id,
+                    node_type: str = None,
+                    query_params: ClientQueryParams = None,
+                    trade_ids: list[int] = None):
         tree = select(
             func.jsonb_array_elements(cls.doc['content']).cast(JSONB).label('node')
         ).where(
@@ -88,26 +92,29 @@ class PageMixin(EditsMixin):
             select(
                 func.jsonb_array_elements(tree.c.node['content']).cast(JSONB)
             ).where(
-                func.jsonb_exists(attrs, 'data')
+                func.jsonb_exists(attrs, 'data'),
+                safe_eq(tree.c.node['type'].astext, node_type)
             )
         )
         data = tree.c.node['attrs']['data']
 
-        whereas = (
-            data != JSONB.NULL,
-            cmp_dates(data['dates']['to'], query_params.to),
-            cmp_dates(data['dates']['since'], query_params.since),
-            or_(
-                data['clientIds'] == JSONB.NULL,
-                data['clientIds'].contains(map_list(str, query_params.client_ids))
-            ),
-            #or_(
-            #    data['tradeIds'] == JSONB.NULL,
-            #    data['tradeIds'].contains(trade_ids and map_list(str, trade_ids))
-            #)
-        )
+        if query_params:
+            whereas = (
+                cmp_dates(data['dates']['to'], query_params.to),
+                cmp_dates(data['dates']['since'], query_params.since),
+                or_(
+                    data['clientIds'] == JSONB.NULL,
+                    data['clientIds'].contains(map_list(str, query_params.client_ids))
+                ),
+                #or_(
+                #    data['tradeIds'] == JSONB.NULL,
+                #    data['tradeIds'].contains(trade_ids and map_list(str, trade_ids))
+                #)
+            )
+        else:
+            whereas = tuple()
 
-        return select(data).where(*whereas)
+        return select(data).where(data != JSONB.NULL, *whereas)
 
     @classmethod
     async def all_childs(cls, root_id: int, db):

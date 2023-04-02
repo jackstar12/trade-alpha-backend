@@ -134,7 +134,7 @@ def ccxt_client(db_client, session):
         'api_key': db_client.api_key,
         'secret': db_client.api_secret,
         'session': session,
-        **(db_client.extra_kwargs or {})
+        **(db_client.extra or {})
     })
 
     ccxt.set_sandbox_mode(db_client.sandbox)

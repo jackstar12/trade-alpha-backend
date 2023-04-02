@@ -17,13 +17,13 @@ from database.models.client import ClientCreate, ClientApiInfo
 from database.models.interval import Interval, FullInterval
 
 
-def get_query_params(id: set[InputID] = Query(default=[]),
+def get_query_params(client_id: set[InputID] = Query(default=[]),
                      currency: str = Query(default=None),
                      since: datetime = Query(default=None),
                      to: datetime = Query(default=None),
                      order: str = Query(default='asc')):
     return qmxin.ClientQueryParams(
-        client_ids=id,
+        client_ids=client_id,
         currency=currency,
         since=since,
         to=to,
@@ -78,7 +78,7 @@ class ClientDetailed(ClientInfo):
     last_edited: Optional[datetime]
     subaccount: Optional[str]
     api_key: str
-    extra_kwargs: Optional[Dict]
+    extra: Optional[Dict]
 
     # Relations
     trade_template: Optional[TemplateInfo]

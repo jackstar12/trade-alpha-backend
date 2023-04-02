@@ -89,9 +89,9 @@ class DiscordUser(OAuthAccount):
 
         if client.subaccount:
             embed.add_field(name='Subaccount', value=client.subaccount)
-        if client.extra_kwargs:
-            for extra in client.extra_kwargs:
-                embed.add_field(name=extra, value=client.extra_kwargs[extra])
+        if client.extra:
+            for extra in client.extra:
+                embed.add_field(name=extra, value=client.extra[extra])
 
         initial = await client.initial()
         if initial:

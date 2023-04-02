@@ -274,16 +274,17 @@ def get_auth_assoc_dependency(*eager: list[TEager],
                 AuthGrant.public
             )
 
-        grant: AuthGrant = await db_unique(
+        assoc: GrantAssociaton = await db_unique(
             base,
+            GrantAssociaton.grant,
             *eager,
             session=db,
         )
 
         try:
-            if grant:
-                await grant.validate(user)
-                return grant
+            if assoc:
+                assoc.grant.validate()
+                return assoc
             elif user:
                 return AuthGrant(user=user, user_id=user.id, root=True)
             else:

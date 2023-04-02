@@ -165,9 +165,10 @@ class ExchangeWorker:
                  http_session: aiohttp.ClientSession,
                  db_maker: sessionmaker,
                  messenger: Messenger = None,
-                 execution_dedupe_seconds: float = 5e-3, ):
+                 execution_dedupe_seconds: float = 5e-3,
+                 commit=True):
 
-        self.client_id = client.id
+        self.client_id = client.id if commit else None
         self.exchange = client.exchange
         self.messenger = messenger
         self.client: Optional[Client] = client
@@ -177,7 +178,7 @@ class ExchangeWorker:
         self._api_key = client.api_key
         self._api_secret = client.api_secret
         self._subaccount = client.subaccount
-        self._extra_kwargs = client.extra_kwargs
+        self._extra_kwargs = client.extra
 
         self._http = http_session
         self._last_fetch: Balance | None = None
@@ -214,13 +215,7 @@ class ExchangeWorker:
                 or
                 now - self._last_fetch.time > timedelta(seconds=PRIORITY_INTERVALS[priority])
         ):
-            try:
-                balance = await self._get_balance(now, upnl=upnl)
-            except ResponseError as e:
-                return db_balance.Balance(
-                    time=now,
-                    error=e.human
-                )
+            balance = await self._get_balance(now, upnl=upnl)
             if not balance.time:
                 balance.time = now
             self._last_fetch = balance
@@ -843,8 +838,9 @@ class ExchangeWorker:
         pass
 
     @classmethod
-    def _check_for_error(cls, response_json: Dict, response: ClientResponse):
-        pass
+    def _check_for_error(cls, response_json: dict, response: ClientResponse):
+        if response.status == 401:
+            raise InvalidClientError(human='Invalid Credentials', response=response)
 
     @classmethod
     async def _process_response(cls, response: ClientResponse) -> dict:
@@ -1018,6 +1014,7 @@ class ExchangeWorker:
                     await db.execute(
                         update(Client).where(Client.id == self.client_id).values(state=ClientState.INVALID)
                     )
+                    await db.commit()
             raise
 
     def get(self, path: str, **kwargs):

@@ -1,6 +1,7 @@
+from http import HTTPStatus
 from typing import Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.dialects.postgresql import insert as insertpg
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,7 +46,7 @@ async def get_discord_info(user: User = Depends(CurrentUser),
 
         discord_info = await user.discord.populate_oauth_data(dc_rpc.redis)
     except rpc.TimeoutError:
-        raise InternalError('Discord data is currently not available')
+        raise HTTPException(status_code=HTTPStatus.REQUEST_TIMEOUT, detail='Discord data is currently not available')
 
     guilds = await db_select_all(
         GuildDB,

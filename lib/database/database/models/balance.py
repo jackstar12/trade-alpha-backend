@@ -41,7 +41,7 @@ class AmountBase(OrmBaseModel):
 
     def __add__(self, other: 'AmountBase'):
         self._assert_equal(other)
-        return Amount.construct(
+        return Amount(
             realized=self.realized + other.realized,
             unrealized=self.unrealized + other.unrealized,
             currency=self.currency,
@@ -57,14 +57,14 @@ class Amount(AmountBase):
 
     def __add__(self, other: 'Amount'):
         self._assert_equal(other)
-        return Amount.construct(
+        return Amount(
             realized=self.realized + other.realized,
             unrealized=self.unrealized + other.unrealized,
             currency=self.currency,
             time=safe_cmp_default(max, self.time, other.time),
             rate=(
                 (self.rate * self.realized + other.rate * other.realized) / (self.realized + other.realized)
-                if self.rate and other.rate else self.rate or other.rate
+                if (self.rate and other.rate and (self.realized or other.realized)) else self.rate or other.rate
             )
         )
 

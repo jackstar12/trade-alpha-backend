@@ -4,14 +4,16 @@ from decimal import Decimal
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
+from database.dbmodels.mixins.filtermixin import FilterMixin, FilterParam
 from database.dbsync import Base, BaseMixin
 from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Numeric, Enum, UniqueConstraint, Boolean, case
 from database.dbmodels.mixins.serializer import Serializer
 from database.enums import ExecType, Side, MarketType
 from database.dbmodels.symbol import CurrencyMixin
+import database.dbmodels as dbmodels
 
 
-class Execution(Base, Serializer, BaseMixin, CurrencyMixin):
+class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
     __tablename__ = 'execution'
 
     id = Column(Integer, primary_key=True)
@@ -58,6 +60,10 @@ class Execution(Base, Serializer, BaseMixin, CurrencyMixin):
     def effective_qty(cls):
         return case((cls.side == Side.SELL, cls.qty * -1), else_=cls.qty)
 
+    @classmethod
+    def apply(cls, param: FilterParam, stmt):
+        stmt = stmt.join(Execution.trade)
+        return dbmodels.Trade.apply(param, stmt)
 
     def __repr__(self):
         return f'<{self.__class__.__name__} {self.side} {self.symbol}@{self.price} {self.qty}'

@@ -557,6 +557,6 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
 
 @event.listens_for(Trade, 'before_update')
-def before_commit(mapper, connection, trade: Trade):
+def before_update(mapper, connection, trade: Trade):
     if not trade.is_open and not trade.close_time:
         trade.close_time = trade.executions[-1].time

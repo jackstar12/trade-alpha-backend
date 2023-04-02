@@ -155,7 +155,6 @@ class BybitDerivativesWorker(_BybitBaseClient):
         usd_records = await self._get_paginated_v3(path='/contract/v3/private/account/wallet/fund-records',
                                                    params=pnlParams)
 
-
         balance = await self.get_balance()
         balance.client = self.client
 

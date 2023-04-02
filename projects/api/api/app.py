@@ -4,6 +4,7 @@ import aiohttp
 import uvicorn
 from fastapi import FastAPI, Depends, APIRouter, HTTPException
 from httpx_oauth.clients.discord import DiscordOAuth2
+from starlette.middleware.cors import CORSMiddleware
 
 import api.routers.action as action
 import api.routers.analytics as analytics
@@ -62,6 +63,8 @@ app = FastAPI(
 # app.add_middleware(SessionMiddleware, secret_key='SECRET')
 # app.add_middleware(CSRFMiddleware, secret='SECRET', sensitive_cookies=[settings.session_cookie_name])
 # app.add_midleware(DbSessionMiddleware)
+
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
 app.include_router(fastapi_users.get_verify_router(UserRead), prefix=PREFIX)
 app.include_router(fastapi_users.get_reset_password_router(), prefix=PREFIX)
