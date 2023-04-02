@@ -367,7 +367,7 @@ class ExchangeWorker:
                 if exec_sum == check_sum and exec_sum != 0:
                     valid_until = (execution or check).time
 
-            all_executions = [e for e in all_executions if e.time > valid_until] if valid_until else all_executions
+            all_executions = [e for e in all_executions if e.time >= valid_until] if valid_until else all_executions
 
             executions_by_symbol = core.groupby(all_executions, lambda e: e.symbol)
 
@@ -377,14 +377,14 @@ class ExchangeWorker:
                 else:
                     await db.delete(trade)
 
-            if client.currently_realized and valid_until and valid_until < client.currently_realized.time and all_executions:
-                bl = db_balance.Balance
-                await db.execute(
-                    delete(bl).where(
-                        bl.client_id == client.id,
-                        bl.time > valid_until
-                    )
-                )
+            #if client.currently_realized and valid_until and valid_until < client.currently_realized.time and all_executions:
+            #    bl = db_balance.Balance
+            #    await db.execute(
+            #        delete(bl).where(
+            #            bl.client_id == client.id,
+            #            bl.time > valid_until
+            #        )
+            #    )
 
             await db.flush()
 
@@ -720,7 +720,6 @@ class ExchangeWorker:
                             ).join(Trade.initial),
                             session=db
                         )
-
                         if spot_trade:
                             spot_trade.open_qty += current.net_pnl
                             spot_trade.qty = max(spot_trade.qty, spot_trade.open_qty)

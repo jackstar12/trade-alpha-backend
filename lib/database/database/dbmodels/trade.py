@@ -64,12 +64,21 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     exit: Decimal = Column(Numeric, nullable=True)
     realized_pnl: Decimal = Column(Numeric, nullable=True, default=Decimal(0))
     total_commissions: Decimal = Column(Numeric, nullable=True, default=Decimal(0))
+    settle = Column(String(5), nullable=False)
 
     init_balance_id = Column(Integer, ForeignKey('balance.id', ondelete='SET NULL'), nullable=False)
     init_balance = relationship(
         'Balance',
         lazy='raise',
         foreign_keys=init_balance_id,
+        passive_deletes=True,
+        uselist=False
+    )
+
+    init_amount = relationship(
+        'Amount',
+        lazy='raise',
+        primaryjoin='and_(Trade.init_balance_id == foreign(Amount.balance_id), Trade.settle == foreign(Amount.currency) )',
         passive_deletes=True,
         uselist=False
     )
@@ -213,16 +222,20 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     def weekday(self):
         return self.open_time.weekday()
 
+    @weekday.expression
+    def weekday(cls):
+        return extract('dow', cls.open_time)
+
     @hybrid_property
     def account_gain(self):
         return self.net_pnl / self.init_amount.realized
 
     @hybrid_property
     def net_gain(self):
-        return self.net_pnl / self.size
+        return self.net_pnl / self.init_amount.realized
 
     @hybrid_property
-    def account_size_init(self):
+    def account_size(self):
         return self.size / self.init_amount.realized
 
     @hybrid_property
@@ -241,9 +254,9 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     def is_data(cls):
         return True
 
-    @property
-    def init_amount(self):
-        return self.init_balance.get_currency(ccy=self.settle)
+    #@property
+    #def init_amount(self):
+    #    return self.init_balance.get_currency(ccy=self.settle)
 
     @hybrid_property
     def is_open(self):
@@ -294,7 +307,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     @hybrid_property
     def duration(self):
-        return self.close_time - self.open_time
+        return self.close_time - self.open_time if self.close_time else None
 
     @classmethod
     def apply(cls, param: FilterParam, stmt):
@@ -410,7 +423,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         return significant
 
     def add_execution(self, execution: Execution, current_balance: Balance):
-        execution.trade = self
+        self.executions.append(execution)
         new = None
 
         if execution.type in (ExecType.FUNDING, ExecType.LIQUIDATION):

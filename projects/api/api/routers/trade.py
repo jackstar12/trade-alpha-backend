@@ -232,6 +232,7 @@ create_trade_endpoint(
 create_trade_endpoint(
     'trade',
     Trade,
+    TradeDB.init_amount,
     TradeDB.labels,
 )
 create_trade_endpoint(
@@ -243,7 +244,7 @@ create_trade_endpoint(
     TradeDB.max_pnl,
     TradeDB.min_pnl,
     TradeDB.labels,
-    (TradeDB.init_balance, Balance.extra_currencies),
+    TradeDB.init_amount
 )
 
 
@@ -304,13 +305,17 @@ async def get_executions(trade_id: list[InputID] = Query(default=None),
         if not trade_id:
             return OK(result=[])
 
+    stmt = select(ExecutionDB).join(ExecutionDB.trade)
+
+    for f in filters:
+        stmt = f.apply(stmt, TradeDB)
+
     data = await query_table(
         table=ExecutionDB,
-        stmt=select(ExecutionDB).join(ExecutionDB.trade),
+        stmt=stmt,
         user_id=grant.user.id,
         query_params=query_params,
         db=db,
-        filters=filters,
         client_col=TradeDB.client,
     )
 
