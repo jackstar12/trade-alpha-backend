@@ -5,7 +5,7 @@ description = "API"
 authors = ["jacksn"]
 
 [tool.poetry.dependencies]
-python = "3.10.3"
+python = ">=3.10, <3.11"
 common = {path = "../../lib/common", develop = true }
 database = {path = "../../lib/database", develop = true }
 core = { path = "../../lib/core", develop = true}

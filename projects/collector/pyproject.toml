@@ -5,7 +5,7 @@ description = "The heart of the platform - gets the data."
 authors = ["jacksn"]
 
 [tool.poetry.dependencies]
-python = "3.10.3"
+python = ">=3.10, <3.11"
 APScheduler = "3.9.1"
 common = {path = "../../lib/common", develop = true }
 core = { path = "../../lib/core", develop = true}

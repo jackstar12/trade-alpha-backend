@@ -6,7 +6,7 @@ authors = ["jacksn"]
 
 
 [tool.poetry.dependencies]
-python = "3.10.3"
+python = ">=3.10, <3.11"
 pydantic = "1.8.2"
 orjson = "3.6.8"
 python-dotenv = "0.19.0"

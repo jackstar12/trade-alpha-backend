@@ -6,7 +6,7 @@ authors = ["jacksn"]
 
 
 [tool.poetry.dependencies]
-python = "3.10.3"
+python = ">=3.10, <3.11"
 SQLAlchemy = { extras=["asyncio"], version="1.4.40" }
 asyncpg = "0.25.0"
 sqlalchemy_utils = "0.38.2"
