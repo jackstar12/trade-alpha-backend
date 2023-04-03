@@ -29,7 +29,7 @@ class AmountBase(OrmBaseModel):
         gain = (self.total - other.realized) - (offset or 0)
         return Gain.construct(
             absolute=gain,
-            relative=calc_percentage_diff(other.realized, gain)
+            relative=calc_percentage_diff(other.realized, gain),
         )
 
     @property

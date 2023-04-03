@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 class Gain(BaseModel):
     relative: Decimal
     absolute: Decimal
-    currency: Optional[str]
+    since: Optional[datetime]
 
     def to_string(self, ccy: str):
         return f'{round_ccy(self.relative, "%")}% ({round_ccy(self.absolute, ccy)}{ccy})'

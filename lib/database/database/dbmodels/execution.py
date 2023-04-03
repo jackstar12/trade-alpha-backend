@@ -58,7 +58,7 @@ class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
 
     @effective_qty.expression
     def effective_qty(cls):
-        return case((cls.side == Side.SELL, cls.qty * -1), else_=cls.qty)
+        return case((cls.side == Side.SELL, -1), else_=1) * cls.qty
 
     @classmethod
     def apply(cls, param: FilterParam, stmt):

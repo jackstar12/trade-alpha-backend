@@ -361,7 +361,9 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
                 ).label('total_transfered')
             ).join(Transfer.execution).where(
                 time_range(dbmodels.Execution.time, since, to),
-                safe_eq(Transfer.coin, ccy)
+                safe_eq(Transfer.coin, ccy),
+            ).join(
+                Transfer.client
             ),
             user_id,
             client_ids,

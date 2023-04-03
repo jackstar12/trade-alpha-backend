@@ -437,6 +437,7 @@ async def get_client_balance(at: Optional[datetime] = Query(None),
             grant.user_id,
             since=gain_since,
             to=at,
+            ccy=currency,
             db=db
         )
         balance.set_gain(gain_balance, offset)
