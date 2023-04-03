@@ -11,7 +11,7 @@ import database.dbmodels as dbmodels
 from database.dbmodels.client import ClientQueryMixin
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbsync import Base, BaseMixin
-from database.models.balance import Amount as AmountModel, Balance as BalanceModel
+from database.models.balance import Balance as BalanceModel
 from core.utils import round_ccy
 from database.models.market import Market
 
@@ -109,18 +109,27 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                 self.realized += amount.realized * amount.rate
                 self.unrealized += amount.unrealized * amount.rate
 
-    def get_currency(self, ccy: str = None) -> AmountModel:
+    def get_currency(self, ccy: str = None) -> BalanceModel:
         if ccy:
             for amount in self.extra_currencies:
                 if amount.currency == ccy:
-                    return AmountModel(
+                    return BalanceModel(
                         realized=amount.realized,
                         unrealized=amount.unrealized,
                         currency=ccy,
                         time=self.time,
+                        extra_currencies=[],
+                        rate=amount.rate
                     )
+            return BalanceModel(
+                realized=0,
+                unrealized=0,
+                currency=ccy,
+                time=self.time,
+                extra_currencies=[]
+            )
         else:
-            return AmountModel.from_orm(self)
+            return BalanceModel.from_orm(self)
 
     def get_realized(self, ccy: str = None) -> Decimal:
         amount = self.get_currency(ccy)

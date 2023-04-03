@@ -40,6 +40,7 @@ class Trade(BasicTrade):
     duration: Optional[timedelta]
     net_gain: Decimal
     account_size: Optional[Decimal]
+    init_amount: Optional[AmountBase]
 
     @validator('duration', pre=True)
     def duration_parse(cls, v: Any):
@@ -55,7 +56,6 @@ class DetailledTrade(Trade):
     tp: Optional[Decimal]
     sl: Optional[Decimal]
 
-    init_amount: Optional[AmountBase]
     max_pnl: Optional[PnlData]
     min_pnl: Optional[PnlData]
     sessions: list[TradeSession]

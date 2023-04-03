@@ -40,7 +40,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
 from database.models import BaseModel, InputID, OutputID
-from database.models.balance import Balance as BalanceModel, Amount
+from database.models.balance import Balance as BalanceModel, Balance
 from database.dbsync import Base, BaseMixin, FKey
 from database.models.discord.guild import GuildRequest
 from database.redis import TableNames, rpc

@@ -13,13 +13,14 @@ import jwt
 import pytz
 from fastapi import APIRouter, Depends, Request, Query
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy import delete, select, asc, func, text, desc, update
+from sqlalchemy import delete, select, asc, func, text, desc, update, and_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 
 import api.utils.client as client_utils
 from database.dbmodels.authgrant import ChapterGrant, AuthGrant, AssociationType
+from database.dbmodels.balance import Amount
 from database.dbmodels.transfer import Transfer as TransferDB
 from api.models.trade import Trade, BasicTrade
 from database.errors import InvalidClientError, ResponseError
@@ -43,7 +44,7 @@ from database.enums import IntervalType
 from common.exchanges import EXCHANGES
 from common.exchanges.exchangeworker import ExchangeWorker
 from database.models import OrmBaseModel, BaseModel, OutputID, InputID
-from database.models.balance import Balance
+from database.models.balance import Balance, Balance
 from database.models.client import ClientApiInfo
 from database.redis.client import ClientCacheKeys
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
@@ -367,27 +368,33 @@ async def get_balance(at: Optional[datetime],
                       client_ids: Optional[set[InputID]],
                       user_id: UUID,
                       db: AsyncSession,
+                      currency: Optional[str] = None,
                       latest=True) -> Balance:
-    balances = await db_all(
-        add_client_checks(
-            select(BalanceDB).distinct(
-                BalanceDB.client_id
-            ).where(
-                (BalanceDB.time < at if latest else BalanceDB.time > at) if at else True
-            ).join(
-                BalanceDB.client
-            ).order_by(
-                BalanceDB.client_id, desc(BalanceDB.time) if latest else asc(BalanceDB.time)
-            ),
-            user_id=user_id,
-            client_ids=client_ids
-        ),
+
+    stmt = (
+        select(BalanceDB).distinct(
+            BalanceDB.client_id
+        ).where(
+            (BalanceDB.time < at if latest else BalanceDB.time > at) if at else True
+        ).join(
+            BalanceDB.client
+        ).order_by(
+            BalanceDB.client_id, desc(BalanceDB.time) if latest else asc(BalanceDB.time)
+        )
+    )
+
+    if currency:
+        stmt = stmt.join(
+            Amount, and_(Amount.balance_id == BalanceDB.id, Amount.currency == currency)
+        )
+
+    balances: list[BalanceDB] = await db_all(
+        add_client_checks(stmt, user_id=user_id, client_ids=client_ids),
         BalanceDB.client,
         session=db
     )
-    balances = [Balance.from_orm(balance) for balance in balances]
     if balances:
-        return Balance.add(*balances)
+        return Balance.sum([balance.get_currency(currency) for balance in balances])
     else:
         raise NotFound('No matching balance')
 
@@ -400,6 +407,7 @@ async def get_client_balance(at: Optional[datetime] = Query(None),
                              gain_since: Optional[datetime] = Query(default=None),
                              client_id: Optional[set[InputID]] = Query(None),
                              chapter_id: Optional[InputID] = Query(None),
+                             currency: Optional[str] = Query(None),
                              grant: AuthGrant = Depends(auth),
                              db: AsyncSession = Depends(get_db)):
     if not grant.root:
@@ -419,10 +427,10 @@ async def get_client_balance(at: Optional[datetime] = Query(None),
             if not node:
                 raise Unauthorized()
 
-    balance = await get_balance(at, client_id, grant.user_id, db, latest=True)
+    balance = await get_balance(at, client_id, grant.user_id, db, currency=currency, latest=True)
 
     if gain_since or True:
-        gain_balance = await get_balance(gain_since, client_id, grant.user_id, db, latest=False)
+        gain_balance = await get_balance(gain_since, client_id, grant.user_id, db, currency=currency, latest=False)
 
         offset = await Client.get_total_transfered(
             client_id,

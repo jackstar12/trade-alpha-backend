@@ -40,7 +40,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
 from database.models import BaseModel, InputID
-from database.models.balance import Balance as BalanceModel, Amount
+from database.models.balance import Balance as BalanceModel, Balance
 from database.dbsync import Base, BaseMixin
 from database.models.eventinfo import EventState
 from database.redis import TableNames
@@ -496,7 +496,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
                 client=self,
                 time=time,
                 extra_currencies=[
-                    Amount(
+                    Balance(
                         currency=amount.currency,
                         realized=amount.realized,
                         # unrealized=amount.realized + sum(pnl.unrealized_ccy(amount.currency) for pnl in pnl_data),
