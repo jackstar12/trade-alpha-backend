@@ -75,31 +75,32 @@ async def create_event(body: EventCreate,
     except ValueError as e:
         raise BadRequest(str(e))
 
-    active_event = await dbutils.get_event(location=body.location,
-                                           throw_exceptions=False,
-                                           db=db)
+    if event.location.name != 'web':
+        active_event = await dbutils.get_event(location=body.location,
+                                               throw_exceptions=False,
+                                               db=db)
 
-    if active_event:
-        if body.start < active_event.end:
-            raise BadRequest(f"Event can't start while other event ({active_event.name}) is still active")
-        if body.registration_start < active_event.registration_end:
-            raise BadRequest(
-                f"Event registration can't start while other event ({active_event.name}) is still open for registration")
+        if active_event:
+            if body.start < active_event.end:
+                raise BadRequest(f"Event can't start while other event ({active_event.name}) is still active")
+            if body.registration_start < active_event.registration_end:
+                raise BadRequest(
+                    f"Event registration can't start while other event ({active_event.name}) is still open for registration")
 
-    active_registration = await dbutils.get_event(location=body.location, state=EventState.REGISTRATION,
-                                                  throw_exceptions=False,
-                                                  db=db)
+        active_registration = await dbutils.get_event(location=body.location, state=EventState.REGISTRATION,
+                                                      throw_exceptions=False,
+                                                      db=db)
 
-    if active_registration:
-        if body.registration_start < active_registration.registration_end:
-            raise BadRequest(
-                f"Event registration can't start while other event ({active_registration.name}) is open for registration")
+        if active_registration:
+            if body.registration_start < active_registration.registration_end:
+                raise BadRequest(
+                    f"Event registration can't start while other event ({active_registration.name}) is open for registration")
 
     db.add(event)
     await db.commit()
 
     return OK(
-        result=EventInfo.from_orm(event)
+        result=EventInfo.from_orm_with(event, extra={'grants': []})
     )
 
 
@@ -279,7 +280,7 @@ async def join_event(body: EventJoinBody,
     if client_id:
         try:
             entry = EventEntryDB(
-                event_id=grant.event_id,
+                event_id=grant.event.id,
                 client_id=client_id,
                 user=user
             )

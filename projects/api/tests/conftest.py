@@ -66,13 +66,13 @@ def confirm_clients(api_client, create_client, messenger):
 
         for data in clients:
             resp = create_client(data)
-            assert resp.status_code == 200
+            assert resp.ok, resp.json()
             async with Messages.create(
                     Channel('client', 'new'),
                     messenger=messenger
             ) as messages:
                 resp = api_client.post('client/confirm', json={**resp.json()})
-                assert resp.status_code == 200
+            assert resp.ok, resp.json()
                 #await messages.wait(.5)
 
             results.append(ClientInfo(**resp.json()))

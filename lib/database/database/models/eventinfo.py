@@ -46,13 +46,14 @@ class _Common(BaseModel):
 class EventCreate(_Common, CreateableModel):
     actions: Optional[list[ActionCreate]]
 
-    @validator('actions', pre=True, each_item=True)
-    def validate(cls, value: ActionCreate):
-        assert value.type == ActionType.EVENT
+    @validator('actions', each_item=True)
+    def validate_actions(cls, value: ActionCreate):
+        assert value['type'] == ActionType.EVENT.value
         return value
 
     def get(self, user: User) -> dbmodels.Event:
-        event = dbmodels.Event(**self.dict(exclude={'actions'}), owner=user)
+        values = {key: val for key, val in self.__dict__.items() if key != 'actions'}
+        event = dbmodels.Event(**values, owner=user)
         if self.actions:
             event.actions = [action.get(user) for action in self.actions]
         return event
