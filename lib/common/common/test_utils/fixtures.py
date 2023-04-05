@@ -34,7 +34,7 @@ def anyio_backend():
 @pytest.fixture(scope='session')
 def engine():
     return create_async_engine(
-        f'postgresql+asyncpg://{ENV.PG_TEST_URL}',
+        f'postgresql+asyncpg://{ENV.PG_URL}',
         json_serializer=customjson.dumps_no_bytes,
         json_deserializer=customjson.loads,
     )
