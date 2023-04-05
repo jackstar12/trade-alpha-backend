@@ -35,15 +35,17 @@ class ActionService(BaseService):
 
     @classmethod
     def to_embed(cls, table: Type[Serializer], data: dict):
-        return cls.get_embed(
-            title=table.__tablename__,
-            fields=data
-        )
         if table == Balance:
             return cls.get_balance_embed(Balance(**data))
         if table == Trade:
             return cls.get_trade_embed(Trade(**data))
-        return None
+        if table == Execution:
+            return cls.get_exec_embed(Execution(**data))
+
+        return cls.get_embed(
+            title=table.__tablename__,
+            fields=data
+        )
 
     @classmethod
     def get_trade_embed(cls, trade: Trade):
@@ -88,7 +90,7 @@ class ActionService(BaseService):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        #self.action_sync = SyncedService(self._messenger,
+        # self.action_sync = SyncedService(self._messenger,
         #                                 EVENT,
         #                                 get_stmt=self._get_event,
         #                                 update=self._get_event,
@@ -117,7 +119,7 @@ class ActionService(BaseService):
         messenger_space = self._messenger.get_namespace(action.type)
         if action.platform.name == 'webhook':
             url = action.platform.data['url']
-            # call
+            # TODO
         elif action.platform.name == 'discord':
             dc = rpc.Client('discord', self._redis)
             embed = self.to_embed(messenger_space.table, data)
@@ -125,7 +127,8 @@ class ActionService(BaseService):
                 'send',
                 MessageRequest(
                     **action.platform.data,
-                    embed=embed.to_dict() if embed else None
+                    embed=embed.to_dict() if embed else None,
+                    message=action.message
                 )
             )
 

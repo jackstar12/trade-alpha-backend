@@ -27,7 +27,7 @@ def api_client_logged_in(api_client):
     api_client.post(
         "/register",
         json={
-            "email": "test@gmail.com",
+            "email": "testuser@gmail.com",
             "password": "strongpassword123",
         }
     )
@@ -35,11 +35,11 @@ def api_client_logged_in(api_client):
     resp = api_client.post(
         "/login",
         data={
-            "username": "test@gmail.com",
+            "username": "testuser@gmail.com",
             "password": "strongpassword123"
         }
     )
-    assert resp.ok, "Login failed"
+    assert resp.ok, resp.json()
 
     # api_client.headers['x-csrftoken'] = api_client.cookies['csrftoken']
 

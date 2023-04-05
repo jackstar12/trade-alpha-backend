@@ -278,6 +278,8 @@ class Event(Base, Serializer, BaseMixin):
 
         await self.async_session.commit()
 
+        return leaderboard
+
     @hybrid_property
     def guild_id(self):
         return int(self.location.data['guild_id'])

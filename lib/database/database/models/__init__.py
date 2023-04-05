@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Type, Union, TYPE_CHECKING
+from typing import Type, Union, TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import TypeDecorator
@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 InputID = Union[int, str]
 OutputID = str
+
+Model = TypeVar('Model', bound='BaseModel')
 
 
 class BaseModel(PydanticBaseModel):
@@ -85,12 +87,22 @@ class BaseModel(PydanticBaseModel):
 
         return SAType
 
+    @classmethod
+    def from_orm_with(cls: Type[Model], obj: Any, extra: dict = None) -> Model:
+        values = extra or {}
+
+        for field in cls.__fields__.keys():
+            if field not in extra:
+                values[field] = getattr(obj, field)
+
+        return cls(**values)
+
 
 class CreateableModel(BaseModel):
     __table__: Type[BaseMixin]
 
     def get(self, user: User) -> BaseMixin:
-        return self.__table__(**self.__dict__, user=user)
+        return self.__table__(**self.dict(), user=user)
 
 
 class ValidatableModel(BaseModel):

@@ -6,6 +6,7 @@ from core.env import EnvBase
 
 class Environment(EnvBase):
     PG_URL: str
+    PG_TEST_URL: str
     REDIS_URL: str
     ENCRYPTION: SecretStr
 

@@ -10,7 +10,7 @@ from sqlalchemy.orm import relationship, object_session, Session
 import database.dbmodels as dbmodels
 from database.dbmodels.client import ClientQueryMixin
 from database.dbmodels.mixins.serializer import Serializer
-from database.dbsync import Base, BaseMixin
+from database.dbsync import Base, BaseMixin, FKey
 from database.models.balance import Balance as BalanceModel
 from core.utils import round_ccy
 from database.models.market import Market
@@ -31,7 +31,7 @@ class _Common:
 class Amount(Base, ClientQueryMixin, Serializer, BaseMixin, _Common):
     __tablename__ = 'amount'
 
-    balance_id = Column(ForeignKey('balance.id', ondelete="CASCADE"), primary_key=True)
+    balance_id = Column(FKey('balance.id', ondelete="CASCADE"), primary_key=True)
     balance = relationship('Balance', lazy='raise')
     currency: str = Column(sa.String, primary_key=True)
     rate = Column(Numeric, nullable=True)
@@ -55,7 +55,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
     __serializer_forbidden__ = ['id', 'error', 'client']
 
     id = Column(Integer, primary_key=True)
-    client_id = Column(Integer, ForeignKey('client.id', ondelete="CASCADE"), nullable=True)
+    client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=True)
     time = Column(DateTime(timezone=True), nullable=False, index=True)
 
     client: 'Client' = relationship('Client', lazy='raise', foreign_keys=client_id)
@@ -110,7 +110,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                 self.unrealized += amount.unrealized * amount.rate
 
     def get_currency(self, ccy: str = None) -> BalanceModel:
-        if ccy:
+        if ccy and ccy != self.currency:
             for amount in self.extra_currencies:
                 if amount.currency == ccy:
                     return BalanceModel(

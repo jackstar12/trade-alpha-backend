@@ -8,7 +8,7 @@ from sqlalchemy import Column, Integer, ForeignKey, String, BigInteger, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from database.dbsync import Base
+from database.dbsync import Base, FKey, fkey_name
 from database.enums import Side, MarketType
 from database.models import BaseModel
 
@@ -32,10 +32,14 @@ class Transfer(Base):
     id = Column(Integer, primary_key=True)
     client_id = Column(
         Integer,
-        ForeignKey('client.id', ondelete="CASCADE"),
+        FKey('client.id', ondelete="CASCADE"),
         nullable=False
     )
-    execution_id = Column(Integer, ForeignKey('execution.id', ondelete="CASCADE"), nullable=False)
+    execution_id = Column(Integer,
+                          ForeignKey('execution.id',
+                                     ondelete="CASCADE",
+                                     name=fkey_name(__tablename__, 'execution_id')),
+                          nullable=False)
 
     note = Column(String, nullable=True)
     coin = Column(String, nullable=True)
@@ -65,13 +69,12 @@ class Transfer(Base):
     def amount(self):
         return self.execution.effective_qty
 
-
-    #balance = relationship(
+    # balance = relationship(
     #    'Balance',
     #    back_populates='transfer',
     #    lazy='joined',
     #    uselist=False
-    #)
+    # )
 
     @hybrid_property
     def type(self) -> TransferType:

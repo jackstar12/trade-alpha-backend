@@ -5,8 +5,8 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from database.dbmodels.mixins.filtermixin import FilterMixin, FilterParam
-from database.dbsync import Base, BaseMixin
-from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Numeric, Enum, UniqueConstraint, Boolean, case
+from database.dbsync import Base, BaseMixin, FKey
+from sqlalchemy import Column, Integer, String, DateTime, Numeric, Enum, UniqueConstraint, Boolean, case
 from database.dbmodels.mixins.serializer import Serializer
 from database.enums import ExecType, Side, MarketType
 from database.dbmodels.symbol import CurrencyMixin
@@ -17,8 +17,8 @@ class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
     __tablename__ = 'execution'
 
     id = Column(Integer, primary_key=True)
-    trade_id = Column(ForeignKey('trade.id', ondelete='CASCADE'))
-    transfer_id = Column(ForeignKey('transfer.id', ondelete='CASCADE'))
+    trade_id = Column(FKey('trade.id', ondelete='CASCADE'))
+    transfer_id = Column(FKey('transfer.id', ondelete='CASCADE'))
 
     symbol = Column(String, nullable=False)
     time = Column(DateTime(timezone=True), nullable=False)

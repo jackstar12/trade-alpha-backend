@@ -30,6 +30,7 @@ class BasicTrade(OrmBaseModel):
     open_time: datetime
     settle: str
     weekday: int
+    duration: Optional[timedelta]
 
 
 class Trade(BasicTrade):
@@ -37,7 +38,6 @@ class Trade(BasicTrade):
     open_qty: Decimal
     label_ids: List[str]
     close_time: Optional[datetime]
-    duration: Optional[timedelta]
     net_gain: Decimal
     account_size: Optional[Decimal]
     init_amount: Optional[AmountBase]

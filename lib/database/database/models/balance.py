@@ -122,7 +122,7 @@ class Balance(AmountBase):
         return string
 
     def get_currency(self, currency: Optional[str]) -> Balance:
-        if currency:
+        if currency and currency != self.currency:
             realized = unrealized = rate = Decimal(0)
             if self.extra_currencies:
                 for amount in self.extra_currencies:

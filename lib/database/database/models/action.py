@@ -23,6 +23,7 @@ class ActionCreate(CreateableModel):
     type: ActionType
     topic: str
     platform: Union[DiscordPlatform, WebhookPlatform]
+    message: Optional[str]
     trigger_type: ActionTrigger
     trigger_ids: dict
 

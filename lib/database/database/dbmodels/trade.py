@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from database.dbmodels import Balance
 
 from database.dbmodels.pnldata import PnlData
-from database.dbsync import Base, BaseMixin
+from database.dbsync import Base, BaseMixin, FKey
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.execution import Execution
 from database.enums import Side, ExecType, Status, TradeSession, MarketType
@@ -33,8 +33,8 @@ import core
 from database.dbmodels.symbol import CurrencyMixin
 
 trade_association = Table('trade_association', Base.metadata,
-                          Column('trade_id', ForeignKey('trade.id', ondelete="CASCADE"), primary_key=True),
-                          Column('label_id', ForeignKey('label.id', ondelete="CASCADE"), primary_key=True))
+                          Column('trade_id', FKey('trade.id', ondelete="CASCADE"), primary_key=True),
+                          Column('label_id', FKey('label.id', ondelete="CASCADE"), primary_key=True))
 
 
 # class TradeType(Enum):
@@ -48,7 +48,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     __serializer_forbidden__ = ['client', 'initial']
 
     id = Column(Integer, primary_key=True)
-    client_id = Column(Integer, ForeignKey('client.id', ondelete="CASCADE"), nullable=False)
+    client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=False)
     client = relationship('Client', lazy='noload')
     labels = relationship('Label', lazy='noload', secondary=trade_association, backref='trades')
 
@@ -120,7 +120,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                                            passive_deletes=True,
                                            order_by="PnlData.time")
 
-    initial_execution_id = Column(Integer, ForeignKey('execution.id', ondelete='SET NULL'), nullable=True)
+    initial_execution_id = Column(Integer, FKey('execution.id', ondelete='SET NULL'), nullable=True)
     initial: Execution = relationship(
         'Execution',
         lazy='joined',

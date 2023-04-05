@@ -40,7 +40,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
 from database.models import BaseModel, InputID
-from database.models.balance import Balance as BalanceModel, Balance
+from database.models.balance import Balance as BalanceModel
 from database.dbsync import Base, BaseMixin
 from database.models.eventinfo import EventState
 from database.redis import TableNames
@@ -295,7 +295,13 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
         balance_now = await self.get_latest_balance(redis=redis)
 
         if balance_then and balance_now:
-            transfered = await self.get_total_transfered(since=balance_then.time, ccy=currency)
+            transfered = await self.get_total_transfered(
+                since=balance_then.time,
+                ccy=currency,
+                client_ids={self.id},
+                user_id=self.user_id,
+                db=self.async_session
+            )
             return balance_now.get_currency(currency).gain_since(
                 balance_then.get_currency(currency),
                 transfered
