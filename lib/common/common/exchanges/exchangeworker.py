@@ -206,7 +206,7 @@ class ExchangeWorker:
 
     async def get_balance(self,
                           priority: Priority = Priority.MEDIUM,
-                          upnl=True) -> Optional[Balance]:
+                          upnl=True) -> Balance:
         now = utc_now()
         if (
                 priority == Priority.FORCE
