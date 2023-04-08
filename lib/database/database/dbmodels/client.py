@@ -303,8 +303,8 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
 
     def daily_balance_stmt(self,
                            amount: int = None,
-                           since: datetime = None,
-                           to: datetime = None):
+                           since: Optional[datetime] = None,
+                           to: Optional[datetime] = None):
         now = core.utc_now()
 
         since = since or datetime.fromtimestamp(0, pytz.utc)

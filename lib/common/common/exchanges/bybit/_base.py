@@ -10,7 +10,7 @@ from collections import OrderedDict
 from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
-from typing import Dict, List, Type, Callable
+from typing import Dict, List, Type, Callable, Any
 
 from aiohttp import ClientResponseError, ClientResponse
 
@@ -407,7 +407,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
     async def _get_internal_transfers_v3(self, since: datetime, account: Account) -> List[RawTransfer]:
         results = []
 
-        params = {'status': Transfer.SUCCESS.value}
+        params: dict[str, Any] = {'status': Transfer.SUCCESS.value}
         if since:
             params['startTime'] = self._parse_date(since)
 
@@ -461,8 +461,8 @@ class _BybitBaseClient(ExchangeWorker, ABC):
 
         return results
 
-    def _parse_date(self, date: datetime | date = None):
-        return int(date.timestamp() * 1000) if date else None
+    def _parse_date(self, date: datetime) -> int:
+        return int(date.timestamp() * 1000) if date else 0
 
 
 def get_contract_type(contract: str):

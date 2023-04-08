@@ -124,7 +124,7 @@ class BybitDerivativesWorker(_BybitBaseClient):
                                           category: Category,
                                           since: datetime) -> list[Execution]:
 
-        since_ts = self._parse_date(since) if since else None
+        since_ts = self._parse_date(since) if since else 0
 
         params = {'limit': 50, 'category': category.value, 'orderStatus': 'Filled'}
         raw_orders = await self._get_paginated_v3(path='/v5/order/history',
