@@ -5,9 +5,15 @@ import database.dbmodels as dbmodels
 from alembic.config import Config
 from alembic import command
 
-Base.metadata.create_all(engine)
 
-# then, load the Alembic configuration and generate the
-# version table, "stamping" it with the most recent rev:
-alembic_cfg = Config("alembic.ini")
-command.stamp(alembic_cfg, "head")
+def init_db():
+    Base.metadata.create_all(engine)
+
+    # then, load the Alembic configuration and generate the
+    # version table, "stamping" it with the most recent rev:
+    alembic_cfg = Config("alembic.ini")
+    command.stamp(alembic_cfg, "head")
+
+
+if __name__ == '__main__':
+    init_db()

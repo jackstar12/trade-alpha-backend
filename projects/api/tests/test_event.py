@@ -7,15 +7,15 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from requests import Response
 
-
 from api.routers.event import EventUpdate, EventJoinBody
 from api.utils.responses import ResponseModel
 from common.exchanges import SANDBOX_CLIENTS
 from common.test_utils.mock import event_mock
-from database.models import BaseModel
-from database.models.eventinfo import EventInfo, EventDetailed, Leaderboard
+from database.models.eventinfo import EventInfo, EventDetailed, Leaderboard, EventEntry
 
 T = TypeVar('T')
+
+pytestmark = pytest.mark.anyio
 
 
 def parse_response(resp: Response, model: Type[T] = None) -> tuple[Response, T]:
@@ -37,7 +37,7 @@ def event(api_client_logged_in):
         event_mock(now)
     ))
 
-    assert resp.ok
+    assert resp.ok, resp.json()
     resp, event = parse_response(resp, EventInfo)
 
     yield event
@@ -75,36 +75,46 @@ def test_modify_event(event, api_client_logged_in):
 
 
 @pytest.mark.parametrize(
-    'clients',
-    [[SANDBOX_CLIENTS[0]]],
+    'confirmed_client',
+    [SANDBOX_CLIENTS[0]],
+    indirect=True
 )
-async def test_register_event(event, api_client_logged_in, confirm_clients, clients):
-    async with confirm_clients(clients) as confirmed_clients:
-        event_url = f'event/{event.id}'
-        for client in confirmed_clients:
-            resp = api_client_logged_in.post(event_url + '/registrations',
-                                             json=EventJoinBody(client_id=client.id).dict())
-            assert resp.ok
+async def test_register_event(event, api_client_logged_in, confirmed_client):
+    event_url = f'event/{event.id}'
+    entries = []
 
-        resp, result = parse_response(
-            api_client_logged_in.get(event_url),
-            EventDetailed
-        )
+    resp, entry = parse_response(
+        api_client_logged_in.post(event_url + '/registrations',
+                                  json=EventJoinBody(client_id=confirmed_client.id).dict()),
+        EventEntry
+    )
 
-        assert resp.ok
-        assert len(result.entries) == len(confirmed_clients)
-        assert result.id == event.id
+    assert resp.ok, resp.json()
+    entries.append(entry)
 
-        resp, result = parse_response(
-            api_client_logged_in.get(event_url + '/leaderboard'),
-            Leaderboard
-        )
+    resp = api_client_logged_in.post(event_url + '/registrations',
+                                     json=EventJoinBody(client_id=confirmed_client.id).dict())
+    assert resp.status_code == 400
 
-        assert len(result.unknown) == len(confirmed_clients)
+    resp, result = parse_response(
+        api_client_logged_in.get(event_url),
+        EventDetailed
+    )
 
-        for client in confirmed_clients:
-            resp = api_client_logged_in.delete(event_url + '/registrations')
-            assert resp.ok
+    assert resp.ok, resp.json()
+    assert len(result.entries) == len(entries)
+    assert result.id == event.id
+
+    resp, result = parse_response(
+        api_client_logged_in.get(event_url + '/leaderboard'),
+        Leaderboard
+    )
+
+    assert len(result.unknown) == len(entries)
+
+    for entry in entries:
+        resp = api_client_logged_in.delete(event_url + f'/registrations/{entry.id}')
+        assert resp.ok, resp.json()
 
 
 def test_get_all(event, api_client_logged_in):

@@ -38,6 +38,7 @@ class EventService(BaseService):
             select(Event).where(Event.is_expr(EventState.ACTIVE))
         ):
             self._schedule(event)
+            await self._save_event(event.id)
 
         await self._messenger.bulk_sub(
             TableNames.EVENT, {

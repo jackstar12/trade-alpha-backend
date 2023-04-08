@@ -1,40 +1,34 @@
-import os
-
 import aiohttp
 import uvicorn
-from fastapi import FastAPI, Depends, APIRouter, HTTPException
+from fastapi import FastAPI
 from httpx_oauth.clients.discord import DiscordOAuth2
 from starlette.middleware.cors import CORSMiddleware
 
 import api.routers.action as action
 import api.routers.analytics as analytics
+import api.routers.authgrant as authgrant
+import api.routers.chapter as chapter
 import api.routers.client as client
 import api.routers.discord as discord
 import api.routers.event as event
 import api.routers.journal as journal
 import api.routers.label as label
+import api.routers.page as page
+import api.routers.preset as preset
 import api.routers.template as template
 import api.routers.test as test
 import api.routers.trade as trade
 import api.routers.user as user
-import api.routers.authgrant as authgrant
-import api.routers.chapter as chapter
-import api.routers.page as page
-import api.routers.preset as preset
-
 from api.dependencies import messenger, set_http_session, get_http_session
 from api.env import ENV
 from api.models.user import UserRead, UserCreate
 from api.routers import labelgroup
 from api.users import fastapi_users, auth_backend
 from api.utils.responses import OK
-from database.dbmodels import Event, Client, EventEntry
 from core.utils import setup_logger
+from database.dbmodels import Event, Client
 from database.dbmodels.action import Action
 from database.dbmodels.authgrant import AuthGrant
-from alembic.config import Config
-from alembic import command
-
 from database.utils import run_migrations
 
 VERSION = 1
@@ -64,7 +58,8 @@ app = FastAPI(
 # app.add_middleware(CSRFMiddleware, secret='SECRET', sensitive_cookies=[settings.session_cookie_name])
 # app.add_midleware(DbSessionMiddleware)
 
-app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'],
+                   allow_headers=['*'])
 
 app.include_router(fastapi_users.get_verify_router(UserRead), prefix=PREFIX)
 app.include_router(fastapi_users.get_reset_password_router(), prefix=PREFIX)
@@ -136,7 +131,6 @@ async def on_start():
 
 @app.on_event("shutdown")
 async def on_stop():
-
     await (get_http_session().close())
 
 

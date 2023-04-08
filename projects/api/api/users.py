@@ -177,10 +177,10 @@ OptionalUser = fastapi_users.current_user(optional=True, active=True)
 
 def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
                               eager: list[TEager] = None,
-                              root_only=False):
+                              require_user=False):
     async def get_auth_grant(request: Request,
                              db: AsyncSession = Depends(get_db),
-                             user: Optional[User] = Depends(CurrentUser if root_only else OptionalUser),
+                             user: Optional[User] = Depends(CurrentUser if require_user else OptionalUser),
                              token: str = Query(default=None),
                              public_id: uuid.UUID = Query(default=None)):
 
@@ -246,7 +246,7 @@ def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
     return get_auth_grant
 
 
-def get_auth_assoc_dependency(*eager: list[TEager],
+def get_table_auth_dependency(*eager: list[TEager],
                               association_table: Type[GrantAssociaton]):
     async def get_auth_grant(request: Request,
                              db: AsyncSession = Depends(get_db),
@@ -254,10 +254,10 @@ def get_auth_assoc_dependency(*eager: list[TEager],
                              token: str = Query(default=None),
                              public_id: uuid.UUID = Query(default=None, alias='public-id')):
         now = utc_now()
-        test = association_table.identity.property.key
+        ident = association_table.identity.property.key
 
         base = select(association_table).where(
-            association_table.identity == int(request.path_params[test]),
+            association_table.identity == int(request.path_params[ident]),
             or_(
                 AuthGrant.expires < now,
                 AuthGrant.expires == None
@@ -276,17 +276,19 @@ def get_auth_assoc_dependency(*eager: list[TEager],
 
         assoc: GrantAssociaton = await db_unique(
             base,
-            GrantAssociaton.grant,
+            association_table.grant,
             *eager,
             session=db,
         )
 
         try:
             if assoc:
-                assoc.grant.validate()
+                await assoc.grant.check(user)
                 return assoc
             elif user:
-                return AuthGrant(user=user, user_id=user.id, root=True)
+                assoc = association_table()
+                assoc.grant = AuthGrant(user=user, user_id=user.id, root=True)
+                return assoc
             else:
                 raise HTTPException(status_code=401, detail='Unauthorized')
         except AssertionError:

@@ -40,7 +40,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
 from database.models import BaseModel, InputID, OutputID
-from database.models.balance import Balance as BalanceModel, Amount
+from database.models.balance import Balance as BalanceModel, Balance
 from database.dbsync import Base, BaseMixin, FKey
 from database.models.discord.guild import GuildRequest
 from database.redis import TableNames, rpc
@@ -88,7 +88,7 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
     granted_journals = relationship('Journal', secondary='journalgrant', backref=backref('grants', lazy='noload'))
     granted_chapters = relationship('Chapter', secondary='chaptergrant', backref=backref('grants', lazy='noload'))
-    granted_events = relationship('Event', secondary='eventgrant', backref=backref('grants', lazy='noload'))
+    granted_events = relationship('Event', secondary='eventgrant')
     templates = relationship('Template', secondary='templategrant', backref=backref('grants', lazy='noload'))
 
     def __init__(self, *args, root=False, **kwargs):
@@ -124,7 +124,7 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
     @hybrid_property
     def discord(self) -> DiscordPermission:
-        return self.data.get('discord')
+        return self.data.get('discord') if self.data else None
 
     @discord.expression
     def discord(self):
@@ -178,7 +178,7 @@ class GrantAssociaton(BaseMixin):
 
     @declared_attr
     def grant(self):
-        return orm.relationship(AuthGrant, lazy='raise')
+        return orm.relationship(AuthGrant)
 
     @hybrid_property
     def identity(cls):
@@ -193,6 +193,7 @@ class EventGrant(Base, GrantAssociaton):
     __tablename__ = 'eventgrant'
 
     event_id = sa.Column(FKey('event.id', ondelete='CASCADE'), primary_key=True)
+    event = relationship('Event', lazy='raise')
     registrations_left = sa.Column(sa.Integer, nullable=True)
 
     @hybrid_property

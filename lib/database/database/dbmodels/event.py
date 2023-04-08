@@ -86,6 +86,8 @@ class Event(Base, Serializer, BaseMixin):
                            primaryjoin="foreign(Action.trigger_ids['event_id'].astext.cast(Integer)) == Event.id",
                            cascade="all, delete")
 
+    grants = relationship('EventGrant')
+
     @hybrid_property
     def all_clients(self):
         try:
@@ -277,6 +279,8 @@ class Event(Base, Serializer, BaseMixin):
         )
 
         await self.async_session.commit()
+
+        return leaderboard
 
     @hybrid_property
     def guild_id(self):

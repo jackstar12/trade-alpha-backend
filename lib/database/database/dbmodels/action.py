@@ -17,6 +17,7 @@ class ActionType(Enum):
     TRADE = TableNames.TRADE.value
     JOURNAL = TableNames.JOURNAL.value
     BALANCE = TableNames.BALANCE.value
+    EVENT = TableNames.EVENT.value
 
 
 class ActionTrigger(Enum):
@@ -35,6 +36,7 @@ class Action(Base, BaseMixin, EditsMixin, Serializer):
     type = sa.Column(sa.Enum(ActionType), nullable=False)
     topic = sa.Column(sa.String, nullable=False)
     platform = sa.Column(Platform, nullable=False)
+    message = sa.Column(sa.String, nullable=True)
     trigger_type = sa.Column(sa.Enum(ActionTrigger), nullable=False)
     _trigger_ids = sa.Column('trigger_ids', JSONB, nullable=True)
 

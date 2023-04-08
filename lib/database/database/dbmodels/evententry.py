@@ -15,7 +15,7 @@ from database.dbsync import fkey_name
 
 if TYPE_CHECKING:
     from database.dbmodels.balance import Balance as BalanceDB
-    from database.models.balance import Amount as AmountModel
+    from database.models.balance import Balance as AmountModel
 
 from database.dbsync import Base, BaseMixin
 

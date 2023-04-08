@@ -41,6 +41,8 @@ def run_migrations():
     command.upgrade(alembic_cfg, "head")
 
 
+
+
 async def query_table(*eager,
                       table: Type[TTable],
                       user_id: UUID,

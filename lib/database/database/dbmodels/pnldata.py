@@ -5,7 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
-from database.dbsync import Base, BaseMixin
+from database.dbsync import Base, BaseMixin, FKey
 from enum import Enum as PyEnum
 from database.models.compactpnldata import CompactPnlData
 from database.dbmodels.mixins.serializer import Serializer
@@ -21,7 +21,7 @@ class PnlData(Base, Serializer, BaseMixin):
     __tablename__ = 'pnldata'
 
     id = Column(BigInteger, primary_key=True)
-    trade_id = Column(Integer, ForeignKey('trade.id', ondelete="CASCADE"), nullable=False)
+    trade_id = Column(Integer, FKey('trade.id', ondelete="CASCADE"), nullable=False)
     trade = relationship('Trade', lazy='noload', uselist=False, foreign_keys=trade_id)
 
     realized: Decimal = Column(Numeric, nullable=False)

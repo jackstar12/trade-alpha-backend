@@ -18,12 +18,17 @@ from database.dbsync import Base
 from common.exchanges import EXCHANGES, EXCHANGE_TICKERS
 from common.messenger import Messenger, NameSpaceInput
 from database.env import ENV
+from database.utils import run_migrations
 
 pytestmark = pytest.mark.anyio
 
-
 EXCHANGES['mock'] = MockExchange
 EXCHANGE_TICKERS['mock'] = MockTicker
+
+
+@pytest.fixture(scope='session')
+def anyio_backend():
+    return 'asyncio'
 
 
 @pytest.fixture(scope='session')
@@ -39,6 +44,7 @@ def engine():
 async def tables(engine):
     async with engine.begin() as conn:
         # await conn.run_sync(Base.metadata.drop_all)
+        run_migrations()
         await conn.run_sync(Base.metadata.create_all)
 
 
@@ -47,22 +53,25 @@ def session_maker(tables, engine):
     return sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False)
 
 
+@pytest.fixture(scope='session')
+async def redis() -> Redis:
+    redis = aioredis.from_url(ENV.REDIS_URL)
+    try:
+        yield redis
+    finally:
+        await redis.close()
+
+
+@pytest.fixture(scope='session')
+async def messenger(redis) -> Messenger:
+    messenger = Messenger(redis=redis)
+    yield messenger
+
+
 @pytest.fixture(scope='function')
 async def db(tables, engine, session_maker) -> AsyncSession:
     async with session_maker() as db:
         yield db
-
-
-@pytest.fixture(scope='session')
-async def redis() -> Redis:
-    async with aioredis.from_url(ENV.REDIS_URL) as redis:
-        yield redis
-
-
-@pytest.fixture(scope='session')
-def messenger(redis) -> Messenger:
-    messenger = Messenger(redis=redis)
-    return messenger
 
 
 @dataclass
@@ -128,8 +137,3 @@ class Messages:
 async def redis_messages(request, messenger):
     async with Messages.create(*request.param, messenger=messenger) as messages:
         yield messages
-
-
-@pytest.fixture(scope='session')
-def anyio_backend():
-    return 'asyncio'

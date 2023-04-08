@@ -3,7 +3,7 @@ from __future__ import annotations
 import itertools
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Optional, Iterable, Sequence
 
 from database.models import OrmBaseModel, OutputID, BaseModel
 from database.models.gain import Gain
@@ -16,16 +16,20 @@ class AmountBase(OrmBaseModel):
     unrealized: Decimal
     client_id: Optional[OutputID]
     rate: Optional[Decimal]
+    gain: Optional[Gain]
 
     def _assert_equal(self, other: 'AmountBase'):
         assert self.currency == other.currency
+
+    def set_gain(self, other: Balance, offset: Decimal):
+        self.gain = self.gain_since(other, offset)
 
     def gain_since(self, other: 'AmountBase', offset: Decimal) -> Gain:
         self._assert_equal(other)
         gain = (self.total - other.realized) - (offset or 0)
         return Gain.construct(
             absolute=gain,
-            relative=calc_percentage_diff(other.realized, gain)
+            relative=calc_percentage_diff(other.realized, gain),
         )
 
     @property
@@ -39,9 +43,20 @@ class AmountBase(OrmBaseModel):
     def __repr__(self):
         return f'{self.total}{self.currency}'
 
-    def __add__(self, other: 'AmountBase'):
+    @classmethod
+    def sum(cls, amounts: Iterable[AmountBase]):
+        amount = None
+        for current in amounts:
+            if amount:
+                if current.realized:
+                    amount = cls.__add__(amount, current)
+            else:
+                amount = current
+        return amount
+
+    def __add__(self, other: AmountBase):
         self._assert_equal(other)
-        return Amount(
+        return AmountBase(
             realized=self.realized + other.realized,
             unrealized=self.unrealized + other.unrealized,
             currency=self.currency,
@@ -52,52 +67,32 @@ class AmountBase(OrmBaseModel):
         )
 
 
-class Amount(AmountBase):
-    time: datetime
-
-    def __add__(self, other: 'Amount'):
-        self._assert_equal(other)
-        return Amount(
-            realized=self.realized + other.realized,
-            unrealized=self.unrealized + other.unrealized,
-            currency=self.currency,
-            time=safe_cmp_default(max, self.time, other.time),
-            rate=(
-                (self.rate * self.realized + other.rate * other.realized) / (self.realized + other.realized)
-                if (self.rate and other.rate and (self.realized or other.realized)) else self.rate or other.rate
-            )
-        )
-
-
 class BalanceGain(BaseModel):
     other: Optional[Balance]
     total: Optional[Gain]
     extra: Optional[list[Gain]]
 
 
-class Balance(Amount):
+class Balance(AmountBase):
+    time: datetime
     extra_currencies: Optional[list[AmountBase]]
-    gain: Optional[BalanceGain]
+    #gain: Optional[BalanceGain]
 
     def __add__(self, other: Balance):
         self._assert_equal(other)
-        return self.add(self, other)
+        return self.sum((self, other))
 
     @classmethod
-    def add(cls, *balances: Balance):
+    def sum(cls, balances: Sequence[Balance]):
 
         currencies = set(
             (amount.currency for balance in balances if balance.extra_currencies for amount in balance.extra_currencies)
         )
-        extra_currencies = []
-        for currency in currencies:
-            amount = None
-            for balance in balances:
-                if amount:
-                    amount = amount + balance.get_currency(currency)
-                else:
-                    amount = balance.get_currency(currency)
-            extra_currencies.append(amount)
+
+        extra_currencies = [
+            AmountBase.sum([balance.get_currency(currency) for balance in balances])
+            for currency in currencies
+        ]
 
         return Balance(
             realized=sum(balance.realized for balance in balances),
@@ -107,11 +102,11 @@ class Balance(Amount):
             currency=balances[0].currency
         )
 
-    def set_gain(self, other: Balance, offset: Decimal):
-        self.gain = BalanceGain(
-            other=other,
-            total=self.gain_since(other, offset),
-        )
+    #def set_gain(self, other: Balance, offset: Decimal):
+    #    self.gain = BalanceGain(
+    #        other=other,
+    #        total=self.gain_since(other, offset),
+    #    )
 
     def to_string(self, display_extras=False):
         ccy = self.currency
@@ -126,8 +121,8 @@ class Balance(Amount):
 
         return string
 
-    def get_currency(self, currency: Optional[str]) -> Amount:
-        if currency:
+    def get_currency(self, currency: Optional[str]) -> Balance:
+        if currency and currency != self.currency:
             realized = unrealized = rate = Decimal(0)
             if self.extra_currencies:
                 for amount in self.extra_currencies:
@@ -136,12 +131,13 @@ class Balance(Amount):
                         unrealized = amount.unrealized
                         rate = amount.rate
                         break
-            return Amount(
+            return Balance(
                 realized=realized,
                 unrealized=unrealized,
                 currency=currency,
                 time=self.time,
-                rate=rate
+                rate=rate,
+                extra_currencies=[]
             )
         else:
             return self

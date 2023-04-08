@@ -1,19 +1,19 @@
-from datetime import datetime, date
+from datetime import datetime
 from typing import Dict, Optional, TypedDict
 
 from fastapi import Query
 from pydantic import UUID4
 
 import database.dbmodels.client as qmxin
-from api.models.trade import Trade, BasicTrade
 from api.models.template import TemplateInfo
-from database.enums import IntervalType
-from database.models.eventinfo import EventInfo
-from database.models import BaseModel, OutputID, InputID
+from api.models.trade import BasicTrade
 from api.models.transfer import Transfer
 from database.dbmodels.client import ClientType, ClientState
+from database.enums import IntervalType
+from database.models import BaseModel, OutputID, InputID
 from database.models.balance import Balance
 from database.models.client import ClientCreate, ClientApiInfo
+from database.models.eventinfo import EventBasicInfo
 from database.models.interval import Interval, FullInterval
 
 
@@ -82,7 +82,7 @@ class ClientDetailed(ClientInfo):
 
     # Relations
     trade_template: Optional[TemplateInfo]
-    events: Optional[list[EventInfo]]
+    events: Optional[list[EventBasicInfo]]
 
 
 class _Common(BaseModel):

@@ -10,10 +10,10 @@ def event_mock(now: datetime = None, interval: timedelta = timedelta(seconds=2))
     return EventCreate(
         name='Mock',
         description=DocumentModel(type='doc'),
-        registration_start=now + interval,
-        start=now + 2 * interval,
-        registration_end=now + 3 * interval,
-        end=now + 4 * interval,
+        registration_start=now,
+        start=now + 1 * interval,
+        registration_end=now + 2 * interval,
+        end=now + 3 * interval,
         location=WebPlatform(name='web', data={}),
         max_registrations=100,
     )

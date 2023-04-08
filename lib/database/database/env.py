@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import SecretStr
 from sqlalchemy.engine import URL
 

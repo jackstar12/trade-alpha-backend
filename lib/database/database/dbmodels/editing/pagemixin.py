@@ -114,7 +114,7 @@ class PageMixin(EditsMixin):
         else:
             whereas = tuple()
 
-        return select(data).where(data != JSONB.NULL, *whereas)
+        return select(attrs).where(data != JSONB.NULL, *whereas)
 
     @classmethod
     async def all_childs(cls, root_id: int, db):

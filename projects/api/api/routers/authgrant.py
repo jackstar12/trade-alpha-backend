@@ -15,8 +15,8 @@ from api.utils.responses import BadRequest, OK, Unauthorized
 from core import safe_cmp
 from database.dbasync import wrap_greenlet, db_unique, safe_op
 from database.dbmodels import User
-from database.models import OrmBaseModel, OutputID, CreateableModel, BaseModel
-from database.models.user import UserPublicInfo
+from database.models import BaseModel
+from database.models.authgrant import AuthGrantCreate, AuthGrantInfo
 
 from database.dbmodels.authgrant import (
     AuthGrant,
@@ -27,29 +27,6 @@ from database.dbmodels.authgrant import (
 from database.models import InputID
 
 
-class AuthGrantCreate(CreateableModel):
-    expires: Optional[datetime]
-    public: Optional[bool]
-    discord: Optional[DiscordPermission]
-    wildcards: Optional[list[AssociationType]]
-    name: Optional[str]
-
-    def dict(
-            self,
-            *,
-            exclude_none=False,
-            **kwargs
-    ):
-        return super().dict(exclude_none=False, **kwargs)
-
-    def get(self, user: User) -> AuthGrant:
-        return AuthGrant(**self.dict(), user=user)
-
-
-class AuthGrantInfo(AuthGrantCreate, OrmBaseModel):
-    id: OutputID
-    owner: UserPublicInfo
-    token: Optional[str]
 
 
 router = APIRouter(

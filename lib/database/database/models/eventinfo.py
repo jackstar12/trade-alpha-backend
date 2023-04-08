@@ -1,24 +1,22 @@
 from __future__ import annotations
 
-import operator
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Literal, TypedDict, Union, Optional, TYPE_CHECKING
-from uuid import UUID
+from typing import Union, Optional, TYPE_CHECKING
 
-from pydantic import Field, condecimal
+from pydantic import Field, condecimal, validator
 
-from database.dbmodels.authgrant import EventGrant, AuthGrant
-from database.models.platform import DiscordPlatform, WebPlatform
-from database.models.user import UserPublicInfo
-from core import safe_cmp_default, safe_cmp
 from database import dbmodels
+from database.dbmodels.action import ActionType
 from database.models import OrmBaseModel, BaseModel, OutputID, CreateableModel
+from database.models.action import ActionCreate
+from database.models.authgrant import AuthGrantInfo
 from database.models.balance import Balance
 from database.models.document import DocumentModel
 from database.models.gain import Gain
-
+from database.models.platform import DiscordPlatform, WebPlatform
+from database.models.user import UserPublicInfo
 
 if TYPE_CHECKING:
     from database.dbmodels import User
@@ -38,7 +36,7 @@ class _Common(BaseModel):
     end: datetime
     name: str
     description: DocumentModel
-    #public: Optional[bool]
+    # public: Optional[bool]
     location: Union[DiscordPlatform, WebPlatform]
     max_registrations: int
     currency: Optional[str] = Field(default='USD')
@@ -46,20 +44,32 @@ class _Common(BaseModel):
 
 
 class EventCreate(_Common, CreateableModel):
+    actions: Optional[list[ActionCreate]]
+
+    @validator('actions', each_item=True)
+    def validate_actions(cls, value: ActionCreate):
+        assert value['type'] == ActionType.EVENT.value
+        return value
+
     def get(self, user: User) -> dbmodels.Event:
-        return dbmodels.Event(**self.__dict__, owner=user)
+        values = {key: val for key, val in self.__dict__.items() if key != 'actions'}
+        event = dbmodels.Event(**values, owner=user)
+        if self.actions:
+            event.actions = [action.get(user) for action in self.actions]
+        return event
 
-    # actions: Optional[list[ActionCreate]]
+
+class EventGrantInfo(AuthGrantInfo):
+    registrations_left: Optional[int]
 
 
-class EventInfo(_Common):
+class EventBasicInfo(_Common, OrmBaseModel):
     id: OutputID
     state: list[EventState]
-    # name: str
-    # public: bool
 
-    class Config:
-        orm_mode = True
+
+class EventInfo(EventBasicInfo):
+    grants: list[EventGrantInfo]
 
 
 class EventScore(OrmBaseModel):
@@ -89,14 +99,9 @@ class EventEntryDetailed(EventEntry):
     rank_history: list[EventScore]
 
 
-
 class EventDetailed(EventInfo):
     owner: UserPublicInfo
     entries: list[EventEntry]
-    pass
-    # leaderboard: list[EventEntry]
-    # registrations: list[ClientInfo]
-    # leaderboard
 
 
 class Stat(OrmBaseModel):

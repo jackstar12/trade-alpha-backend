@@ -206,8 +206,7 @@ class BasicBalanceService(_BalanceServiceBase):
 
     async def _remove_worker(self, worker: ExchangeWorker):
         async with self._worker_lock:
-            self._workers_by_id.pop(worker.client.id,
-                                    None)
+            self._workers_by_id.pop(worker.client.id, None)
             exchange_job = self._exchange_jobs[worker.exchange]
             exchange_job.deque.remove(worker)
             self.reschedule(exchange_job)

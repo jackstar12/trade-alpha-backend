@@ -197,7 +197,7 @@ class EventsCog(CogBase):
         async def show_events(ctx, selection: List[Event]):
             for event in selection:
                 info = event.get_discord_embed(
-                    self.bot, registrations=True
+                    'Event', self.bot, registrations=True
                 )
                 summary = await get_summary_embed(event, self.bot)
 

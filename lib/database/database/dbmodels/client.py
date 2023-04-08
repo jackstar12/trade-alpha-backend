@@ -40,7 +40,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
 from database.models import BaseModel, InputID
-from database.models.balance import Balance as BalanceModel, Amount
+from database.models.balance import Balance as BalanceModel
 from database.dbsync import Base, BaseMixin
 from database.models.eventinfo import EventState
 from database.redis import TableNames
@@ -203,7 +203,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
     # Identification
     id = Column(Integer, primary_key=True)
 
-    user_id = Column(GUID, ForeignKey('user.id'), nullable=True)
+    user_id = Column(GUID, ForeignKey('user.id', ondelete='CASCADE'), nullable=True)
     user = relationship('User', lazy='raise')
 
     oauth_account_id = Column(ForeignKey('oauth_account.account_id', ondelete='SET NULL'), nullable=True)
@@ -295,7 +295,13 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
         balance_now = await self.get_latest_balance(redis=redis)
 
         if balance_then and balance_now:
-            transfered = await self.get_total_transfered(since=balance_then.time, ccy=currency)
+            transfered = await self.get_total_transfered(
+                since=balance_then.time,
+                ccy=currency,
+                client_ids={self.id},
+                user_id=self.user_id,
+                db=self.async_session
+            )
             return balance_now.get_currency(currency).gain_since(
                 balance_then.get_currency(currency),
                 transfered
@@ -361,7 +367,9 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
                 ).label('total_transfered')
             ).join(Transfer.execution).where(
                 time_range(dbmodels.Execution.time, since, to),
-                safe_eq(Transfer.coin, ccy)
+                safe_eq(Transfer.coin, ccy),
+            ).join(
+                Transfer.client
             ),
             user_id,
             client_ids,
@@ -496,7 +504,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
                 client=self,
                 time=time,
                 extra_currencies=[
-                    Amount(
+                    Balance(
                         currency=amount.currency,
                         realized=amount.realized,
                         # unrealized=amount.realized + sum(pnl.unrealized_ccy(amount.currency) for pnl in pnl_data),
