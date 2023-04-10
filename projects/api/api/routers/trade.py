@@ -1,43 +1,39 @@
-import asyncio
-import operator
+import itertools
+import itertools
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Type, Union, Literal
+from typing import List, Type, Union, Literal, Optional
 from uuid import UUID
 
-import pydantic
 from fastapi import APIRouter, Depends, Query
 from fastapi.encoders import jsonable_encoder
-from pydantic import conlist, create_model
+from pydantic import conlist
 from sqlalchemy import select, delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 
-import core
 import api.utils.client as client_utils
-from api.models.execution import Execution
-from database.dbmodels.mixins.filtermixin import FilterParam
-from api.routers.template import query_templates
-from core import join_args, json, groupby
-from core.json import dumps
-from database.dbmodels.authgrant import AuthGrant, TradeGrant, AssociationType, ChapterGrant
-from database.models.document import DocumentModel, Operator
+import core
 from api.dependencies import get_messenger, get_db, \
     FilterQueryParamsDep
-from api.models.client import get_query_params
+from api.models.execution import Execution
 from api.models.trade import Trade, BasicTrade, DetailledTrade, UpdateTrade, UpdateTradeResponse
-from api.users import CurrentUser, get_auth_grant_dependency, DefaultGrant
+from api.routers.template import query_templates
+from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import BadRequest, OK, CustomJSONResponse, ResponseModel, Unauthorized
-from database.dbasync import db_first, db_all, redis_bulk, redis
-from database.dbmodels import TradeDB as TradeDB, Chapter, Balance, Execution as ExecutionDB
-from database.dbmodels.client import add_client_checks, QueryParams
-from database.dbmodels.label import Label as LabelDB
+from database.dbasync import db_first, db_all
+from database.dbmodels import TradeDB as TradeDB, Chapter, Execution as ExecutionDB
+from database.dbmodels.authgrant import AuthGrant, AssociationType, ChapterGrant
 from database.dbmodels.client import ClientQueryParams
+from database.dbmodels.client import add_client_checks
+from database.dbmodels.label import Label as LabelDB
+from database.dbmodels.mixins.filtermixin import FilterParam
 from database.dbmodels.pnldata import PnlData
 from database.dbmodels.trade import trade_association
 from database.dbmodels.user import User
-from database.models import BaseModel, OrmBaseModel, OutputID, InputID
+from database.models import BaseModel, OutputID, InputID
+from database.models.document import DocumentModel
 from database.redis.client import ClientCacheKeys
 from database.utils import query_table
 
@@ -78,7 +74,7 @@ async def update_trade(trade_id: InputID,
         trade.notes = body.notes
 
     if body.labels:
-        added = body.labels.label_ids - set(label.id for label in trade.labels)
+        added = body.labels.label_ids - set(trade.label_ids)
         for label_id in added:
             await db.execute(
                 insert(trade_association).values(
@@ -87,13 +83,18 @@ async def update_trade(trade_id: InputID,
                 ),
             )
 
-        await db.execute(
-            delete(trade_association).where(
-                LabelDB.id == trade_association.c.label_id,
-                LabelDB.group_id.in_(body.labels.group_ids),
-                ~LabelDB.id.in_(body.labels.label_ids)
-            ),
-        )
+        if body.labels.group_ids:
+            await db.execute(
+                delete(trade_association).where(
+                    trade_association.c.trade_id == trade_id,
+                    # trade_association.c.label_id == LabelDB.id,
+                    ~trade_association.c.label_id.in_(body.labels.label_ids),
+                    LabelDB.group_id.in_(body.labels.group_ids),
+                    # ~LabelDB.id.in_(body.labels.label_ids),
+                    # Group.user_id == User.id,
+                    # User.id == user.id
+                ),
+            )
 
     if body.template_id:
         template = await query_templates([body.template_id], user_id=user.id, session=db)
@@ -114,6 +115,8 @@ auth = get_auth_grant_dependency(ChapterGrant)
 
 class TradeQueryParams(ClientQueryParams):
     trade_ids: set[InputID]
+    from_chapter: Optional[InputID]
+    from_journal: Optional[InputID]
 
     def within(self, other: 'TradeQueryParams'):
         return other and super().within(other) and self.trade_ids.issubset(other.trade_ids)
@@ -124,12 +127,16 @@ def get_trade_params(client_id: set[InputID] = Query(default=[]),
                      currency: str = Query(default=None),
                      since: datetime = Query(default=None),
                      to: datetime = Query(default=None),
+                     from_chapter: Optional[InputID] = Query(default=None),
+                     from_journal: Optional[InputID] = Query(default=None),
                      order: Literal['asc', 'desc'] = Query(default='asc')):
     return TradeQueryParams(
         client_ids=client_id,
         trade_ids=trade_id,
         currency=currency,
         since=since,
+        from_chapter=from_chapter,
+        from_journal=from_journal,
         to=to,
         order=order
     )
@@ -163,13 +170,24 @@ def create_trade_endpoint(path: str,
 
         if not grant.is_root_for(AssociationType.TRADE):
             if chapter_id:
-                node = await db_first(Chapter.query_nodes(chapter_id, query_params=query_params), session=db)
-                if not node:
+                data = await db_first(Chapter.query_nodes(chapter_id, query_params=query_params), session=db)
+                if not data:
                     raise Unauthorized()
             else:
                 trade_id = await grant.check_ids(AssociationType.TRADE, query_params.trade_ids)
                 if not trade_id:
                     return OK(result=[])
+        if query_params.from_chapter or query_params.from_journal:
+            data = await db_all(
+                Chapter.query_nodes(
+                    root_id=query_params.from_chapter,
+                    journal_id=query_params.from_journal
+                ),
+                session=db
+            )
+            query_params.trade_ids = set(
+                map(int, itertools.chain.from_iterable(child['tradeIds'] for child in data if 'tradeIds' in child))
+            )
 
         trades_db = await client_utils.query_trades(
             *eager,

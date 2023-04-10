@@ -1,23 +1,20 @@
 from __future__ import annotations
 
-import operator
 from typing import TYPE_CHECKING
 
-import sqlalchemy
 import sqlalchemy as sa
-from sqlalchemy import orm, select, func, text, or_, Date, DateTime
+from sqlalchemy import orm, select, or_, Date
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import aliased, declared_attr
 
-from core import safe_cmp, map_list
-from database.dbasync import db_all, safe_op, safe_eq
+from database.dbasync import db_all
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbmodels.types import Document
 from database.models.document import DocumentModel
 
 if TYPE_CHECKING:
-    from database.dbmodels.client import ClientQueryParams
+    pass
 
 
 def cmp_dates(col, val):
@@ -75,52 +72,10 @@ class PageMixin(EditsMixin):
         return select(other.id).where(self.id == other.parent_id)
 
     @classmethod
-    def query_nodes(cls,
-                    root_id: id,
-                    node_type: str = None,
-                    query_params: ClientQueryParams = None,
-                    trade_ids: list[int] = None):
-        tree = select(
-            func.jsonb_array_elements(cls.doc['content']).cast(JSONB).label('node')
-        ).where(
-            cls.id == root_id
-        ).cte(name="nodes", recursive=True)
-
-        attrs = tree.c.node['attrs']
-
-        tree = tree.union(
-            select(
-                func.jsonb_array_elements(tree.c.node['content']).cast(JSONB)
-            ).where(
-                func.jsonb_exists(attrs, 'data'),
-                safe_eq(tree.c.node['type'].astext, node_type)
-            )
-        )
-        data = tree.c.node['attrs']['data']
-
-        if query_params:
-            whereas = (
-                cmp_dates(data['dates']['to'], query_params.to),
-                cmp_dates(data['dates']['since'], query_params.since),
-                or_(
-                    data['clientIds'] == JSONB.NULL,
-                    data['clientIds'].contains(map_list(str, query_params.client_ids))
-                ),
-                #or_(
-                #    data['tradeIds'] == JSONB.NULL,
-                #    data['tradeIds'].contains(trade_ids and map_list(str, trade_ids))
-                #)
-            )
-        else:
-            whereas = tuple()
-
-        return select(attrs).where(data != JSONB.NULL, *whereas)
-
-    @classmethod
     async def all_childs(cls, root_id: int, db):
 
         included = select(
-            cls.id,
+            cls.id
         ).filter(
             cls.parent_id == root_id
         ).cte(name="included", recursive=True)
@@ -143,4 +98,5 @@ class PageMixin(EditsMixin):
         )
 
         child = await db_all(child_stmt, session=db)
+        return child
         pass

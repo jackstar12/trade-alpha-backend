@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 from enum import Enum
+from operator import or_
 from typing import List, Dict, Tuple, Optional, Union, Set
 from typing import NamedTuple
 from typing import TYPE_CHECKING
@@ -306,7 +307,8 @@ class ExchangeWorker:
                         type=ExecType.TRANSFER,
                         market_type=raw_transfer.market_type or MarketType.SPOT,
                         commission=raw_transfer.fee,
-                        settle=raw_transfer.coin
+                        settle=raw_transfer.coin,
+                        transfer=transfer
                     )
                     result.append(transfer)
             return result
@@ -348,26 +350,36 @@ class ExchangeWorker:
             check_executions = await db_all(
                 select(Execution).order_by(
                     asc(Execution.time)
-                ).join(Execution.trade).where(
-                    Trade.client_id == self.client_id,
-                    Execution.time > since if since else True
+                ).join(
+                    Execution.trade, isouter=True
+                ).join(
+                    Execution.transfer, isouter=True
+                ).where(
+                    or_(
+                        Trade.client_id == self.client_id,
+                        Transfer.client_id == self.client_id
+                    ),
+                    Execution.time > since if since else True,
                 ),
                 session=db
             )
 
             valid_until = since
+            abs_exec_sum = abs_check_sum = Decimal(0)
             exec_sum = check_sum = Decimal(0)
             for execution, check in itertools.zip_longest(all_executions, check_executions):
                 if execution:
                     if not execution.qty and not execution.realized_pnl:
                         pass
-                    exec_sum += abs(execution.qty or execution.realized_pnl)
+                    abs_exec_sum += abs(execution.qty or execution.realized_pnl)
+                    exec_sum += execution.effective_qty or execution.realized_pnl
                 if check:
-                    check_sum += abs(check.qty or check.realized_pnl)
-                if exec_sum == check_sum and exec_sum != 0:
+                    abs_check_sum += abs(check.qty or check.realized_pnl)
+                    check_sum += check.effective_qty or check.realized_pnl
+                if abs_exec_sum == abs_check_sum and abs_exec_sum != 0:
                     valid_until = (execution or check).time
 
-            all_executions = [e for e in all_executions if e.time >= valid_until] if valid_until else all_executions
+            all_executions = [e for e in all_executions if e.time > valid_until] if valid_until else all_executions
 
             executions_by_symbol = core.groupby(all_executions, lambda e: e.symbol)
 
@@ -436,6 +448,7 @@ class ExchangeWorker:
                         current_trade = None
                         for item in combine_time_series(ohlc_data, current_executions):
                             if isinstance(item, Execution):
+                                db.add(item)
                                 current_trade = await self._add_executions(db,
                                                                            [item],
                                                                            realtime=False)
@@ -667,7 +680,7 @@ class ExchangeWorker:
                 # The distinguishing here is pretty important because Liquidation Execs can happen
                 # after a trade has been closed on paper (e.g. insurance fund on binance). These still have to be
                 # attributed to the corresponding trade.
-                if execution.type in (ExecType.TRADE, ExecType.TRANSFER):
+                if execution.type in (ExecType.TRADE, ExecType.TRANSFER, ExecType.FUNDING):
                     stmt = stmt.where(
                         Trade.is_open
                     )

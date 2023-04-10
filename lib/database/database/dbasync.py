@@ -78,7 +78,8 @@ async def db_select_all(cls: Type[Table],
 async def db_all(stmt: Select, *eager, session=None) -> list[Any]:
     if eager:
         stmt = db_eager(stmt, *eager)
-    return (await (session or async_session).scalars(stmt)).unique().all()
+    #return (await (session or async_session).scalars(stmt)).unique().all()
+    return (await (session or async_session).scalars(stmt)).all()
 
 
 async def db_unique(stmt: Select, *eager: object, session: AsyncSession = None) -> Any:

@@ -1,3 +1,4 @@
+import itertools
 from functools import wraps
 from typing import List, Optional
 from uuid import UUID
@@ -17,7 +18,7 @@ from api.models.completejournal import (
     ChapterCreate, ChapterUpdate, JournalDetailedInfo, MISSING
 )
 from api.utils.responses import BadRequest, OK, CustomJSONResponse
-from database.dbasync import db_unique, db_all, db_select, db_select_all, wrap_greenlet
+from database.dbasync import db_unique, db_all, db_select, db_select_all, wrap_greenlet, db_first
 from database.dbmodels.authgrant import JournalGrant, AuthGrant, ChapterGrant, AssociationType
 from database.dbmodels.editing.chapter import Chapter as DbChapter
 from database.dbmodels.client import add_client_checks, Client
@@ -77,11 +78,15 @@ async def get_chapter_data(chapter_id: InputID,
         chapter_id,
         grant.user_id,
         # DbChapter.trades,
-        DbChapter.balances,
+        # DbChapter.balances,
         session=db,
     )
 
-    childs = await DbChapter.all_childs(chapter.id, db)
+    result = await db.scalars(DbChapter.query_nodes())
+
+    childs = result.all()
+
+    tradeIds = set(itertools.chain.from_iterable(child['tradeIds'] for child in childs if 'tradeIds' in child))
 
     data = [
 

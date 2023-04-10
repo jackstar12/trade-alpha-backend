@@ -35,6 +35,7 @@ class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
     market_type = Column(Enum(MarketType), nullable=False, server_default='DERIVATIVES')
 
     trade = relationship('Trade', lazy='noload', foreign_keys=trade_id)
+    transfer = relationship('Transfer', lazy='noload', post_update=True, foreign_keys=transfer_id)
 
     __table_args__ = (
         UniqueConstraint(trade_id, transfer_id),

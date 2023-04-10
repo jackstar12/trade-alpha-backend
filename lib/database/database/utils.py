@@ -115,7 +115,8 @@ async def get_client_history(client: dbmodels.Client,
 
 
 async def reset_client(client_id: int,
-                       db: AsyncSession):
+                       db: AsyncSession,
+                       full=False):
     await db.execute(
         update(dbmodels.Client).values(
             last_execution_sync=None,
@@ -124,21 +125,22 @@ async def reset_client(client_id: int,
             dbmodels.Client.id == client_id
         )
     )
-    await db.execute(
-        delete(Trade).where(
-            Trade.client_id == client_id
+    if full:
+        await db.execute(
+            delete(Trade).where(
+                Trade.client_id == client_id
+            )
         )
-    )
-    await db.execute(
-        delete(Balance).where(
-            Balance.client_id == client_id
+        await db.execute(
+            delete(Balance).where(
+                Balance.client_id == client_id
+            )
         )
-    )
-    await db.execute(
-        delete(Transfer).where(
-            Transfer.client_id == client_id
+        await db.execute(
+            delete(Transfer).where(
+                Transfer.client_id == client_id
+            )
         )
-    )
     await db.commit()
 
 

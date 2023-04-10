@@ -50,7 +50,8 @@ class Transfer(Base):
         foreign_keys=execution_id,
         uselist=False,
         cascade='all, delete',
-        lazy='joined'
+        lazy='joined',
+        back_populates='transfer'
     )
 
     @hybrid_property

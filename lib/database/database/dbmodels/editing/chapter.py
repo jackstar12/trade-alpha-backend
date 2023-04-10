@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import sqlalchemy as sa
-from sqlalchemy import orm, select, func, literal
+from sqlalchemy import orm, select, func, literal, or_
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import aliased
 
-from database.dbmodels.editing.pagemixin import PageMixin
-from database.dbmodels.mixins.editsmixin import EditsMixin
+from database.dbasync import safe_eq
+from database.dbmodels.editing.pagemixin import PageMixin, cmp_dates
 from database.dbsync import Base
 from database.models import BaseModel
 from database.models.document import DocumentModel, TradeData
+
+if TYPE_CHECKING:
+    from database.dbmodels.client import ClientQueryParams
 
 balance_association = sa.Table(
     'balance_association', Base.metadata,
@@ -71,6 +76,66 @@ class Chapter(Base, PageMixin):
 
         return results
 
+    @classmethod
+    def query_nodes(cls,
+                    root_id: int = None,
+                    node_type: str = None,
+                    query_params: ClientQueryParams = None,
+                    journal_id: int = None,
+                    trade_ids: list[int] = None):
+
+        included = select(
+            cls.id, cls.doc
+        ).filter(
+            safe_eq(cls.parent_id, root_id),
+            safe_eq(cls.journal_id, journal_id)
+        ).cte(name="included", recursive=True)
+
+        included_alias = aliased(included, name="parent")
+        chapter_alias = aliased(cls, name="child")
+
+        included = included.union_all(
+            select(
+                chapter_alias.id, chapter_alias.doc
+            ).filter(
+                chapter_alias.parent_id == included_alias.c.id
+            )
+        )
+
+        tree = select(
+            func.jsonb_array_elements(included.c.doc['content']).cast(JSONB).label('node')
+        ).cte(name="nodes", recursive=True)
+
+        attrs = tree.c.node['attrs']
+
+        tree = tree.union(
+            select(
+                func.jsonb_array_elements(tree.c.node['content']).cast(JSONB)
+            ).where(
+                func.jsonb_exists(attrs, 'data'),
+                safe_eq(tree.c.node['type'].astext, node_type)
+            )
+        )
+        data = tree.c.node['attrs']['data']
+
+        if query_params:
+            whereas = (
+                cmp_dates(data['dates']['to'], query_params.to),
+                cmp_dates(data['dates']['since'], query_params.since),
+                or_(
+                    data['clientIds'] == JSONB.NULL,
+                    data['clientIds'].contains(map(str, query_params.client_ids))
+                ),
+                # or_(
+                #    data['tradeIds'] == JSONB.NULL,
+                #    data['tradeIds'].contains(trade_ids and map_list(str, trade_ids))
+                # )
+            )
+        else:
+            whereas = tuple()
+
+        return select(data).where(data != JSONB.NULL, *whereas)
+
     @all_data.expression
     def all_data(cls):
         """
@@ -119,9 +184,9 @@ class Chapter(Base, PageMixin):
         ).subquery().lateral()
 
         result = typed_values.union_all(
-            #select(each.c.v.key, each.c.v.value).where(
+            # select(each.c.v.key, each.c.v.value).where(
             #    typed_values.c.typeof == 'object'
-            #),
+            # ),
             select(array_elemenets.c.key, array_elemenets.c.element).select_from(
             ).where(
                 typed_values.c.typeof == 'array'

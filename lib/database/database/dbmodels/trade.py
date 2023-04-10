@@ -314,11 +314,11 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         if param.field == 'label_ids':
             return stmt.join(trade_association, and_(
                 trade_association.columns.trade_id == cls.id,
-                *[
+                or_(
                     trade_association.columns.label_id == value if param.op == Operator.INCLUDES else not cls.is_(value)
                     for value in param.values
-                ]
-            )).join
+                )
+            ))
         col = getattr(cls, param.field)
         if col == cls.side:
             alias = aliased(Execution)
@@ -428,6 +428,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
         if execution.type in (ExecType.FUNDING, ExecType.LIQUIDATION):
             self.realized_pnl += execution.realized_pnl or 0
+            self.total_commissions += execution.commission or 0
 
         if execution.type in (ExecType.TRADE, ExecType.TRANSFER):
             if execution.side == self.initial.side:
