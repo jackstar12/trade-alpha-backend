@@ -105,11 +105,11 @@ async def update_chapter(chapter_id: InputID,
         user.id,
         session=db
     )
-    if body.doc is not None:
+    if 'doc' in body.__fields_set__:
         chapter.doc = body.doc
-    if body.data:
+    if 'data' in body.__fields_set__:
         chapter.data = body.data
-    if body.parent_id is not MISSING:
+    if 'parent_id' in body.__fields_set__:
         chapter.parent_id = body.parent_id
     await db.commit()
     return OK('OK')

@@ -365,7 +365,6 @@ async def get_balance(at: Optional[datetime],
                       db: AsyncSession,
                       currency: Optional[str] = None,
                       latest=True) -> Balance:
-
     stmt = (
         select(BalanceDB).distinct(
             BalanceDB.client_id
@@ -400,7 +399,7 @@ auth = get_auth_grant_dependency(ChapterGrant)
 @router.get('/client/balance', response_model=Balance)
 async def get_client_balance(to: Optional[datetime] = Query(None),
                              since: Optional[datetime] = Query(default=None),
-                             client_ids: Optional[set[InputID]] = Query(alias='client_id'),
+                             client_ids: Optional[set[InputID]] = Query(default=None, alias='client_id'),
                              chapter_id: Optional[InputID] = Query(None),
                              currency: Optional[str] = Query(None),
                              grant: AuthGrant = Depends(auth),
@@ -426,12 +425,15 @@ async def get_client_balance(to: Optional[datetime] = Query(None),
 
     balance = None
 
-    if not to or to > utc_now() and client_ids:
+    if not to or to > utc_now():
+        if not client_ids:
+            client_ids = await grant.user.get_client_ids()
+
         missing = set()
         for client_id in client_ids:
             current = await ClientRedis(user_id=grant.user_id, client_id=client_id).get_balance()
-            current = current.get_currency(currency)
             if current:
+                current = current.get_currency(currency)
                 balance = balance + current if balance else current
             else:
                 missing.add(client_id)

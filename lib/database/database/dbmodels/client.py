@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import asyncio
 import logging
 from datetime import datetime, date, timedelta
@@ -7,24 +8,20 @@ from typing import Optional, Union, Literal, Any, TYPE_CHECKING, NamedTuple, Ite
 from uuid import UUID
 import sqlalchemy as sa
 import pytz
+import sqlalchemy as sa
 from aioredis import Redis
 from fastapi_users_db_sqlalchemy import GUID
-from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, PickleType, or_, desc, Boolean, select, func, \
-    Date, UniqueConstraint, JSON
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, desc, Boolean, select, func, \
+    Date, UniqueConstraint, JSON, event
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import relationship, reconstructor, RelationshipProperty
-
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship, reconstructor, RelationshipProperty
 from sqlalchemy.orm.dynamic import AppenderQuery
 from sqlalchemy.sql import Select, Delete, Update
 from sqlalchemy_utils.types.encrypted.encrypted_type import StringEncryptedType, FernetEngine
 
-import os
-import dotenv
-
-import database.dbmodels as dbmodels
 import core
+from database import dbmodels
 from database.enums import MarketType
 from database.env import ENV
 from database.errors import UserInputError
@@ -38,7 +35,6 @@ from database.dbmodels.editing.chapter import Chapter
 from database.dbmodels.discord.guildassociation import GuildAssociation
 from database.dbmodels.pnldata import PnlData
 from database.dbmodels.mixins.serializer import Serializer
-from database.dbmodels.user import User
 from database.models import BaseModel, InputID
 from database.models.balance import Balance as BalanceModel
 from database.dbsync import Base, BaseMixin
@@ -564,3 +560,11 @@ def add_client_checks(stmt: Union[Select, Delete, Update], user_id: UUID,
         # Client.type == ClientType.FULL,
         # Client.state.not_in((ClientState.INVALID, ClientState.SYNCHRONIZING)),
     )
+
+
+@event.listens_for(Client, 'after_insert')
+@event.listens_for(Client, 'after_delete')
+def before_update(mapper, connection, client: Client):
+    asyncio.create_task(redis.sadd(
+        join_args(client.user.redis_key, 'clients'), client.id
+    ))

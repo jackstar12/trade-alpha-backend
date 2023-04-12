@@ -178,12 +178,11 @@ def create_trade_endpoint(path: str,
                 if not trade_id:
                     return OK(result=[])
         if query_params.from_chapter or query_params.from_journal:
-            data = await db_all(
+            data = await db.execute(
                 Chapter.query_nodes(
                     root_id=query_params.from_chapter,
                     journal_id=query_params.from_journal
                 ),
-                session=db
             )
             query_params.trade_ids = set(
                 map(int, itertools.chain.from_iterable(child['tradeIds'] for child in data if 'tradeIds' in child))
