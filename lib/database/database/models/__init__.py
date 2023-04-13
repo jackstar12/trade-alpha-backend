@@ -1,17 +1,30 @@
 from __future__ import annotations
-from typing import Type, Union, TYPE_CHECKING, Any, TypeVar
+
+from typing import Type, TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import TypeDecorator
 from sqlalchemy.dialects.postgresql import JSONB
 
-from core import json
-
 if TYPE_CHECKING:
     from database.dbmodels import User
     from database.dbsync import BaseMixin
 
-InputID = Union[int, str]
+
+class InputID(int):
+    @classmethod
+    def __get_validators__(cls):
+        yield cls.validate
+
+    @classmethod
+    def __modify_schema__(cls, field_schema):
+        field_schema.update(anyOf=[{'type': 'integer'}, {'type': 'string'}], type=None)
+
+    @classmethod
+    def validate(cls, v):
+        return cls(v)
+
+
 OutputID = str
 
 Model = TypeVar('Model', bound='BaseModel')
@@ -107,7 +120,6 @@ class CreateableModel(BaseModel):
 
 class ValidatableModel(BaseModel):
     __table__: Type[BaseMixin]
-
 
 
 class OrmBaseModel(BaseModel):

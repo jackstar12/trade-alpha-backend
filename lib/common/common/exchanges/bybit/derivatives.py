@@ -1,34 +1,23 @@
 import asyncio
-import hmac
 import logging
-import time
-import urllib.parse
-from abc import ABC
-from collections import OrderedDict
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta
 from decimal import Decimal
-from enum import Enum
-from typing import Dict, List, Tuple, Optional, Type, Callable, Iterable
+from typing import Dict, List, Tuple, Optional
+
+from aiohttp import ClientResponse
 from sqlalchemy import select, func
 
 from common.exchanges.bybit._base import Category, _BybitBaseClient, all_intervals, interval_map, Account
-from core import json, map_list, utc_now, groupby
-from aiohttp import ClientResponseError, ClientResponse
-
-from core import utils, get_multiple, parse_isoformat
-from database.dbasync import db_all
+from common.exchanges.exchangeworker import create_limit
+from core import get_multiple
+from core import utc_now, groupby
 from database.dbmodels import Trade
 from database.dbmodels.balance import Balance, Amount
 from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import RawTransfer
-from database.enums import ExecType, Side
-from database.errors import ResponseError, InvalidClientError, RateLimitExceeded, WebsocketError
-from common.exchanges.bybit.websocket import BybitWebsocketClient
-from common.exchanges.exchangeworker import ExchangeWorker, create_limit
-from database.models.async_websocket_manager import WebsocketManager
+from database.errors import ResponseError
 from database.models.market import Market
 from database.models.ohlc import OHLC
-from ccxt.async_support import bybit
 
 logger = logging.getLogger()
 
@@ -131,7 +120,18 @@ class BybitDerivativesWorker(_BybitBaseClient):
                                                   valid=lambda r: int(r['createdTime']) > since_ts,
                                                   params=params)
 
-        return [self._parse_order_v3(raw) for raw in raw_orders]
+        symbols = set(raw['symbol'] for raw in raw_orders)
+
+        executions = [self._parse_order_v3(raw) for raw in raw_orders]
+        params = {'limit': 100, 'category': category.value, 'execType': 'Funding', 'start_time': since_ts}
+        for symbol in symbols:
+            params['symbol'] = symbol
+            funding = await self._get_paginated_v3(path='/v5/execution/list',
+                                                   valid=lambda r: int(r['execTime']) > since_ts,
+                                                   params=params)
+
+            executions.extend(self._parse_exec_v3(raw) for raw in funding)
+        return executions
 
         pnlParams = {
             'limit': 50
@@ -142,7 +142,7 @@ class BybitDerivativesWorker(_BybitBaseClient):
                 coins_to_fetch.add(transfer.coin)
 
         if since:
-            #pnlParams['startTime'] = self._parse_date(since.replace(hour=0, minute=0, second=0, microsecond=0))
+            # pnlParams['startTime'] = self._parse_date(since.replace(hour=0, minute=0, second=0, microsecond=0))
             pnlParams['startTime'] = self._parse_date(since - timedelta(days=7))
 
         # https://bybit-exchange.github.io/docs/derivativesV3/contract/#t-dv_walletrecords
@@ -408,7 +408,7 @@ class BybitDerivativesWorker(_BybitBaseClient):
 
     # https://bybit-exchange.github.io/docs/inverse/?console#t-balance
     async def _get_balance(self, time: datetime, upnl=True):
-        #return await self._internal_get_balance_v5(Account.CONTRACT)
+        # return await self._internal_get_balance_v5(Account.CONTRACT)
         return await self._internal_get_balance_v3()
 
 

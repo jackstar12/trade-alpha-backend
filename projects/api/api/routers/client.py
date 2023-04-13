@@ -26,13 +26,13 @@ from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import BadRequest, OK, CustomJSONResponse, NotFound, ResponseModel, InternalError, Unauthorized
 from common.exchanges import EXCHANGES
 from common.exchanges.exchangeworker import ExchangeWorker
-from core.utils import validate_kwargs, groupby, date_string, sum_iter
+from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 from database.calc import create_daily
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, safe_eq
 from database.dbmodels import TradeDB, BalanceDB, Execution, Chapter
 from database.dbmodels.authgrant import ChapterGrant, AuthGrant
 from database.dbmodels.balance import Amount
-from database.dbmodels.client import Client, add_client_checks, ClientState
+from database.dbmodels.client import Client, add_client_checks, ClientState, ClientRedis
 from database.dbmodels.client import ClientQueryParams
 from database.dbmodels.transfer import Transfer as TransferDB
 from database.dbmodels.user import User
@@ -364,7 +364,6 @@ async def get_balance(at: Optional[datetime],
                       db: AsyncSession,
                       currency: Optional[str] = None,
                       latest=True) -> Balance:
-
     stmt = (
         select(BalanceDB).distinct(
             BalanceDB.client_id
@@ -399,7 +398,7 @@ auth = get_auth_grant_dependency(ChapterGrant)
 @router.get('/client/balance', response_model=Balance)
 async def get_client_balance(to: Optional[datetime] = Query(None),
                              since: Optional[datetime] = Query(default=None),
-                             client_id: Optional[set[InputID]] = Query(None),
+                             client_ids: Optional[set[InputID]] = Query(default=None, alias='client_id'),
                              chapter_id: Optional[InputID] = Query(None),
                              currency: Optional[str] = Query(None),
                              grant: AuthGrant = Depends(auth),
@@ -407,7 +406,7 @@ async def get_client_balance(to: Optional[datetime] = Query(None),
     params = ClientQueryParams.construct(
         since=since,
         to=to,
-        client_ids=client_id
+        client_ids=client_ids
     )
 
     if not grant.root:
@@ -423,13 +422,32 @@ async def get_client_balance(to: Optional[datetime] = Query(None),
             if not node:
                 raise Unauthorized()
 
-    balance = await get_balance(to, client_id, grant.user_id, db, currency=currency, latest=True)
+    balance = None
+
+    if not to or to > utc_now():
+        if not client_ids:
+            client_ids = await grant.user.get_client_ids()
+
+        missing = set()
+        for client_id in client_ids:
+            current = await ClientRedis(user_id=grant.user_id, client_id=client_id).get_balance()
+            if current:
+                current = current.get_currency(currency)
+                balance = balance + current if balance else current
+            else:
+                missing.add(client_id)
+    else:
+        missing = client_ids
+
+    if missing or missing is None:
+        other = await get_balance(to, missing, grant.user_id, db, currency=currency, latest=True)
+        balance = balance + other if balance else other
 
     if since or True:
-        gain_balance = await get_balance(since, client_id, grant.user_id, db, currency=currency, latest=False)
+        gain_balance = await get_balance(since, client_ids, grant.user_id, db, currency=currency, latest=False)
 
         offset = await Client.get_total_transfered(
-            client_id,
+            client_ids,
             grant.user_id,
             since=since,
             to=to,

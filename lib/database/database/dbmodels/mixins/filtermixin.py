@@ -48,20 +48,7 @@ class FilterParam(BaseModel, Generic[T]):
 
         values = []
 
-        if model and field in model.__fields__:
-            compare_field = model.__fields__[field]
-
-            if op in ('includes', 'excludes'):
-                values, errors = compare_field.validate(raw_values, {}, loc='none')
-                if errors:
-                    raise ValueError('Invalid input value')
-            else:
-                for value in raw_values:
-                    validated, errors = compare_field.validate(value, {}, loc='none')
-                    if errors:
-                        raise ValueError('Invalid input value')
-                    values.append(validated)
-        elif table:
+        if table:
             validate = table.validator(field)
 
             if not validate:
@@ -74,6 +61,19 @@ class FilterParam(BaseModel, Generic[T]):
             for value in raw_values:
                 validated = validate(value)
                 values.append(validated)
+        elif model and field in model.__fields__:
+            compare_field = model.__fields__[field]
+
+            if op in ('includes', 'excludes'):
+                values, errors = compare_field.validate(raw_values, {}, loc='none')
+                if errors:
+                    raise ValueError('Invalid input value')
+            else:
+                for value in raw_values:
+                    validated, errors = compare_field.validate(value, {}, loc='none')
+                    if errors:
+                        raise ValueError('Invalid input value')
+                    values.append(validated)
 
         else:
             raise ValueError('Unknown field')

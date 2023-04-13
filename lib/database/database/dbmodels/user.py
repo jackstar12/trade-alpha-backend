@@ -1,14 +1,18 @@
 from __future__ import annotations
-import enum
-import sqlalchemy as sa
 
-from typing import Optional, TypedDict, TYPE_CHECKING
+import enum
+from typing import Optional, TYPE_CHECKING
+
+import sqlalchemy as sa
 from aioredis import Redis
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID, SQLAlchemyBaseOAuthAccountTableUUID
-from sqlalchemy import Column, orm
+from sqlalchemy import Column, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
+from core import join_args
+from database.dbasync import redis, db_all
+import database.dbmodels as dbmodels
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.types import Document
@@ -62,7 +66,7 @@ class User(Base, Serializer, BaseMixin, SQLAlchemyBaseUserTableUUID, EditsMixin)
         lazy='raise',
         primaryjoin='or_('
                     'Client.user_id == User.id,'
-                    #'and_(Client.oauth_account_id == OAuthAccount.account_id, OAuthAccount.user_id == User.id)'
+        # 'and_(Client.oauth_account_id == OAuthAccount.account_id, OAuthAccount.user_id == User.id)'
                     ')',
         viewonly=True
     )
@@ -84,6 +88,23 @@ class User(Base, Serializer, BaseMixin, SQLAlchemyBaseUserTableUUID, EditsMixin)
     templates = relationship('Template',
                              back_populates='user',
                              cascade="all, delete")
+
+    @property
+    def redis_key(self):
+        return f'user:{self.id}'
+
+    async def get_client_ids(self) -> list[int]:
+        key = join_args(self.redis_key, 'clients')
+        client_ids = await redis.smembers(key)
+        if not client_ids:
+            client_ids = await db_all(
+                select(dbmodels.Client.id).where(dbmodels.Client.user_id == self.id),
+                session=self.async_session
+            )
+            await redis.sadd(key, *client_ids)
+        else:
+            client_ids = [int(client_id) for client_id in client_ids]
+        return client_ids
 
     def get_oauth(self, name: str) -> Optional[OAuthAccount]:
         for account in self.oauth_accounts:
@@ -122,4 +143,3 @@ class User(Base, Serializer, BaseMixin, SQLAlchemyBaseUserTableUUID, EditsMixin)
             email='mock@gmail.com',
             hashed_password='SUPER_SECURE'
         )
-

@@ -312,9 +312,9 @@ class BinanceFutures(_BinanceBaseClient):
                 results.append(
                     Execution(
                         symbol=symbol,
-                        # realized_pnl=amount if type == ExecType.LIQUIDATION else 0,
-                        # commission=amount if type == ExecType.FUNDING else 0,
-                        realized_pnl=amount,
+                        realized_pnl=amount if type == ExecType.LIQUIDATION else 0,
+                        commission=amount if type == ExecType.FUNDING else 0,
+                        #realized_pnl=amount,
                         time=self.parse_ms_dt(income['time']),
                         type=type
                     )
