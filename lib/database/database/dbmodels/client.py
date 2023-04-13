@@ -28,7 +28,7 @@ from database.errors import UserInputError
 from database.dbmodels.transfer import Transfer
 
 from database.dbmodels.mixins.editsmixin import EditsMixin
-from core import json as customjson, safe_cmp, utc_now
+from core import join_args, json as customjson, safe_cmp, utc_now
 from database.dbasync import db_first, db_all, db_select_all, redis, redis_bulk_keys, RedisKey, db_unique, \
     time_range, safe_op, safe_eq
 from database.dbmodels.editing.chapter import Chapter
@@ -197,7 +197,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
     __serializer_data_forbidden__ = ['api_secret', 'discorduser']
 
     # Identification
-    id = Column(Integer, primary_key=True)
+    id: int = Column(Integer, primary_key=True)
 
     user_id = Column(GUID, ForeignKey('user.id', ondelete='CASCADE'), nullable=True)
     user = relationship('User', lazy='raise')
@@ -565,6 +565,6 @@ def add_client_checks(stmt: Union[Select, Delete, Update], user_id: UUID,
 @event.listens_for(Client, 'after_insert')
 @event.listens_for(Client, 'after_delete')
 def before_update(mapper, connection, client: Client):
-    asyncio.create_task(redis.sadd(
-        join_args(client.user.redis_key, 'clients'), client.id
+    asyncio.ensure_future(redis.sadd(
+        core.join_args(client.user.redis_key, 'clients'), client.id
     ))
