@@ -14,6 +14,7 @@ from core.utils import join_args
 from database.dbasync import db_select
 from database.dbmodels.trade import InternalTradeModel
 from database.dbmodels.user import OAuthAccount
+from database.enums import Side
 from database.env import ENV
 from database.models.discord.guild import UserRequest
 from database.models.user import ProfileData
@@ -112,9 +113,8 @@ class DiscordUser(OAuthAccount):
         )
         return embed
 
-    @classmethod
-    def get_trade_embed(cls, trade: InternalTradeModel):
-        return cls.get_embed(
+    def get_trade_embed(self, trade: InternalTradeModel):
+        return self.get_embed(
 
             title='Trade',
             fields={
@@ -128,9 +128,8 @@ class DiscordUser(OAuthAccount):
 
         )
 
-    @classmethod
-    def get_exec_embed(cls, execution: Execution):
-        return cls.get_embed(
+    def get_exec_embed(self, execution: Execution):
+        return self.get_embed(
             title='Execution',
             fields={
                 'Symbol': execution.symbol,
@@ -141,9 +140,8 @@ class DiscordUser(OAuthAccount):
             }
         )
 
-    @classmethod
-    def get_balance_embed(cls, balance: Balance):
-        return cls.get_embed(
+    def get_balance_embed(self, balance: Balance):
+        return self.get_embed(
             title='Balance',
             fields={
                 'Realized': balance.realized,

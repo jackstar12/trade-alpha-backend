@@ -9,7 +9,6 @@ import urllib.parse
 from asyncio import Future, Task
 from asyncio.queues import PriorityQueue
 from collections import deque, OrderedDict
-from copy import copy, deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, date
 from decimal import Decimal
@@ -22,12 +21,14 @@ from typing import TYPE_CHECKING
 import aiohttp.client
 import pytz
 from aiohttp import ClientResponse, ClientResponseError
-from sqlalchemy import select, desc, asc, update, delete, func, case
+from sqlalchemy import select, desc, asc, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload, sessionmaker, joinedload
+from sqlalchemy.orm import selectinload, sessionmaker
 
 import core
+from common.messenger import TableNames, Category, Messenger
 from core import json as customjson, json
+from core.utils import combine_time_series, MINUTE, utc_now
 from database.dbasync import db_unique, db_all, db_select, db_select_all
 from database.dbmodels.client import Client, ClientState
 # from database.dbmodels.ohlc import OHLC
@@ -38,16 +39,12 @@ from database.dbmodels.transfer import Transfer, RawTransfer
 from database.enums import Priority, ExecType, Side, MarketType
 from database.errors import RateLimitExceeded, ExchangeUnavailable, ExchangeMaintenance, ResponseError, \
     InvalidClientError, ClientDeletedError
-from common.messenger import TableNames, Category, Messenger
+from database.models.market import Market
 from database.models.miscincome import MiscIncome
 from database.models.ohlc import OHLC
-from database.models.market import Market
-from core.utils import combine_time_series, MINUTE, groupby_unique, utc_now
 
 if TYPE_CHECKING:
     from database.dbmodels.balance import Balance
-
-import database.dbmodels.balance as db_balance
 
 logger = logging.getLogger(__name__)
 
@@ -389,7 +386,7 @@ class ExchangeWorker:
                 else:
                     await db.delete(trade)
 
-            #if client.currently_realized and valid_until and valid_until < client.currently_realized.time and all_executions:
+            # if client.currently_realized and valid_until and valid_until < client.currently_realized.time and all_executions:
             #    bl = db_balance.Balance
             #    await db.execute(
             #        delete(bl).where(
@@ -399,9 +396,6 @@ class ExchangeWorker:
             #    )
 
             await db.flush()
-
-            def get_time(b: Balance):
-                return b.time
 
             prev_balance = await self._update_realized_balance(db)
 
@@ -475,9 +469,6 @@ class ExchangeWorker:
             # 8.4. 90
             # 7.4. 110
 
-            misc_iter = reversed(misc)
-            current_misc = next(misc_iter, None)
-
             balances = []
             pnl_data = await db_select_all(
                 PnlData,
@@ -503,10 +494,6 @@ class ExchangeWorker:
 
                 if execution.type == ExecType.TRANSFER:
                     current_balance.add_amount(execution.settle, realized=-execution.effective_qty)
-
-                # while current_misc and execution.time <= current_misc.time:
-                #     current_balance.realized -= current_misc.amount
-                #     current_misc = next(misc_iter, None)
 
                 pnl_by_trade = {}
 
@@ -561,17 +548,6 @@ class ExchangeWorker:
                 if not prev_exec or prev_exec.time != execution.time:
                     balances.append(current_balance)
                 prev_balance = current_balance
-
-            # if all_executions:
-            #    first_execution = all_executions[0]
-            #    balances.append(
-            #        db_balance.Balance(
-            #            realized=current_balance.realized + (first_execution.commission or 0),
-            #            unrealized=current_balance.unrealized + (first_execution.commission or 0),
-            #            time=first_execution.time - timedelta(seconds=1),
-            #            client=self.client
-            #        )
-            #    )
 
             db.add_all(balances)
             db.add_all(transfers)
