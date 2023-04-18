@@ -18,13 +18,14 @@ config = context.config
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from database.dbsync import Base
+from database.env import ENV
 import os
 
 target_metadata = Base.metadata
 
 config.set_main_option(
     'sqlalchemy.url',
-    f'postgresql://{os.environ["PG_URL"]}'
+    f'postgresql://{ENV.PG_URL}'
 )
 
 # other values from the config, defined by the needs of env.py,

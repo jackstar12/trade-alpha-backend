@@ -9,3 +9,4 @@ projects/api/db.sqlite3
 migrations
 .env
 venv
+*.pyc

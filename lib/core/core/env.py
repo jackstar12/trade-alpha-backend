@@ -5,7 +5,7 @@ import os
 
 from pydantic import BaseSettings, SecretStr, HttpUrl, AnyHttpUrl
 
-dotenv.load_dotenv()
+dotenv.load_dotenv(".env")
 
 
 class EnvBase(BaseSettings):
