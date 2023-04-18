@@ -14,6 +14,7 @@ class TableNames(Enum):
     CACHE = "cache"
     CHAPTER = "chapter"
     JOURNAL = "journal"
+    EXECUTION = "execution"
 
 
 __all__ = [

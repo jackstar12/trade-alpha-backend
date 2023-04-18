@@ -445,7 +445,8 @@ class ExtendedBalanceService(_BalanceServiceBase):
                 if balances:
                     self._logger.debug(balances)
                 else:
-                    self._logger.debug('No balances to update')
+                    pass
+                    #self._logger.debug('No balances to update')
 
                 for balance in balances:
                     await balance.client.as_redis(pipe).set_balance(balance)

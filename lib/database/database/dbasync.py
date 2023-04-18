@@ -60,7 +60,7 @@ async def db_select(cls: Type[Table],
                     apply: StmtCallable = None,
                     **filters) -> Optional[Table]:
     stmt = select(cls).where(*where).filter_by(**filters)
-    if db_eager:
+    if eager:
         stmt = db_eager(stmt, *eager)
     return await db_first(apply(stmt) if apply else stmt, session=session)
 

@@ -1,12 +1,11 @@
 from pydantic import SecretStr, AnyHttpUrl
 
-from core.env import EnvBase
+from core.env import EnvBase, Environment
 
 
-class Env(EnvBase):
+class Env(Environment):
     OAUTH2_CLIENT_ID: str
     OAUTH2_CLIENT_SECRET: SecretStr
-    OAUTH2_REDIRECT_URI: AnyHttpUrl
 
 
 ENV = Env()

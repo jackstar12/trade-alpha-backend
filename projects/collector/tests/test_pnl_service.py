@@ -123,11 +123,8 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
 )
 async def test_exchange(db_client, db, session_maker, http_session, ccxt_client, messenger, redis):
     db_client: Client
-    async with Messages.create(
-            Channel(TableNames.TRADE, Category.NEW),
-            Channel(TableNames.TRADE, Category.FINISHED),
-            messenger=messenger
-    ) as listener:
+
+    async with Messages.create(Channel(TableNames.EXECUTION, Category.NEW), messenger=messenger) as listener:
         ccxt_client.create_market_buy_order(symbol, float(size))
         ccxt_client.create_market_sell_order(symbol, float(size))
         await listener.wait(2)
@@ -138,7 +135,7 @@ async def test_exchange(db_client, db, session_maker, http_session, ccxt_client,
     SANDBOX_CLIENTS,
     indirect=True
 )
-async def test_imports(pnl_service, time, db_client):
+async def test_imports(pnl_service, db, time, db_client):
     return
     trades = await db_select_all(
         Trade,

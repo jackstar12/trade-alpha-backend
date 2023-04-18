@@ -1,22 +1,20 @@
 import logging
-
-import discord
 from datetime import datetime
 
+import discord
 from discord_slash import cog_ext, SlashContext, SlashCommandOptionType
 from discord_slash.utils.manage_commands import create_option
 from prettytable import PrettyTable
 
-from database.dbmodels.event import EventState
-from core.utils import date_string
-from database.dbasync import async_session
+from bot import config
+from bot import utils
+from bot.cogs.cogbase import CogBase
+from core.utils import date_string, round_ccy
+from database import utils as dbutils
+from database.calc import calc_daily
 from database.dbmodels.client import Client
 from database.dbmodels.discord.discorduser import DiscordUser
-from bot import utils
-from database import utils as dbutils
-from bot import config
-from bot.cogs.cogbase import CogBase
-from database.calc import calc_gains, calc_daily
+from database.dbmodels.event import EventState
 
 
 class BalanceCog(CogBase):
@@ -42,16 +40,15 @@ class BalanceCog(CogBase):
     @utils.log_and_catch_errors()
     @utils.set_author_default(name='user')
     async def balance(self, ctx: SlashContext, user: discord.Member = None, currency: str = None):
-        if currency is None:
-            currency = 'USD'
-        currency = currency.upper()
+        if currency:
+            currency = currency.upper()
 
         if ctx.guild:
-            registered_user = await dbutils.get_discord_client(user.id, ctx.guild.id)
+            registered_client = await dbutils.get_discord_client(user.id, ctx.guild.id)
 
             await ctx.defer()
 
-            usr_balance = await registered_user.get_latest_balance(self.redis, currency)
+            usr_balance = await registered_client.get_latest_balance(self.redis, currency)
             if not usr_balance:
                 await ctx.send(f'There are no records about {user.display_name}\'s balance')
             else:
@@ -70,7 +67,13 @@ class BalanceCog(CogBase):
                 if not usr_balance:
                     await ctx.send('There are no records about your balance')
                 else:
-                    await ctx.send(f'{balance_message}{usr_balance.to_string()}')
+                    await ctx.send(
+                        embed=discord.Embed(
+                            title=balance_message,
+                            description=usr_balance.to_string()
+                        )
+                    )
+                    #await ctx.send(f'{balance_message}{usr_balance.to_string()}')
 
     @cog_ext.cog_slash(
         name="gain",
@@ -106,6 +109,7 @@ class BalanceCog(CogBase):
 
         since_start = time is None
 
+        await ctx.defer()
         if ctx.guild:
             registered_client = await dbutils.get_discord_client(
                 user.id, ctx.guild_id, client_eager=[Client.events]
@@ -122,22 +126,15 @@ class BalanceCog(CogBase):
 
         else:
             discord_user = await dbutils.get_discord_user(
-                ctx.author_id, eager_loads=[(DiscordUser.clients, Client.events, DiscordUser.global_associations)]
+                ctx.author_id, eager_loads=[(DiscordUser.clients, Client.events), DiscordUser.global_associations]
             )
             clients = discord_user.clients
+            event = None
 
         time_str = utils.readable_time(time)
 
-        await ctx.defer()
-
-        user_gains = await calc_gains(
-            clients,
-            event=await dbutils.get_discord_event(ctx.guild_id, throw_exceptions=False),
-            search=time,
-            currency=currency,
-        )
-
-        for client, gain in user_gains.items():
+        for client in clients:
+            gain = await client.calc_gain(event, time, currency)
             guild = self.bot.get_guild(ctx.guild_id)
             if ctx.guild:
                 gain_message = f'{user.display_name}\'s gain {"" if since_start else time_str}: '
@@ -153,8 +150,17 @@ class BalanceCog(CogBase):
                     s = discord_user.get_events_and_guilds_string(self.bot, client)
                     await ctx.send(f'Not enough data for calculating your gain ({s})')
             else:
+                rounded = round(gain.absolute, ndigits=config.CURRENCY_PRECISION.get(currency, 3))
                 await ctx.send(
-                    f'{gain_message}{round(gain.relative, ndigits=3)}% ({round(gain.absolute, ndigits=config.CURRENCY_PRECISION.get(currency, 3))}{currency})')
+                    embed=discord.Embed(
+                        title=gain_message,
+                        description=f'{round(gain.relative, ndigits=3)}% ({rounded}{currency})',
+                        colour=discord.Color.green() if gain.relative > 0 else discord.Color.red()
+                    )
+                )
+                return
+                await ctx.send(
+                    f'{gain_message}{round(gain.relative, ndigits=3)}% ({rounded}{currency})')
 
     @cog_ext.cog_slash(
         name="daily",
@@ -183,21 +189,30 @@ class BalanceCog(CogBase):
     @utils.log_and_catch_errors()
     @utils.set_author_default(name="user")
     async def daily(self, ctx: SlashContext, user: discord.Member, amount: int = None, currency: str = None):
-        client = await dbutils.get_discord_client(user.id, ctx.guild_id, registration=True)
+        client = await dbutils.get_discord_client(user.id,
+                                                  ctx.guild_id,
+                                                  client_eager=(Client.transfers,),
+                                                  registration=True)
+
+        currency = currency.upper() if currency else client.currency
+
         await ctx.defer()
 
         daily_gains = await calc_daily(client, amount, ctx.guild_id, currency=currency)
 
         results = PrettyTable(
-            field_names=["Date", "Amount", "Diff", "Diff %"]
+            field_names=["Date", f"Amount [{currency}]", f"Gain [{currency}]", "Gain %"]
         )
 
         for interval in daily_gains:
             results.add_row([
-                date_string(interval.start), interval.start_balance.realized, interval.gain.absolute, interval.gain.relative
+                date_string(interval.start),
+                round_ccy(interval.end_balance.realized, ccy=currency),
+                round_ccy(interval.gain.absolute, ccy=currency),
+                round_ccy(interval.gain.relative, ccy=currency)
             ])
 
         await ctx.send(embed=discord.Embed(
-            title=f'Daily gains for {ctx.author.display_name}',
-            description=f'```\n{daily_gains}```')
+            title=f'Daily gains for {ctx.author.display_name} ({currency})',
+            description=f'```\n{results}```')
         )

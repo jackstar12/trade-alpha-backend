@@ -3,8 +3,7 @@ from typing import Optional
 import dotenv
 import os
 
-from pydantic import BaseSettings, SecretStr
-
+from pydantic import BaseSettings, SecretStr, HttpUrl, AnyHttpUrl
 
 dotenv.load_dotenv()
 
@@ -19,9 +18,11 @@ class Environment(EnvBase):
     LOG_OUTPUT_DIR: str = "/LOGS/"
     DATA_PATH: str = "/data/"
 
+    FRONTEND_URL: AnyHttpUrl = "http://localhost:3000"
 
-env = Environment()
 
-TESTING = env.TESTING
-LOG_OUTPUT_DIR = env.LOG_OUTPUT_DIR
-DATA_PATH = env.DATA_PATH
+ENV = Environment()
+
+TESTING = ENV.TESTING
+LOG_OUTPUT_DIR = ENV.LOG_OUTPUT_DIR
+DATA_PATH = ENV.DATA_PATH

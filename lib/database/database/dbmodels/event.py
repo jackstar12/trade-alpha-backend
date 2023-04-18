@@ -3,43 +3,34 @@ from __future__ import annotations
 import operator
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 import discord
 import numpy
 import pytz
 import sqlalchemy.exc
 from aioredis import Redis
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, Boolean, func, desc, \
+    select, and_, Numeric, BigInteger
+from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.orm.util import identity_key
 from sqlalchemy_utils import get_mapper
 
 import database.models.eventinfo as eventmodels
-from database.utils import get_client_history
-from database.models import OrmBaseModel
 from core.utils import join_args, utc_now
-from database.dbmodels.evententry import EventEntry, EventScore
-from database.models.discord.guild import GuildRequest
-from database.redis import rpc
-from database.dbmodels.types import Document
-import numpy
-from database.dbmodels.mixins.serializer import Serializer
-from datetime import datetime
-from sqlalchemy.ext.hybrid import hybrid_property
-import discord
-
-from database.dbsync import Base, BaseMixin
-from database.models.eventinfo import EventState
-from database.models.platform import PlatformModel
-from database.dbmodels.types import Platform
-from sqlalchemy.orm import relationship, backref
-from sqlalchemy import Column, Integer, ForeignKey, String, DateTime, inspect, Boolean, func, desc, \
-    select, insert, literal, and_, update, Numeric, BigInteger
-
 from core.utils import safe_cmp
 from database.dbasync import db_all, safe_op
+from database.dbmodels.evententry import EventEntry, EventScore
+from database.dbmodels.mixins.serializer import Serializer
+from database.dbmodels.types import Document
+from database.dbmodels.types import Platform
+from database.dbsync import Base, BaseMixin
+from database.models.discord.guild import GuildRequest
+from database.models.eventinfo import EventState
+from database.models.platform import PlatformModel
+from database.redis import rpc
+from database.utils import get_client_history
 
 if TYPE_CHECKING:
     from database.dbmodels.user import User
@@ -349,7 +340,8 @@ class Event(Base, Serializer, BaseMixin):
             entry = self.sync_session.identity_map.get(identity_key(EventEntry, score.entry_id))
             return entry.init_balance.realized if entry.init_balance else None
 
-        stakes = eventmodels.Stat.from_sorted(sorted(leaderboard.valid, key=init, reverse=True))
+        leaderboard.valid.sort(key=init, reverse=True)
+        stakes = eventmodels.Stat.from_sorted(leaderboard.valid)
 
         async def vola(client: Client):
             history = await get_client_history(client, self.start, self.start, self.end)
@@ -375,13 +367,15 @@ class Event(Base, Serializer, BaseMixin):
             cum_percent += entry.gain.relative
             cum_dollar += entry.gain.absolute
 
-        cum_percent /= len(self.entries) or 1  # Avoid division by zero
+        avg_percent = cum_percent / len(self.entries) or 1  # Avoid division by zero
 
-        result = eventmodels.Summary(
-            gain=gain, stakes=stakes, volatility=volatili, avg_percent=cum_percent, total=cum_dollar
+        return eventmodels.Summary(
+            gain=gain,
+            stakes=stakes,
+            volatility=volatili,
+            avg_percent=avg_percent,
+            total=cum_dollar
         )
-
-        return result
 
     def __hash__(self):
         return self.id.__hash__()

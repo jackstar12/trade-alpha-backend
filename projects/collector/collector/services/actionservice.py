@@ -1,19 +1,18 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Callable, Type
+from typing import Callable, Any
 
-import discord
 from sqlalchemy import select
 
 from collector.services.baseservice import BaseService
 from common.messenger import Category
+from core.env import ENV
 from database.dbasync import db_all, db_select
-from database.dbmodels import Execution
+from database.dbmodels import Execution, Chapter
 from database.dbmodels.action import Action, ActionTrigger
 from database.dbmodels.balance import Balance
-from database.dbmodels.mixins.serializer import Serializer
-from database.dbmodels.trade import Trade
-from database.enums import Side
+from database.dbmodels.discord.discorduser import DiscordUser
+from database.dbmodels.trade import Trade, InternalTradeModel
 from database.models.discord.guild import MessageRequest
 from database.redis import rpc
 
@@ -25,63 +24,6 @@ class FutureCallback:
 
 
 class ActionService(BaseService):
-
-    @classmethod
-    def get_embed(cls, fields: dict, **embed_kwargs):
-        embed = discord.Embed(**embed_kwargs)
-        for k, v in fields.items():
-            embed.add_field(name=k, value=v)
-        return embed
-
-    @classmethod
-    def to_embed(cls, table: Type[Serializer], data: dict):
-        if table == Balance:
-            return cls.get_balance_embed(Balance(**data))
-        if table == Trade:
-            return cls.get_trade_embed(Trade(**data))
-        if table == Execution:
-            return cls.get_exec_embed(Execution(**data))
-
-        return cls.get_embed(
-            title=table.__tablename__,
-            fields=data
-        )
-
-    @classmethod
-    def get_trade_embed(cls, trade: Trade):
-        return cls.get_embed(
-            title='Trade',
-            fields={
-                'Symbol': trade.symbol,
-                'Net PNL': trade.net_pnl,
-                'Entry': trade.entry,
-                'Exit': trade.exit,
-                'Side': 'Long' if trade.side == Side.BUY else 'Short'
-            }
-        )
-
-    @classmethod
-    def get_exec_embed(cls, execution: Execution):
-        return cls.get_embed(
-            title='Execution',
-            fields={
-                'Symbol': execution.symbol,
-                'Realized PNL': execution.realized_pnl,
-                'Type': execution.type,
-                'Price': execution.price,
-                'Size': execution.qty * execution.price
-            }
-        )
-
-    @classmethod
-    def get_balance_embed(cls, balance: Balance):
-        return cls.get_embed(
-            title='Balance',
-            fields={
-                'Realized': balance.realized,
-                'Total': balance.total,
-            }
-        )
 
     def get_action(self, data: dict):
         return db_select(
@@ -115,20 +57,48 @@ class ActionService(BaseService):
             **action.all_ids
         )
 
-    async def execute(self, action: Action, data: dict):
-        messenger_space = self._messenger.get_namespace(action.type)
+    async def execute(self, action: Action, data: Any):
+        ns = self._messenger.get_namespace(action.type)
+        self._logger.info(f'Executing action {action.id}')
         if action.platform.name == 'webhook':
             url = action.platform.data['url']
             # TODO
         elif action.platform.name == 'discord':
             dc = rpc.Client('discord', self._redis)
-            embed = self.to_embed(messenger_space.table, data)
+
+            discord_user = await db_select(
+                DiscordUser,
+                DiscordUser.user_id == action.user_id,
+                db=self._db
+            )
+
+            if ns.table == Balance:
+                embed = discord_user.get_balance_embed(Balance(**data))
+            elif ns.table == Trade:
+                embed = discord_user.get_trade_embed(InternalTradeModel(**data))
+            elif ns.table == Execution:
+                embed = discord_user.get_exec_embed(Execution(**data))
+            elif ns.table == Chapter:
+                url = ENV.FRONTEND_URL + f'/app/profile/journal/{data["journal_id"]}/chapter/{data["id"]}'
+                embed = discord_user.get_embed(
+                    title=data['title'],
+                    description=(action.message or ''),
+                    url=url
+                )
+            else:
+                embed = discord_user.get_embed(
+                    title=ns.table.__name__,
+                    fields=data
+                )
             await dc(
                 'send',
                 MessageRequest(
                     **action.platform.data,
-                    embed=embed.to_dict() if embed else None,
-                    message=action.message
+                    embed={
+                        'raw': embed.to_dict(),
+                        'author_id': action.user_id
+                    },
+                    # message=action.message
                 )
             )
 

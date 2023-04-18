@@ -8,7 +8,7 @@ from sqlalchemy import Column, Integer, ForeignKey, String, BigInteger, Numeric
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from database.dbsync import Base, FKey, fkey_name
+from database.dbsync import Base, FKey, fkey_name, BaseMixin
 from database.enums import Side, MarketType
 from database.models import BaseModel
 
@@ -26,7 +26,7 @@ class RawTransfer(BaseModel):
     market_type: Optional[MarketType]
 
 
-class Transfer(Base):
+class Transfer(Base, BaseMixin):
     __tablename__ = 'transfer'
 
     id = Column(Integer, primary_key=True)

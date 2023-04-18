@@ -10,15 +10,17 @@ from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, backref
 
 import database.dbmodels.client as db_client
-from database.dbasync import async_session, db_select
-from database.models.user import ProfileData
-from database.dbmodels.user import OAuthAccount
 from core.utils import join_args
+from database.dbasync import db_select
+from database.dbmodels.trade import InternalTradeModel
+from database.dbmodels.user import OAuthAccount
+from database.env import ENV
 from database.models.discord.guild import UserRequest
+from database.models.user import ProfileData
 from database.redis import rpc
 
 if TYPE_CHECKING:
-    from database.dbmodels import Client, GuildAssociation
+    from database.dbmodels import Client, GuildAssociation, Execution, Balance
 
 
 class DiscordUser(OAuthAccount):
@@ -52,7 +54,6 @@ class DiscordUser(OAuthAccount):
     @discord_id.expression
     def discord_id(self):
         return self.account_id.cast(BigInteger)
-
 
     def get_display_name(self, dc: discord.Client, guild_id: int):
         try:
@@ -99,12 +100,60 @@ class DiscordUser(OAuthAccount):
 
         return embed
 
-    @classmethod
-    def get_embed(cls, fields: dict, **embed_kwargs):
+    def get_embed(self, fields: dict = None, **embed_kwargs):
         embed = discord.Embed(**embed_kwargs)
-        for k, v in fields:
-            embed.add_field(name=k, value=v)
+        if fields:
+            for k, v in fields.items():
+                embed.add_field(name=k, value=v)
+        embed.set_author(
+            name=self.data['username'],
+            url=ENV.FRONTEND_URL + f'/app/profile?public_id={self.user_id}',
+            icon_url=self.data['avatar_url']
+        )
         return embed
+
+    @classmethod
+    def get_trade_embed(cls, trade: InternalTradeModel):
+        return cls.get_embed(
+
+            title='Trade',
+            fields={
+                'Symbol': trade.symbol,
+                'Net PNL': str(trade.net_pnl) + trade.settle,
+                'Entry': trade.entry,
+                'Exit': trade.exit,
+                'Side': 'Long' if trade.side == Side.BUY else 'Short'
+            },
+            color=discord.Color.green() if trade.net_pnl >= 0 else discord.Color.red()
+
+        )
+
+    @classmethod
+    def get_exec_embed(cls, execution: Execution):
+        return cls.get_embed(
+            title='Execution',
+            fields={
+                'Symbol': execution.symbol,
+                'Realized PNL': execution.realized_pnl,
+                'Type': execution.type,
+                'Price': execution.price,
+                'Size': execution.qty * execution.price
+            }
+        )
+
+    @classmethod
+    def get_balance_embed(cls, balance: Balance):
+        return cls.get_embed(
+            title='Balance',
+            fields={
+                'Realized': balance.realized,
+                'Total': balance.total,
+            },
+            color=(
+                discord.Color.green() if balance.unrealized > 0 else
+                discord.Color.red() if balance.unrealized < 0 else None
+            )
+        )
 
     async def get_discord_embed(self, dc: discord.Client) -> List[discord.Embed]:
         return [await self.get_client_embed(dc, client) for client in self.clients]

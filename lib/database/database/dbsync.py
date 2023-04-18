@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional, Any, Type
 
 from sqlalchemy import create_engine, MetaData
 import sqlalchemy as sa
@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session, Session, declarative_ba
 import sqlalchemy.orm as orm
 
 from database.env import ENV
-from database.models import BaseModel
+from database.models import BaseModel, OrmBaseModel
 
 engine = create_engine(
     f'postgresql+psycopg2://{ENV.PG_URL}',
@@ -23,6 +23,7 @@ class Base:
 
 
 Base = declarative_base(cls=Base)
+
 Meta = MetaData()
 
 
@@ -39,8 +40,8 @@ def fkey_name(tablename: Any, column_name: str):
 
 class BaseMixin:
     __tablename__: str
-    __model__: Optional[BaseModel]
-    __realtime__: Optional[bool]
+    __model__: Optional[Type[OrmBaseModel]] = None
+    __realtime__: Optional[bool] = None
 
     @property
     def sync_session(self) -> Optional[Session]:

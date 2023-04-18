@@ -1,4 +1,6 @@
-import json
+import functools
+
+from core import json
 import uuid
 from typing import Type, NamedTuple, Callable
 
@@ -202,3 +204,6 @@ class Client:
 
     def __call__(self, method, request: BaseModel):
         return self.call(method, request)
+
+    def __getattr__(self, name):
+        return functools.partial(self.call, name)

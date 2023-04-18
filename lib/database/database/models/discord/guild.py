@@ -1,9 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Literal
+from uuid import UUID
 
+from database.dbmodels.trade import InternalTradeModel
 from database.enums import Tier
 from database.models import BaseModel, OutputID, InputID, OrmBaseModel
+from database.models.balance import Balance
 
 if TYPE_CHECKING:
     from database.dbmodels import GuildAssociation as GuildAssociationDB
@@ -23,17 +26,36 @@ class TextChannel(OrmBaseModel):
 
 class UserRequest(BaseModel):
     user_id: InputID
+    guild_id: Optional[InputID]
 
 
 class GuildRequest(UserRequest):
     guild_id: InputID
 
 
+class MessageEmbed(BaseModel):
+    raw: dict
+    type: Optional[str]
+    author_id: Optional[UUID]
+
+
+class TradeEmbed(BaseModel):
+    raw: InternalTradeModel
+    type: Literal['trade']
+    author_id: Optional[UUID]
+
+
+class ChapterEmbed(BaseModel):
+    raw: Balance
+    type: Literal['balance']
+    author_id: Optional[UUID]
+
+
 class MessageRequest(BaseModel):
     channel_id: InputID
     guild_id: InputID
     message: Optional[str]
-    embed: Optional[dict]
+    embed: Optional[TradeEmbed | ChapterEmbed | MessageEmbed]
 
 
 class GuildData(OrmBaseModel):

@@ -141,21 +141,17 @@ class HistoryCog(CogBase):
                             registered_client = await dbutils.get_discord_client(member.channel_id, ctx.guild.id)
                             registrations.append((registered_client, member.display_name))
 
+        percentage = False
         if currency is None:
             if len(registrations) > 1:
                 currency = '%'
-            else:
-                currency = 'USD'
-        currency = currency.upper()
-        currency_raw = currency
-        if '%' in currency:
-            percentage = True
-            currency = currency.rstrip('%')
-            currency = currency.rstrip()
-            if not currency:
-                currency = 'USD'
+                percentage = True
         else:
-            percentage = False
+            currency = currency.upper()
+            if '%' in currency:
+                percentage = True
+                currency = currency.rstrip('%')
+                currency = currency.rstrip()
 
         await ctx.defer()
 
@@ -164,7 +160,6 @@ class HistoryCog(CogBase):
             event=await dbutils.get_discord_event(ctx.guild_id, ctx.channel_id, throw_exceptions=False),
             start=since,
             end=to,
-            currency_display=currency_raw,
             currency=currency,
             percentage=percentage,
             path=config.DATA_PATH + "tmp.png",

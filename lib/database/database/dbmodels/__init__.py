@@ -31,11 +31,14 @@ import database.dbmodels.authgrant
 Client = client.Client
 User = user.User
 BalanceDB = balance.Balance
+Amount = balance.Amount
 Balance = balance.Balance
 Chapter = chapter.Chapter
 Execution = execution.Execution
 TradeDB = trade.Trade
 Trade = trade.Trade
+Transfer = transfer.Transfer
+TransferDB = transfer.Transfer
 EventEntry = evententry.EventEntry
 EventScore = evententry.EventScore
 Event = event.Event
@@ -93,6 +96,8 @@ __all__ = [
     "balance",
     "Balance",
     "BalanceDB",
+    "Transfer",
+    "TransferDB",
     "client",
     "trade",
     "user",

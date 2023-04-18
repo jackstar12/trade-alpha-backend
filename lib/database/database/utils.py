@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from operator import and_
 from typing import Optional, List, Type, TypeVar
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -17,7 +18,7 @@ import database.dbmodels.event as db_event
 from database import dbmodels
 from database.dbasync import db_all, db_first, time_range
 from database.dbasync import db_select, async_session
-from database.dbmodels.balance import Balance
+from database.dbmodels.balance import Balance, Amount
 from database.dbmodels.client import ClientQueryParams
 from database.dbmodels.client import add_client_checks
 from database.dbmodels.discord.discorduser import DiscordUser
@@ -89,16 +90,17 @@ async def get_client_history(client: dbmodels.Client,
                              to: datetime = None,
                              currency: str = None) -> History:
 
-    if currency is None:
-        currency = 'USD'
-
     initial = None
 
-    history = await db_all(client.history.statement.filter(
+    stmt = select(Balance).where(
         time_range(Balance.time, since, to),
-        Balance.extra_currencies[currency] != JSON.NULL if currency != client.currency else True
-    ))
-
+        Balance.client_id == client.id
+    )
+    if currency and currency != client.currency:
+        stmt = stmt.join(
+            Amount, and_(Amount.balance_id == Balance.id, Amount.currency == currency)
+        )
+    history = await db_all(stmt, session=client.async_session)
     if init_time and init_time != since:
         initial = await client.get_balance_at_time(init_time)
 

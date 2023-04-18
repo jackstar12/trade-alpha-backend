@@ -2,27 +2,23 @@ from __future__ import annotations
 
 import itertools
 import typing
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 from typing import List, Generator
 from typing import TYPE_CHECKING
 
-import pytz
-from sqlalchemy import asc, select, func, desc, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import core as utils
+from api.models.transfer import Transfer
 from database.dbasync import db_all
-from database.dbmodels.balance import Balance
-from database.dbmodels.transfer import Transfer
+from database.dbmodels import BalanceDB, TransferDB
 from database.enums import IntervalType
 from database.errors import UserInputError
-from database.models.gain import Gain
+from database.models.balance import Balance
 from database.models.interval import Interval
 
 if TYPE_CHECKING:
     from database.dbmodels.client import Client
-    from database.dbmodels import Event
 
 
 def is_same(a: datetime, b: datetime, length: IntervalType):
@@ -35,11 +31,11 @@ def is_same(a: datetime, b: datetime, length: IntervalType):
     return result and a.day == b.day
 
 
-def create_daily(history: list[Balance],
-                 transfers: list[Transfer],
-                 ccy: str = None):
+def create_intervals(history: list[BalanceDB],
+                     transfers: list[TransferDB],
+                     ccy: str = None):
     results: dict[IntervalType, list[Interval]] = {}
-    recent: dict[IntervalType, Balance] = {}
+    recent: dict[IntervalType, BalanceDB] = {}
     offsets: dict[IntervalType, Decimal] = {}
 
     # TODO: Optimize transfers
@@ -90,17 +86,9 @@ async def calc_daily(client: Client,
                      since: datetime = None,
                      to: datetime = None,
                      currency: str = None,
-                     db: AsyncSession = None) -> List[Interval]:
+                     db: AsyncSession = None):
     """
     Calculates daily balance changes for a given client.
-    :param since:
-    :param to:
-    :param throw_exceptions:
-    :param client: Client to calculate changes
-    :param amount: Amount of days to calculate
-    :param currency: Currency that will be used
-    :param string: Whether the created table should be stored as a string using prettytable or as a list of
-    :return:
     """
 
     history: list[Balance] = await db_all(
@@ -114,9 +102,13 @@ async def calc_daily(client: Client,
         else:
             return []
 
-    return create_daily(history,
-                        [t for t in client.transfers if history[0].time < t.time < history[-1].time],
-                        client.currency)
+    intervals = create_intervals(
+        history,
+        [t for t in client.transfers if history[0].time < t.time < history[-1].time],
+        ccy=currency or client.currency
+    )
+
+    return intervals[IntervalType.DAY]
 
 
 _KT = typing.TypeVar('_KT')
@@ -132,46 +124,23 @@ TOffset = Decimal
 
 def transfer_gen(transfers: list[Transfer],
                  ccy: str = None,
-                 reset=False) -> Generator[TOffset, datetime, None]:
-    # transfers = await db_select_all(
-    #     Transfer,
-    #     Transfer.client_id == client.id,
-    #     Transfer.time > since,
-    #     Transfer.time < to,
-    #     session=db
-    # )
+                 reset=False) -> Generator[Decimal, typing.Optional[datetime], None]:
     offsets: TOffset = Decimal(0)
 
-    next_time: datetime = yield
-    for transfer in transfers:
-        if not ccy or transfer.coin == ccy:
-            while next_time < transfer.time:
-                next_time = yield offsets
-                if reset:
-                    offsets = Decimal(0)
-            offsets += transfer.amount if ccy else transfer.size
-        #offsets += transfer.amount if ccy == transfer.coin else transfer.size
-        # _add_safe(offsets, ccy, transfer.size)
-        #if transfer.extra_currencies:
-        #    for ccy, amount in transfer.extra_currencies.items():
-        #        _add_safe(offsets, ccy, Decimal(amount))
+    next_time: typing.Optional[datetime] = yield
+    if transfers:
+        for transfer in transfers:
+            if not ccy or transfer.coin == ccy:
+                while next_time < transfer.time:
+                    next_time = yield offsets
+                    if reset:
+                        offsets = Decimal(0)
+                offsets += transfer.size if not ccy else transfer.amount
+            # offsets += transfer.amount if ccy == transfer.coin else transfer.size
+            # _add_safe(offsets, ccy, transfer.size)
+            # if transfer.extra_currencies:
+            #    for ccy, amount in transfer.extra_currencies.items():
+            #        _add_safe(offsets, ccy, Decimal(amount))
 
     # One last yield in case the next_time was beyond the last transfer
     yield offsets
-
-
-async def calc_gains(clients: List[Client],
-                     event: Event,
-                     search: datetime,
-                     currency: str = None) -> dict[Client, Gain]:
-    """
-    :param event:
-    :param clients: users to calculate gain for
-    :param search: date since when gain should be calculated
-    :param currency:
-    :return:
-    """
-    return {
-        client: await client.calc_gain(event, search, currency=currency)
-        for client in clients
-    }

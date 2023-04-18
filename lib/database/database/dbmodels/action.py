@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
+from database.dbmodels.user import User
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.types import Platform
@@ -30,7 +31,7 @@ class Action(Base, BaseMixin, EditsMixin, Serializer):
 
     id = sa.Column(sa.Integer, primary_key=True)
     user_id = sa.Column(sa.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    user = relationship('User', lazy='raise')
+    user: User = relationship('User', lazy='raise')
 
     name = sa.Column(sa.String, nullable=True)
     type = sa.Column(sa.Enum(ActionType), nullable=False)

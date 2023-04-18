@@ -17,8 +17,8 @@ import api.utils.client as client_utils
 import core
 from api.dependencies import get_messenger, get_db, \
     FilterQueryParamsDep
-from api.models.execution import Execution
-from api.models.trade import Trade, BasicTrade, DetailledTrade, UpdateTrade, UpdateTradeResponse
+from database.models.execution import Execution
+from database.models.trade import Trade, BasicTrade, DetailledTrade, UpdateTrade, UpdateTradeResponse
 from api.routers.template import query_templates
 from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import BadRequest, OK, CustomJSONResponse, ResponseModel, Unauthorized
@@ -212,7 +212,7 @@ def create_trade_endpoint(path: str,
 
             trades_db = await client_utils.query_trades(
                 *eager,
-                user_id=grant.user_id,
+                user_id=grant.author_id,
                 query_params=query_params,
                 trade_ids=query_params.trade_ids,
                 db=db
@@ -323,6 +323,11 @@ async def get_executions(trade_id: list[InputID] = Query(default=None),
             return OK(result=[])
 
     stmt = select(ExecutionDB).join(ExecutionDB.trade)
+
+    if query_params.currency:
+        filters.append(
+            FilterParam(field='settle', values=[query_params.currency])
+        )
 
     for f in filters:
         stmt = f.apply(stmt, TradeDB)

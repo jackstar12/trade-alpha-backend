@@ -4,9 +4,9 @@ import asyncio
 import logging
 from datetime import datetime, date, timedelta
 from enum import Enum
+from operator import and_
 from typing import Optional, Union, Literal, Any, TYPE_CHECKING, NamedTuple, Iterable
 from uuid import UUID
-import sqlalchemy as sa
 import pytz
 import sqlalchemy as sa
 from aioredis import Redis
@@ -28,7 +28,7 @@ from database.errors import UserInputError
 from database.dbmodels.transfer import Transfer
 
 from database.dbmodels.mixins.editsmixin import EditsMixin
-from core import json as customjson, safe_cmp, utc_now
+from core import json as customjson, utc_now, join_args
 from database.dbasync import db_first, db_all, db_select_all, redis, redis_bulk_keys, RedisKey, db_unique, \
     time_range, safe_op, safe_eq
 from database.dbmodels.editing.chapter import Chapter
@@ -45,6 +45,8 @@ from database.redis.client import ClientSpace
 
 if TYPE_CHECKING:
     from database.dbmodels import BalanceDB as Balance, Event
+    from database.models.history import History
+    from typing import Self
 
 from pydantic import BaseModel as PydanticBaseModel, Field
 
@@ -278,15 +280,15 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
         pass
 
     async def calc_gain(self,
-                        event: Event,
-                        since: datetime | Balance,
-                        currency: str = None):
-        if isinstance(since, datetime):
+                        event: Optional[Event] = None,
+                        since: Optional[datetime | Balance] = None,
+                        currency: Optional[str] = None):
+        if isinstance(since, dbmodels.Balance):
+            balance_then = since
+        else:
             if event:
                 since = max(since, event.start)
             balance_then = await self.get_exact_balance_at_time(since)
-        else:
-            balance_then = since
 
         balance_now = await self.get_latest_balance(redis=redis)
 
@@ -381,6 +383,40 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
         else:
             latest = await self.latest()
             return BalanceModel.from_orm(latest) if latest else None
+
+    async def get_history(self,
+                          init_time: datetime = None,
+                          since: datetime = None,
+                          to: datetime = None,
+                          currency: str = None) -> History:
+
+        if currency is None:
+            currency = 'USD'
+
+        initial = None
+
+        stmt = select(dbmodels.Balance).where(
+            time_range(dbmodels.Balance.time, since, to),
+            dbmodels.Balance.client_id == self.id
+        )
+        if currency:
+            stmt = stmt.join(
+                dbmodels.Amount, and_(dbmodels.Amount.balance_id == Balance.id, dbmodels.Amount.currency == currency)
+            )
+        history = await db_all(stmt)
+        if init_time and init_time != since:
+            initial = await self.get_balance_at_time(init_time)
+
+        if not initial:
+            try:
+                initial = history[0]
+            except (ValueError, IndexError):
+                pass
+
+        return History(
+            data=history,
+            initial=initial
+        )
 
     def evaluate_balance(self):
         if not self.currently_realized:

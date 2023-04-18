@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
 import pytz
@@ -12,12 +11,13 @@ from sqlalchemy import Column, Integer, ForeignKey, String, Table, orm, Numeric,
     or_, and_, event
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship, object_session, aliased
+from sqlalchemy.orm import relationship, aliased
 
-from database.dbmodels.mixins.filtermixin import FilterMixin, FilterParam
 from core.utils import weighted_avg, join_args
+from database.dbmodels.mixins.filtermixin import FilterMixin, FilterParam
 from database.dbmodels.types import Document
 from database.models.document import Operator
+from database.models.trade import BasicTrade
 from database.redis import TableNames
 
 if TYPE_CHECKING:
@@ -27,7 +27,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbsync import Base, BaseMixin, FKey
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.execution import Execution
-from database.enums import Side, ExecType, Status, TradeSession, MarketType
+from database.enums import Side, ExecType, Status, TradeSession
 
 import core
 from database.dbmodels.symbol import CurrencyMixin
@@ -43,9 +43,15 @@ trade_association = Table('trade_association', Base.metadata,
 #     TRANSFER = "transfer"
 
 
+class InternalTradeModel(BasicTrade):
+    id: int
+    client_id: int
+
+
 class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     __tablename__ = 'trade'
-    __serializer_forbidden__ = ['client', 'initial']
+    __serializer_forbidden__ = ['client']
+    __model__ = InternalTradeModel
 
     id = Column(Integer, primary_key=True)
     client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=False)
@@ -254,8 +260,8 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     def is_data(cls):
         return True
 
-    #@property
-    #def init_amount(self):
+    # @property
+    # def init_amount(self):
     #    return self.init_balance.get_currency(ccy=self.settle)
 
     @hybrid_property

@@ -71,6 +71,7 @@ discord_oauth = DiscordOAuth2(
 )
 
 OAUTH_PREFIX = '/oauth/discord'
+OAUTH2_REDIRECT_URI = ENV.FRONTEND_URL + '/api'
 
 app.include_router(
     fastapi_users.get_custom_oauth_router(
@@ -78,7 +79,7 @@ app.include_router(
         user_schema=UserRead,
         backend=auth_backend,
         state_secret="SECRET",
-        redirect_url=ENV.OAUTH2_REDIRECT_URI + OAUTH_PREFIX + '/callback'
+        redirect_url=OAUTH2_REDIRECT_URI + OAUTH_PREFIX + '/callback'
     ),
     prefix=PREFIX + OAUTH_PREFIX
 )
@@ -90,7 +91,7 @@ app.include_router(
         discord_oauth,
         user_schema=UserRead,
         state_secret="SECRET",
-        redirect_url=ENV.OAUTH2_REDIRECT_URI + ASSOC_PREFIX + '/callback'
+        redirect_url=OAUTH2_REDIRECT_URI + ASSOC_PREFIX + '/callback'
     ),
     prefix=PREFIX + ASSOC_PREFIX
 )

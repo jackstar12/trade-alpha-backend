@@ -20,7 +20,6 @@ class Gain(BaseModel):
         return f'{round_ccy(self.relative, "%")}% ({round_ccy(self.absolute, ccy)}{ccy})'
 
 
-
 class ClientGain(NamedTuple):
     client: Client
     relative: Decimal

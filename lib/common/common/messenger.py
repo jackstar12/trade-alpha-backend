@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import logging
 from dataclasses import dataclass
@@ -16,7 +18,7 @@ from sqlalchemy.orm.util import identity_key
 
 import core
 from core import json as customjson
-from database.dbmodels import Client, Balance, Chapter, Event, EventEntry
+from database.dbmodels import Client, Balance, Chapter, Event, EventEntry, Execution
 from database.dbmodels.action import Action
 from database.dbmodels.alert import Alert
 from database.dbmodels.authgrant import AuthGrant
@@ -27,34 +29,36 @@ from database.dbmodels.trade import Trade
 from database.dbmodels.transfer import Transfer
 from database.dbmodels.user import User
 from database.dbsync import BaseMixin
+from database.models import OrmBaseModel
 from database.redis import TableNames
 
 TTable = TypeVar('TTable', bound=BaseMixin)
-
 
 by_names = {}
 
 
 @dataclass
-class RedisNameSpace(Generic[TTable]):
-    parent: 'Optional[RedisNameSpace]'
+class NameSpace(Generic[TTable]):
+    parent: 'Optional[NameSpace]'
     name: 'str'
     table: 'Type[TTable]'
+    model: Type[OrmBaseModel]
     id: Optional[str]
 
     @classmethod
     def from_table(cls,
                    table: Type[TTable],
-                   parent: 'Optional[RedisNameSpace]' = None):
+                   parent: 'Optional[NameSpace]' = None,
+                   model: Optional[Type[OrmBaseModel]] = None):
         new = cls(
             parent=parent,
             name=table.__tablename__,
             table=table,
-            id=f'{table.__tablename__}_id'
+            id=f'{table.__tablename__}_id',
+            model=model or table.__model__
         )
         by_names[new.name] = new
         return new
-
 
     def get_ids(self, instance: TTable):
         if not instance:
@@ -99,11 +103,11 @@ class RedisNameSpace(Generic[TTable]):
         return core.join_args(self.parent, self.name, *add, '{' + self.id + '}')
 
 
-class TradeSpace(RedisNameSpace):
+class TradeSpace(NameSpace):
     FINISHED = "finished"
 
 
-class EventSpace(RedisNameSpace[Event]):
+class EventSpace(NameSpace[Event]):
     def get_ids(self, instance: Event):
         return {
             'user_id': instance.owner_id,
@@ -116,26 +120,31 @@ class EventSpace(RedisNameSpace[Event]):
     REGISTRATION_END = "registration-end"
 
 
-USER = RedisNameSpace.from_table(User)
+class ChapterSpace(NameSpace[Chapter]):
+    PUBLISH = "publish"
 
-CLIENT = RedisNameSpace.from_table(Client, parent=USER)
 
-BALANCE = RedisNameSpace.from_table(Balance, parent=CLIENT)
+USER = NameSpace.from_table(User)
+
+CLIENT = NameSpace.from_table(Client, parent=USER)
+
+BALANCE = NameSpace.from_table(Balance, parent=CLIENT)
 TRADE = TradeSpace.from_table(Trade, parent=CLIENT)
-TRANSFER = RedisNameSpace.from_table(Transfer, parent=CLIENT)
+TRANSFER = NameSpace.from_table(Transfer, parent=CLIENT)
+EXECUTION = NameSpace.from_table(Execution, parent=CLIENT)
 
-PNL_DATA = RedisNameSpace.from_table(PnlData, parent=TRADE)
+PNL_DATA = NameSpace.from_table(PnlData, parent=TRADE)
 
-ALERT = RedisNameSpace.from_table(Alert, parent=USER)
+ALERT = NameSpace.from_table(Alert, parent=USER)
 
 EVENT = EventSpace.from_table(Event, parent=USER)
-EVENT_SCORE = RedisNameSpace.from_table(EventEntry, parent=EVENT)
+EVENT_SCORE = NameSpace.from_table(EventEntry, parent=EVENT)
 
-JOURNAL = RedisNameSpace.from_table(Journal, parent=USER)
-CHAPTER = RedisNameSpace.from_table(Chapter, parent=JOURNAL)
+JOURNAL = NameSpace.from_table(Journal, parent=USER)
+CHAPTER = ChapterSpace.from_table(Chapter, parent=JOURNAL)
 
-ACTION = RedisNameSpace.from_table(Action, parent=USER)
-AUTH_GRANT = RedisNameSpace.from_table(AuthGrant, parent=USER)
+ACTION = NameSpace.from_table(Action, parent=USER)
+AUTH_GRANT = NameSpace.from_table(AuthGrant, parent=USER)
 
 
 class Category(Enum):
@@ -161,7 +170,7 @@ class ClientUpdate(BaseModel):
     premium: Optional[bool]
 
 
-NameSpaceInput = RedisNameSpace | TableNames | Type[BaseMixin] | Any
+NameSpaceInput = NameSpace | TableNames | Type[BaseMixin] | Any
 
 
 class Messenger:
@@ -172,7 +181,7 @@ class Messenger:
         self._listening = False
         self._logger = logging.getLogger('Messenger')
 
-    def _wrap(self, coro, rcv_event=False):
+    def _wrap(self, coro, namespace: NameSpace, rcv_event=False):
         @wraps(coro)
         def wrapper(event: dict, *args, **kwargs):
             if rcv_event:
@@ -180,7 +189,10 @@ class Messenger:
             else:
                 data = customjson.loads(event['data'])
             asyncio.create_task(
-                core.return_unknown_function(coro, data, *args, **kwargs)
+                core.return_unknown_function(coro,
+                                             # namespace.model(**data) if namespace.model else data,
+                                             data,
+                                             *args, **kwargs)
             )
 
         return wrapper
@@ -213,7 +225,7 @@ class Messenger:
 
     @classmethod
     def get_namespace(cls, name: NameSpaceInput):
-        if isinstance(name, RedisNameSpace):
+        if isinstance(name, NameSpace):
             return name
         elif isinstance(name, Enum):
             return by_names.get(name.value)
@@ -252,7 +264,7 @@ class Messenger:
         namespace = self.get_namespace(namespace)
         for topic, callback in topics.items():
             channel, pattern = namespace.format(topic, **ids)
-            subscription[channel] = self._wrap(callback)
+            subscription[channel] = self._wrap(callback, namespace)
         await self.sub(pattern=pattern, **subscription)
 
     async def setup_waiter(self, channel: str, is_pattern=False, timeout=.25):
@@ -275,7 +287,7 @@ class Messenger:
     def listen_class(self,
                      target_cls: Type[Serializer],
                      identifier: str,
-                     namespace: RedisNameSpace[Type[Serializer]],
+                     namespace: NameSpace[Type[Serializer]],
                      sub: Category | str,
                      condition: Callable[[Serializer], bool] = None):
         @event.listens_for(target_cls, identifier)
@@ -288,7 +300,7 @@ class Messenger:
                                      **namespace.get_ids(target))
                 )
 
-    def listen_class_all(self, target_cls: Type[Serializer], namespace: RedisNameSpace = None):
+    def listen_class_all(self, target_cls: Type[Serializer], namespace: NameSpace = None):
         if not namespace:
             namespace = self.get_namespace(target_cls.__tablename__)
 

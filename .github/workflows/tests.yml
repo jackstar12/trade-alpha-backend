@@ -1,0 +1,91 @@
+name: tests
+
+on: [push, pull_request]
+
+jobs:
+  test-api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directior: ./projects/api
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          # maps tcp port 6379 on service container to the host
+          - 6379:6379
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          # maps tcp port 5432 on service container to the host
+          - 5432:5432
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+        poetry-version: ["1.3.3"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Poetry ${{ matrix.poetry-version }}
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "poetry"
+      - name: Install dependencies
+        run: |
+          poetry install
+      - name: Run tests
+        env:
+          PG_URL: postgres://postgres:postgres@0.0.0.0:5432/postgres
+          REDIS_URL: redis://0.0.0.0:6379
+        run: poetry run pytest
+  test-collector:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directior: ./projects/api
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          # maps tcp port 6379 on service container to the host
+          - 6379:6379
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          # maps tcp port 5432 on service container to the host
+          - 5432:5432
+    strategy:
+      matrix:
+        python-version: ["3.10"]
+        poetry-version: ["1.3.3"]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Poetry ${{ matrix.poetry-version }}
+        uses: abatilo/actions-poetry@v2
+        with:
+          poetry-version: ${{ matrix.poetry-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "poetry"
+      - name: Install dependencies
+        run: |
+          poetry install
+      - name: Run tests
+        env:
+          PG_URL: postgres://postgres:postgres@0.0.0.0:5432/postgres
+          REDIS_URL: redis://0.0.0.0:6379
+        run: poetry run pytest

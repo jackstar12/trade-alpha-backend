@@ -52,7 +52,7 @@ def upgrade():
         sa.update(LabelTmp).values(
             group_id=labelgroup.c.id
         ).where(
-            labelgroup.c.user_id == LabelTmp.user_id
+            labelgroup.c.author_id == LabelTmp.author_id
         )
     )
 

@@ -11,7 +11,7 @@ from sqlalchemy.orm import aliased
 
 from database.dbasync import safe_eq
 from database.dbmodels.editing.pagemixin import PageMixin, cmp_dates
-from database.dbsync import Base
+from database.dbsync import Base, BaseMixin
 from database.models import BaseModel
 from database.models.document import DocumentModel, TradeData
 
@@ -39,7 +39,7 @@ class ChapterData(BaseModel):
     #     return self.start_date + interval
 
 
-class Chapter(Base, PageMixin):
+class Chapter(Base, BaseMixin, PageMixin):
     __tablename__ = 'chapter'
 
     # Identifiers
@@ -87,7 +87,10 @@ class Chapter(Base, PageMixin):
         included = select(
             cls.id, cls.doc
         ).filter(
-            safe_eq(cls.parent_id, root_id),
+            or_(
+                safe_eq(cls.id, root_id),
+                safe_eq(cls.parent_id, root_id),
+            ),
             safe_eq(cls.journal_id, journal_id)
         ).cte(name="included", recursive=True)
 
@@ -124,7 +127,8 @@ class Chapter(Base, PageMixin):
                 cmp_dates(data['dates']['since'], query_params.since),
                 or_(
                     data['clientIds'] == JSONB.NULL,
-                    data['clientIds'].contains(map(str, query_params.client_ids))
+                    # data['clientIds'].contains(list(map(str, query_params.client_ids)))
+                    data['clientIds'].contains([str(id) for id in query_params.client_ids])
                 ),
                 # or_(
                 #    data['tradeIds'] == JSONB.NULL,

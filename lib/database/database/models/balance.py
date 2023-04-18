@@ -110,11 +110,11 @@ class Balance(AmountBase):
 
     def to_string(self, display_extras=False):
         ccy = self.currency
-        string = f'{round_ccy(self.unrealized, ccy)}{ccy}'
+        string = f'{round_ccy(self.total, ccy)}{ccy}'
 
         if self.extra_currencies and display_extras:
             currencies = " / ".join(
-                f'{amount.unrealized}{amount.currency}'
+                f'{amount.total}{amount.currency}'
                 for amount in self.extra_currencies
             )
             string += f'({currencies})'

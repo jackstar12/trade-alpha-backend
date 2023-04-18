@@ -28,12 +28,13 @@ from scipy import interpolate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import core
 import core.env as config
 import database.dbmodels as dbmodels
+from core.utils import calc_percentage, return_unknown_function, groupby
 from database import utils as dbutils
-import core
 from database.calc import transfer_gen
-from database.dbasync import async_session, db_all, async_maker, time_range
+from database.dbasync import async_session, db_all, async_maker, time_range, safe_eq
 from database.dbmodels.balance import Balance
 from database.dbmodels.discord.discorduser import DiscordUser
 from database.dbmodels.pnldata import PnlData
@@ -41,10 +42,8 @@ from database.dbmodels.trade import Trade
 from database.dbmodels.transfer import Transfer
 from database.dbmodels.user import User
 from database.errors import UserInputError, InternalError
-from database.models.eventinfo import EventScore, Leaderboard
-from database.models.history import History
+from database.models.eventinfo import Leaderboard
 from database.models.selectionoption import SelectionOption
-from core.utils import calc_percentage, return_unknown_function, groupby, utc_now
 
 if TYPE_CHECKING:
     from database.dbmodels.client import Client
@@ -350,7 +349,6 @@ async def create_complete_history(dc: discord.Client, event: dbmodels.Event):
         event=event,
         start=event.start,
         end=event.end,
-        currency_display='%',
         currency='USD',
         percentage=True,
         path=config.DATA_PATH + path
@@ -362,14 +360,14 @@ async def create_complete_history(dc: discord.Client, event: dbmodels.Event):
     return file
 
 
-async def create_history(to_graph: List[Tuple[Client, str]],
+async def create_history(*,
+                         to_graph: List[Tuple[Client, str]],
                          event: dbmodels.Event | None,
                          start: datetime,
                          end: datetime,
-                         currency_display: str,
-                         currency: str,
                          percentage: bool,
                          path: str,
+                         currency: str = None,
                          custom_title: str = None,
                          throw_exceptions=True,
                          include_upnl=True,
@@ -384,7 +382,7 @@ async def create_history(to_graph: List[Tuple[Client, str]],
     :param guild_id: Current guild id (determines event context)
     :param start: Start time of the history
     :param end: End time of the history
-    :param currency_display: Currency which will be shown to the user
+    :param display_currency: Currency which will be shown to the user
     :param currency: Currency which will be used internally
     :param percentage: Whether to display the balance absolute or in % relative to the first balance of the graph (default True if multiple clients are drawn)
     :param path: Path to store image file at
@@ -393,6 +391,8 @@ async def create_history(to_graph: List[Tuple[Client, str]],
 
     first = True
     title = ''
+
+    display_currency = currency + ' %' if percentage else currency
     if True:
         for registered_client, name in to_graph:
 
@@ -405,23 +405,27 @@ async def create_history(to_graph: List[Tuple[Client, str]],
                                                        to=end,
                                                        currency=currency)
 
-            pnl_data = await db_all(
-                select(PnlData).where(
-                    time_range(PnlData.time, start, end),
-                    Trade.client_id == registered_client.id
-                ).join(
+            if include_upnl:
+                pnl_data = await db_all(
+                    select(PnlData).where(
+                        time_range(PnlData.time, start, end),
+                        Trade.client_id == registered_client.id,
+                        safe_eq(Trade.settle, currency)
+                    ).join(
+                        PnlData.trade
+                    ).order_by(
+                        PnlData.time
+                    ),
                     PnlData.trade
-                ).order_by(
-                    PnlData.time
-                ),
-                PnlData.trade
-            )
+                )
+            else:
+                pnl_data = []
 
             transfers = await db_all(
                 select(Transfer).where(
                     time_range(dbmodels.Execution.time, start, end),
                     Transfer.client_id == registered_client.id
-                ).order_by(dbmodels.Execution.time)
+                ).join(Transfer.execution).order_by(dbmodels.Execution.time)
             )
 
             if len(history.data) == 0:
@@ -430,15 +434,53 @@ async def create_history(to_graph: List[Tuple[Client, str]],
                 else:
                     continue
 
-            xs, ys = calc_xs_ys(history,
-                                pnl_data,
-                                transfers=transfers,
-                                ccy=currency,
-                                percentage=percentage,
-                                include_upnl=include_upnl,
-                                mode=mode)
+            xs = []
+            ys = []
 
-            total_gain = calc_percentage(history.initial.unrealized, ys[-1])
+            def get_amount(balance: Balance):
+                amt = balance.get_currency(currency)
+                return amt.total if (include_upnl and not pnl_data) else amt.realized
+
+            if history.data:
+                init = history.initial
+                relative_to_amount = get_amount(init)
+
+                offset_gen = transfer_gen(transfers, ccy=currency, reset=False)
+                offset_gen.send(None)
+
+                upnl_by_trade = {}
+                offset = 0
+                amount = None
+                for prev_item, item, next_item in core.prev_now_next(
+                        core.combine_time_series(history.data, pnl_data)
+                ):
+                    if isinstance(item, PnlData):
+                        upnl_by_trade[item.trade_id] = item.unrealized_ccy(currency)
+                    if isinstance(item, Balance):
+                        try:
+                            offset = offset_gen.send(item.time)
+                        except StopIteration:
+                            pass
+                        if mode == 'balance':
+                            current = get_amount(item)
+                        else:
+                            current = get_amount(item) - offset - relative_to_amount
+
+                        if percentage:
+                            if relative_to_amount:
+                                amount = calc_percentage(relative_to_amount, current, string=False)
+                            else:
+                                amount = 0
+                        else:
+                            amount = current
+                    if amount is not None and (not next_item or next_item.time != item.time):
+                        xs.append(item.time)
+                        if include_upnl:
+                            ys.append(amount + sum(upnl_by_trade.values()))
+                        else:
+                            ys.append(amount)
+
+            total_gain = calc_percentage(history.initial.realized, ys[-1])
 
             if first:
                 title = f'History for {name} (Total: {ys[-1] if percentage else total_gain}%)'
@@ -453,7 +495,7 @@ async def create_history(to_graph: List[Tuple[Client, str]],
             xs = new_x
 
             if mode == "balance" or len(to_graph) > 1:
-                plt.plot(xs, ys, label=f"{name}'s {currency_display} Balance")
+                plt.plot(xs, ys, label=f"{name}'s {display_currency} Balance")
                 plt.gca().xaxis_date()
             else:
                 gradient_fill(xs, np.array([float(y) for y in ys]), fill_color='green', alpha=0.55)
@@ -462,7 +504,7 @@ async def create_history(to_graph: List[Tuple[Client, str]],
         plt.gcf().set_dpi(100)
         plt.gcf().set_size_inches(12 + len(to_graph), 8 + len(to_graph) * (8 / 12))
         plt.title(custom_title or title)
-        plt.ylabel(currency_display)
+        plt.ylabel(display_currency)
         plt.xlabel('Time')
         plt.grid(axis='y', color='#e9ebf0')
         plt.legend(loc="best")
@@ -479,7 +521,7 @@ async def get_leaderboard_embed(event: dbmodels.Event,
 
     async def display_name(entry_id: int | str):
         entry_db = await event.async_session.get(dbmodels.EventEntry, int(entry_id))
-        user = await event.async_session.get(dbmodels.User, entry_db.user_id)
+        user = await event.async_session.get(dbmodels.User, entry_db.author_id)
 
         member = guild.get_member(int(user.discord.account_id))
         return member.display_name if member else None
@@ -524,7 +566,6 @@ async def get_leaderboard(dc_client: discord.Client,
                           channel_id: int,
                           since: datetime = None,
                           db: AsyncSession = None) -> discord.Embed:
-
     event = await dbutils.get_discord_event(guild_id, channel_id,
                                             throw_exceptions=True,
                                             eager_loads=[
@@ -576,7 +617,10 @@ def calc_time_from_time_args(time_str: str, allow_future=False) -> Optional[date
         (True, "%d.%m. %H:%M:%S"),
         (True, "%d.%m. %H:%M"),
         (True, "%d.%m. %H"),
-        (True, "%d.%m.")
+        (True, "%d.%m."),
+        (True, "%Y-%m-%d %H:%M:%S"),
+        (True, "%Y-%m-%d"),
+        (True, "%Y-%m"),
     ]
 
     date = None
@@ -627,65 +671,6 @@ def calc_time_from_time_args(time_str: str, allow_future=False) -> Optional[date
         raise UserInputError(f'Future dates are not allowed. {time_str}')
 
     return date
-
-
-def calc_xs_ys(history: History,
-               pnl_data: List[PnlData],
-               transfers: List[Transfer],
-               ccy: str,
-               percentage=False,
-               include_upnl=False,
-               mode: Literal['balance', 'pnl'] = 'balance') -> Tuple[List[datetime], List[float]]:
-    xs = []
-    ys = []
-
-    if include_upnl and not pnl_data:
-        def get_amount(balance: Balance):
-            return balance.get_unrealized(ccy)
-    else:
-        def get_amount(balance: Balance):
-            return balance.get_realized(ccy)
-
-    if history.data:
-        init = history.initial
-        relative_to_amount = get_amount(init)
-
-        offset_gen = transfer_gen(transfers, ccy=ccy, reset=False)
-        offset_gen.send(None)
-
-        upnl_by_trade = {}
-        offset = 0
-        amount = None
-        for prev_item, item, next_item in core.prev_now_next(
-                core.combine_time_series(history.data, pnl_data)
-        ):
-            if isinstance(item, PnlData):
-                upnl_by_trade[item.trade_id] = item.unrealized_ccy(ccy)
-            if isinstance(item, Balance):
-                try:
-                    offset = offset_gen.send(item.time)
-                except StopIteration:
-                    pass
-                if mode == 'balance':
-                    current = get_amount(item)
-                else:
-                    current = get_amount(item) - offset - relative_to_amount
-
-                if percentage:
-                    if relative_to_amount:
-                        amount = calc_percentage(relative_to_amount, current, string=False)
-                    else:
-                        amount = 0
-                else:
-                    amount = current
-            if amount is not None and (not next_item or next_item.time != item.time):
-                xs.append(item.time)
-                if include_upnl:
-                    ys.append(amount + sum(upnl_by_trade.values()))
-                else:
-                    ys.append(amount)
-
-        return xs, ys
 
 
 async def ask_for_consent(ctx: Union[ComponentContext, SlashContext],
@@ -894,3 +879,11 @@ def select_client(ctx, dc: discord.Client, slash: SlashCommand, user: DiscordUse
 
 def join_args(*args, denominator=':'):
     return denominator.join([str(arg) for arg in args if arg])
+
+
+def get_embed(fields: dict = None, **embed_kwargs):
+    embed = discord.Embed(**embed_kwargs)
+    if fields:
+        for k, v in fields.items():
+            embed.add_field(name=k, value=v)
+    return embed

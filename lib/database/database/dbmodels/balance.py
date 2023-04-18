@@ -51,7 +51,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
     If the balance consists of multiple currencies, these are stored in detail in the Amount table (
     """
     __tablename__ = 'balance'
-    __model__ = BalanceModel
+    #__model__ = BalanceModel
     __serializer_forbidden__ = ['id', 'error', 'client']
 
     id = Column(Integer, primary_key=True)
@@ -154,7 +154,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
 
     def to_string(self, display_extras=False):
         ccy = self.client_save.currency
-        string = f'{round_ccy(self.unrealized, ccy)}{ccy}'
+        string = f'{round_ccy(self.total, ccy)}{ccy}'
 
         if self.extra_currencies and display_extras:
             currencies = " / ".join(

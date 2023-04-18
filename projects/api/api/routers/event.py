@@ -53,7 +53,7 @@ def event_dep(*eager, require_user=False):
             if assoc.grant.is_root_for(AssociationType.EVENT):
                 stmt = select(EventDB).filter(
                     EventDB.id == event_id,
-                    EventDB.owner_id == assoc.grant.user_id
+                    EventDB.owner_id == assoc.grant.author_id
                 )
                 assoc.event = await db_first(stmt, *event_loads, session=db)
         if not assoc.event:

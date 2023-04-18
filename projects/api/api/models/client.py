@@ -6,8 +6,8 @@ from pydantic import UUID4
 
 import database.dbmodels.client as qmxin
 from api.models.template import TemplateInfo
-from api.models.trade import BasicTrade
 from api.models.transfer import Transfer
+from database.models.trade import BasicTrade
 from database.dbmodels.client import ClientType, ClientState
 from database.enums import IntervalType
 from database.models import BaseModel, OutputID, InputID

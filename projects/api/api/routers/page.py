@@ -1,23 +1,18 @@
-import operator
+from typing import Literal, Optional
 from typing import Literal, Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
-from fastapi.encoders import jsonable_encoder
-from sqlalchemy import select, update, func, desc
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
-from api.dependencies import get_messenger, get_db
-from api.models.template import TemplateUpdate, TemplateInfo, TemplateCreate, TemplateDetailed
-from api.users import CurrentUser, get_auth_grant_dependency, DefaultGrant
-from api.utils.responses import OK, CustomJSONResponse, NotFound
-from database.dbasync import db_unique, db_all, db_del_filter, safe_op, wrap_greenlet
-from database.dbmodels import Client
-from database.dbmodels.authgrant import TemplateGrant, AuthGrant, AssociationType
+from api.dependencies import get_db
+from api.users import CurrentUser
+from api.utils.responses import OK, NotFound
+from database.dbasync import db_unique, db_all
 from database.dbmodels.editing import Journal, Chapter
 from database.dbmodels.editing.pagemixin import PageMixin
-from database.dbmodels.editing.template import Template as DbTemplate, TemplateType, ChapterTemplate
+from database.dbmodels.editing.template import Template as DbTemplate
 from database.dbmodels.user import User
 from database.models import InputID
 from database.models.page import PageInfo, FullPage

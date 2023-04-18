@@ -9,23 +9,20 @@ import discord
 import discord.errors
 from discord.ext import commands
 from discord_slash import SlashCommand
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select, update, insert, literal, delete
 
 from bot.cogs import *
 from bot.config import *
 from bot.env import environment
+from bot.rpc import create_rpc_server
+from common.messenger import Messenger
+from core.utils import setup_logger
 from database.dbasync import async_session, db_all, redis, db_select
 from database.dbmodels.client import Client
 from database.dbmodels.discord.discorduser import DiscordUser
 from database.dbmodels.discord.guild import Guild as GuildDB
 from database.dbmodels.discord.guildassociation import GuildAssociation
-from database.models.user import ProfileData
 from database.enums import Tier
-from common.messenger import Messenger
-from database.models.discord.guild import UserRequest, GuildRequest, GuildData, MessageRequest, TextChannel
-from database.redis.rpc import Server
-from core.utils import setup_logger
 from database.utils import run_migrations
 
 intents = discord.Intents().default()
@@ -35,61 +32,7 @@ intents.guilds = True
 bot = commands.Bot(command_prefix=PREFIX, self_bot=True, intents=intents)
 slash = SlashCommand(bot)
 
-redis_server = Server('discord', redis)
-
-
-@redis_server.method(input_model=UserRequest)
-def user_info(request: UserRequest):
-    test = bot.get_user(request.user_id)
-
-    return jsonable_encoder(
-        ProfileData(
-            avatar_url=str(test.avatar_url),
-            name=test.name
-        )
-    )
-
-
-@redis_server.method(input_model=UserRequest)
-def guilds(request: UserRequest):
-    res = [
-        GuildData.from_member(data, request.user_id)
-        for data in bot.get_user(request.user_id).mutual_guilds
-    ]
-    return jsonable_encoder(res)
-
-
-async def send_dm(self, user_id: int, message: str, embed: discord.Embed = None):
-    user: discord.User = self.bot.get_user(user_id)
-    if user:
-        try:
-            await user.send(content=message, embed=embed)
-        except discord.Forbidden as e:
-            logging.exception(f'Not allowed to send messages to {user}')
-
-
-@redis_server.method(input_model=GuildRequest)
-def guild(request: GuildRequest):
-    data: discord.Guild = bot.get_guild(request.guild_id)
-    return jsonable_encoder(
-        GuildData.from_member(data, request.user_id)
-    )
-
-
-
-
-def _get_channel(guild_id: int, channel_id: int) -> discord.TextChannel:
-    guild = bot.get_guild(guild_id)
-    if guild:
-        return guild.get_channel(channel_id)
-
-
-@redis_server.method(input_model=MessageRequest)
-async def send(request: MessageRequest):
-    channel = _get_channel(request.guild_id, request.channel_id)
-    await channel.send(content=request.message,
-                       embed=discord.Embed.from_dict(request.embed) if request.embed else None)
-    return True
+rpc_server = create_rpc_server(bot)
 
 
 @bot.event
@@ -101,7 +44,7 @@ async def on_ready():
         await cog.on_ready()
 
     asyncio.create_task(
-        redis_server.run()
+        rpc_server.run()
     )
 
     db_guilds_by_id = {

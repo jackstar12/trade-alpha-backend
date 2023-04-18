@@ -21,14 +21,14 @@ from api.dependencies import get_messenger, get_db, get_http_session
 from api.models.client import ClientConfirm, ClientEdit, \
     ClientOverview, ClientCreateBody, ClientInfo, ClientCreateResponse, get_query_params, ClientDetailed, \
     ClientOverviewCache
-from api.models.trade import BasicTrade
+from database.models.trade import BasicTrade
 from api.settings import settings
 from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import BadRequest, OK, CustomJSONResponse, NotFound, ResponseModel, InternalError, Unauthorized
 from common.exchanges import EXCHANGES
 from common.exchanges.exchangeworker import ExchangeWorker
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
-from database.calc import create_daily
+from database.calc import create_intervals
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, safe_eq
 from database.dbmodels import TradeDB, BalanceDB, Execution, Chapter
 from database.dbmodels.authgrant import ChapterGrant, AuthGrant
@@ -231,7 +231,7 @@ async def get_client_overview(background_tasks: BackgroundTasks,
             key=lambda transfer: transfer.time
         )
 
-        intervals = create_daily(
+        intervals = create_intervals(
             all_daily,
             all_transfers,
             query_params.currency

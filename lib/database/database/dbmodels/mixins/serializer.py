@@ -1,11 +1,13 @@
 from datetime import datetime
 from enum import Enum
+from typing import Type, Optional
 
 import sqlalchemy.exc
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm.dynamic import AppenderQuery
 
 from database.dbsync import BaseMixin
+from database.models import BaseModel, OrmBaseModel
 
 
 class Serializer:
@@ -13,6 +15,7 @@ class Serializer:
     __serializer_anti_recursion__ = False
     __serializer_forbidden__ = []
     __serializer_data_forbidden__ = []
+    __model__: Optional[Type[OrmBaseModel]]
 
     @classmethod
     def is_data(cls):
@@ -23,7 +26,9 @@ class Serializer:
 
     # The full flag is needed to avoid cyclic serializations
     def serialize(self, full=False, data=True, include_none=True, *args, **kwargs):
-        if not self.__class__.__serializer_anti_recursion__:
+        if self.__class__.__model__:
+            return self.__class__.__model__.from_orm(self).dict()
+        elif not self.__class__.__serializer_anti_recursion__:
             self.__class__.__serializer_anti_recursion__ = True
             try:
                 s = None

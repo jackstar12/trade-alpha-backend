@@ -7,7 +7,7 @@ from typing import Tuple
 from pydantic import ValidationError
 
 from api.models.analytics import ClientAnalytics, FilteredPerformance, Performance, Calculation
-from api.models.trade import DetailledTrade
+from database.models.trade import DetailledTrade
 from api.models.websocket import ClientConfig
 from database.dbmodels.client import Client
 from database.enums import Filter
