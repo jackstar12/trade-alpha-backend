@@ -13,7 +13,7 @@ from api.dependencies import get_db
 from api.users import CurrentUser, DefaultGrant
 from api.utils.responses import BadRequest, OK, Unauthorized
 from core import safe_cmp
-from database.dbasync import wrap_greenlet, db_unique, safe_op
+from database.dbasync import wrap_greenlet, db_unique, opt_op
 from database.dbmodels import User
 from database.models import BaseModel
 from database.models.authgrant import AuthGrantCreate, AuthGrantInfo
@@ -57,8 +57,8 @@ async def add_to_grant(type: AssociationType,
     grant = await db_unique(
         select(AuthGrant).where(
             AuthGrant.user_id == user.id,
-            safe_op(AuthGrant.id, grant_id),
-            safe_op(AuthGrant.public, public)
+            opt_op(AuthGrant.id, grant_id),
+            opt_op(AuthGrant.public, public)
         ),
         session=db
     )
@@ -73,12 +73,12 @@ async def add_to_grant(type: AssociationType,
     if not impl:
         raise BadRequest(detail='Invalid Type')
 
-    instance = impl()
-    instance.grant = grant
-    instance.identity = id
+    association = impl()
+    association.grant = grant
+    association.identity = id
 
     try:
-        db.add(instance)
+        db.add(association)
         await db.commit()
     except IntegrityError as e:
         raise BadRequest(f'Invalid grant or {type.value} id')
@@ -102,8 +102,8 @@ async def forbid_grant(type: AssociationType,
         impl.identity == id,
         AuthGrant.id == impl.grant_id,
         AuthGrant.user_id == user.id,
-        safe_op(impl.grant_id, grant_id),
-        safe_op(AuthGrant.public, public)
+        opt_op(impl.grant_id, grant_id),
+        opt_op(AuthGrant.public, public)
     ).execution_options(
         synchronize_session=False
     )

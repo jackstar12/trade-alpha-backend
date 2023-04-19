@@ -34,7 +34,7 @@ import database.dbmodels as dbmodels
 from core.utils import calc_percentage, return_unknown_function, groupby
 from database import utils as dbutils
 from database.calc import transfer_gen
-from database.dbasync import async_session, db_all, async_maker, time_range, safe_eq
+from database.dbasync import async_session, db_all, async_maker, time_range, opt_eq
 from database.dbmodels.balance import Balance
 from database.dbmodels.discord.discorduser import DiscordUser
 from database.dbmodels.pnldata import PnlData
@@ -410,7 +410,7 @@ async def create_history(*,
                     select(PnlData).where(
                         time_range(PnlData.time, start, end),
                         Trade.client_id == registered_client.id,
-                        safe_eq(Trade.settle, currency)
+                        opt_eq(Trade.settle, currency)
                     ).join(
                         PnlData.trade
                     ).order_by(

@@ -107,7 +107,7 @@ class DiscordUser(OAuthAccount):
             for k, v in fields.items():
                 embed.add_field(name=k, value=v)
         embed.set_author(
-            name=self.data['username'],
+            name=self.data['name'],
             url=ENV.FRONTEND_URL + f'/app/profile?public_id={self.user_id}',
             icon_url=self.data['avatar_url']
         )
@@ -115,7 +115,6 @@ class DiscordUser(OAuthAccount):
 
     def get_trade_embed(self, trade: InternalTradeModel):
         return self.get_embed(
-
             title='Trade',
             fields={
                 'Symbol': trade.symbol,
@@ -125,7 +124,6 @@ class DiscordUser(OAuthAccount):
                 'Side': 'Long' if trade.side == Side.BUY else 'Short'
             },
             color=discord.Color.green() if trade.net_pnl >= 0 else discord.Color.red()
-
         )
 
     def get_exec_embed(self, execution: Execution):

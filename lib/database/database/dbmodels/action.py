@@ -5,6 +5,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
+from database.dbmodels.authgrant import ChapterGrant
 from database.dbmodels.user import User
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbmodels.mixins.serializer import Serializer
@@ -19,6 +20,7 @@ class ActionType(Enum):
     JOURNAL = TableNames.JOURNAL.value
     BALANCE = TableNames.BALANCE.value
     EVENT = TableNames.EVENT.value
+    CHAPTER_GRANT = ChapterGrant.__tablename__
 
 
 class ActionTrigger(Enum):

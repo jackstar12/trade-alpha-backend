@@ -11,7 +11,7 @@ from api.dependencies import get_messenger, get_db
 from api.models.template import TemplateUpdate, TemplateInfo, TemplateCreate, TemplateDetailed
 from api.users import CurrentUser, get_auth_grant_dependency, DefaultGrant
 from api.utils.responses import OK, CustomJSONResponse, NotFound
-from database.dbasync import db_unique, db_all, db_del_filter, safe_op, wrap_greenlet
+from database.dbasync import db_unique, db_all, db_del_filter, opt_op, wrap_greenlet
 from database.dbmodels import Client
 from database.dbmodels.authgrant import TemplateGrant, AuthGrant, AssociationType
 from database.dbmodels.editing import Journal
@@ -98,7 +98,7 @@ async def get_template(template_id: InputID,
                        grant: AuthGrant = Depends(auth),
                        db: AsyncSession = Depends(get_db)):
     template = await query_templates([template_id],
-                                     safe_op(DbTemplate.type, template_type, operator.eq),
+                                     opt_op(DbTemplate.type, template_type, operator.eq),
                                      eager=[DbTemplate.grants if grant.is_root_for(AssociationType.TEMPLATE) else None],
                                      user_id=grant.user_id,
                                      session=db)

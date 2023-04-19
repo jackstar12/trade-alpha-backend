@@ -54,7 +54,7 @@ class WebsocketManager:
 
         if isinstance(msg, str):
             msg = msg.encode('')
-        self._logger.info(f'SENDING: {msg} {self._ws.closed=}')
+        #self._logger.debug(f'SENDING: {msg} {self._ws.closed=}')
         await self._ws._writer.send(msg, binary=False)
 
         if msg_id:

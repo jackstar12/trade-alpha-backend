@@ -1,13 +1,10 @@
 from datetime import datetime, timedelta
 from operator import and_
 
-from sqlalchemy import Column, Integer, Float, String, Enum, ForeignKey, DateTime, Numeric, select
-from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy import Column, Integer, String, Enum, ForeignKey, DateTime, Numeric, select
 from sqlalchemy.orm import relationship
-from sqlalchemy.orm.dynamic import AppenderQuery
 
-from core import safe_cmp
-from database.dbasync import safe_op
+from database.dbasync import opt_op
 from database.dbsync import *
 from database.enums import TimeFrame
 from database.models.market import Market
@@ -44,12 +41,12 @@ class WithSymbol(Base):
             .join(Currency, and_(
                 cls.base_ccy_id == Currency.id,
                 Currency.name == market.base,
-                safe_op(Currency.exchange, exchange)
+                opt_op(Currency.exchange, exchange)
             ))
             .join(Currency, and_(
                 cls.quote_ccy_id == Currency.id,
                 Currency.name == market.quote,
-                safe_op(Currency.exchange, exchange)
+                opt_op(Currency.exchange, exchange)
             ))
         )
     #tf = Column(Enum(TimeFrame), nullable=True)

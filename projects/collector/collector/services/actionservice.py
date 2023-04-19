@@ -7,9 +7,11 @@ from sqlalchemy import select
 from collector.services.baseservice import BaseService
 from common.messenger import Category
 from core.env import ENV
-from database.dbasync import db_all, db_select
-from database.dbmodels import Execution, Chapter
+from database.dbasync import db_all, db_select, db_unique, opt_eq
+from database.dbmodels.execution import Execution
+from database.dbmodels.editing import Chapter
 from database.dbmodels.action import Action, ActionTrigger
+from database.dbmodels.authgrant import ChapterGrant, TradeGrant
 from database.dbmodels.balance import Balance
 from database.dbmodels.discord.discorduser import DiscordUser
 from database.dbmodels.trade import Trade, InternalTradeModel
@@ -69,7 +71,7 @@ class ActionService(BaseService):
             discord_user = await db_select(
                 DiscordUser,
                 DiscordUser.user_id == action.user_id,
-                db=self._db
+                session=self._db
             )
 
             if ns.table == Balance:
@@ -78,18 +80,30 @@ class ActionService(BaseService):
                 embed = discord_user.get_trade_embed(InternalTradeModel(**data))
             elif ns.table == Execution:
                 embed = discord_user.get_exec_embed(Execution(**data))
-            elif ns.table == Chapter:
-                url = ENV.FRONTEND_URL + f'/app/profile/journal/{data["journal_id"]}/chapter/{data["id"]}'
-                embed = discord_user.get_embed(
-                    title=data['title'],
-                    description=(action.message or ''),
-                    url=url
+            elif ns.table == ChapterGrant:
+                info = await db_unique(
+                    select(Chapter.id, Chapter.journal_id, Chapter.title).where(
+                        Chapter.id == data['chapter_id'],
+                        opt_eq(Chapter.journal_id, action.trigger_ids.get('journal_id'))
+                    ),
+                    session=self._db
                 )
+                embed = discord_user.get_embed(
+                    title=info.title,
+                    description=action.message,
+                    url=ENV.FRONTEND_URL + f'/app/profile/journal/{info.journal_id}/chapter/{info.id}'
+                )
+            elif ns.table == TradeGrant:
+                trade = await self._db.get(Trade, data['trade_id'])
+                embed = discord_user.get_trade_embed(trade)
+                embed.description = action.message
+                embed.url = ENV.FRONTEND_URL + f'/app/profile/trade/{trade.id}'
             else:
                 embed = discord_user.get_embed(
                     title=ns.table.__name__,
                     fields=data
                 )
+
             await dc(
                 'send',
                 MessageRequest(

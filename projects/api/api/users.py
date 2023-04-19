@@ -26,7 +26,7 @@ from api.settings import settings
 from api.usermanager import UserManager
 from api.utils.responses import Unauthorized
 from core import utc_now, get_multiple, get_multiple_dict
-from database.dbasync import redis, db_eager, db_unique, safe_op, TEager
+from database.dbasync import redis, db_eager, db_unique, opt_op, TEager
 from database.dbmodels.authgrant import AuthGrant, GrantAssociaton
 from database.dbmodels.user import User, OAuthAccount
 

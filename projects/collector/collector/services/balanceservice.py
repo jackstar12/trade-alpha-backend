@@ -20,7 +20,7 @@ from database.dbmodels.trade import Trade
 from database.enums import MarketType
 from database.errors import InvalidClientError
 from common.exchanges.exchangeworker import ExchangeWorker
-from common.messenger import CLIENT, TRADE, BALANCE
+from common.messenger import TradeSpace
 from common.messenger import TableNames, Category
 from database.models.market import Market
 
@@ -79,7 +79,7 @@ class _BalanceServiceBase(BaseService):
     async def _sub_client(self):
         async def _on_client_delete(data: Dict):
             await self._remove_worker_by_id(data['id'])
-            await self._messenger.pub_channel(CLIENT,
+            await self._messenger.pub_channel(Client,
                                               Category.REMOVED,
                                               data,
                                               client_id=data['id'])
@@ -279,11 +279,11 @@ class ExtendedBalanceService(_BalanceServiceBase):
         self._messenger.listen_class_all(Trade)
 
         await self._messenger.bulk_sub(
-            TRADE,
+            Trade,
             {
                 Category.UPDATE: self._on_trade_update,
                 Category.NEW: self._on_trade_new,
-                TRADE.FINISHED: self._on_trade_finished,
+                TradeSpace.FINISHED: self._on_trade_finished,
             }
         )
         self._all_client_stmt = db_eager(

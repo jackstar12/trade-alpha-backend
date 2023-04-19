@@ -11,7 +11,7 @@ from database.dbasync import db_all, db_select
 from database.dbmodels import Client
 from database.dbmodels.event import Event, EventState
 from database.dbmodels.evententry import EventEntry
-from common.messenger import Category, TableNames, EVENT
+from common.messenger import Category, TableNames, EventSpace
 from database.models.balance import Balance
 
 
@@ -26,13 +26,13 @@ class EventService(BaseService):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         # self.event_sync = SyncedService(self._messenger,
-        #                                 EVENT,
+        #                                 EventSpace,
         #                                 get_stmt=self._get_event,
         #                                 update=self._get_event,
         #                                 cleanup=self._on_event_delete)
 
     async def init(self):
-        self._messenger.listen_class_all(EVENT.table, namespace=EVENT)
+        self._messenger.listen_class_all(Event)
 
         for event in await db_all(
             select(Event).where(Event.is_expr(EventState.ACTIVE))
@@ -41,7 +41,7 @@ class EventService(BaseService):
             await self._save_event(event.id)
 
         await self._messenger.bulk_sub(
-            TableNames.EVENT, {
+            Event, {
                 Category.NEW: self._on_event,
                 Category.UPDATE: self._on_event,
                 Category.DELETE: self._on_event_delete
@@ -116,10 +116,10 @@ class EventService(BaseService):
             async def fn():
                 event = await self._get_event(event_id)
                 if event:
-                    if category in (EVENT.END, EVENT.START):
+                    if category in (EventSpace.END, EventSpace.START):
                         await event.save_leaderboard()
 
-                        if category == EVENT.END:
+                        if category == EventSpace.END:
                             event.final_summary = await event.get_summary()
 
                         await self._db.commit()
@@ -133,10 +133,10 @@ class EventService(BaseService):
 
     def _schedule(self, event: Event):
 
-        self.schedule_job(event.id, event.start, EVENT.START)
-        self.schedule_job(event.id, event.end, EVENT.END)
-        self.schedule_job(event.id, event.registration_start, EVENT.REGISTRATION_START)
-        self.schedule_job(event.id, event.registration_end, EVENT.REGISTRATION_END)
+        self.schedule_job(event.id, event.start, EventSpace.START)
+        self.schedule_job(event.id, event.end, EventSpace.END)
+        self.schedule_job(event.id, event.registration_start, EventSpace.REGISTRATION_START)
+        self.schedule_job(event.id, event.registration_end, EventSpace.REGISTRATION_END)
 
         if not self._scheduler.get_job(f"event:{event.id}"):
             self._scheduler.add_job(
@@ -153,10 +153,10 @@ class EventService(BaseService):
                 self.job_id(event_id, category)
             )
 
-        remove_job(EVENT.START)
-        remove_job(EVENT.END)
-        remove_job(EVENT.REGISTRATION_START)
-        remove_job(EVENT.REGISTRATION_END)
+        remove_job(EventSpace.START)
+        remove_job(EventSpace.END)
+        remove_job(EventSpace.REGISTRATION_START)
+        remove_job(EventSpace.REGISTRATION_END)
 
         self._scheduler.remove_job(f"event:{event_id}")
 
