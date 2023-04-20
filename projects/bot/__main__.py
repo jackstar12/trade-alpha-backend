@@ -210,7 +210,10 @@ cog_instances = [
     ]
 ]
 
-if __name__ == '__main__':
+def run():
     run_migrations()
     setup_logger()
     bot.run(environment.BOT_KEY.get_secret_value())
+
+if __name__ == '__main__':
+    run()

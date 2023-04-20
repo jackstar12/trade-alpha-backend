@@ -9,6 +9,7 @@ from uuid import UUID
 
 from alembic import command
 from alembic.config import Config
+from alembic.util.exc import CommandError
 from sqlalchemy import JSON, delete, update
 from sqlalchemy import select, Column, asc, desc
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,9 +38,19 @@ TTable = TypeVar('TTable', bound=BaseMixin)
 
 
 def run_migrations():
-    alembic_cfg = Config("../../lib/database/alembic.ini")
-    alembic_cfg.set_main_option('script_location', '../../lib/database/alembic')
-    command.upgrade(alembic_cfg, "head")
+    try:
+        path = "../../lib/database/"
+        alembic_cfg = Config(path + "alembic.ini")
+        alembic_cfg.set_main_option('script_location', path + "alembic")
+        command.upgrade(alembic_cfg, "head")
+    except CommandError:
+        path = "./lib/database/"
+        alembic_cfg = Config(path + "alembic.ini")
+        alembic_cfg.set_main_option('script_location', path + "alembic")
+        command.upgrade(alembic_cfg, "head")
+
+
+
 
 
 
