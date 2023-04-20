@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 def default(obj: Any):
     if isinstance(obj, Decimal):
-        return str(round(obj, ndigits=3))
+        return round(float(obj), ndigits=6)
     if isinstance(obj, tuple):
         return list(obj)
     if isinstance(obj, set):
@@ -38,5 +38,5 @@ def loads_bytes(obj: Any):
     return orjson.loads(obj)
 
 
-def loads(obj: Any):
-    return json.loads(obj, parse_float=Decimal)
+def loads(obj: Any, parse_decimal=True):
+    return json.loads(obj, parse_float=Decimal if parse_decimal else float)
