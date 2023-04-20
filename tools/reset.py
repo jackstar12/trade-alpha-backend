@@ -1,7 +1,4 @@
 import asyncio
-import pathlib
-from pathlib import Path
-import toml
 import argparse
 from database import dbmodels
 import database.dbasync as db
