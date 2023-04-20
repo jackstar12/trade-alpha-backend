@@ -206,7 +206,7 @@ class Messenger:
             if rcv_event:
                 data = event
             else:
-                data = customjson.loads(event['data'])
+                data = customjson.loads(event['data'], parse_decimal=False)
             asyncio.create_task(
                 core.return_unknown_function(coro,
                                              # namespace.model(**data) if namespace.model else data,

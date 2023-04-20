@@ -142,8 +142,8 @@ class DiscordUser(OAuthAccount):
         return self.get_embed(
             title='Balance',
             fields={
-                'Realized': balance.realized,
                 'Total': balance.total,
+                'Unrealized': balance.unrealized,
             },
             color=(
                 discord.Color.green() if balance.unrealized > 0 else

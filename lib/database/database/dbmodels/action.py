@@ -20,6 +20,7 @@ class ActionType(Enum):
     JOURNAL = TableNames.JOURNAL.value
     BALANCE = TableNames.BALANCE.value
     EVENT = TableNames.EVENT.value
+    EXECUTION = TableNames.EXECUTION.value
     CHAPTER_GRANT = ChapterGrant.__tablename__
 
 
@@ -40,6 +41,7 @@ class Action(Base, BaseMixin, EditsMixin, Serializer):
     topic = sa.Column(sa.String, nullable=False)
     platform = sa.Column(Platform, nullable=False)
     message = sa.Column(sa.String, nullable=True)
+    delay = sa.Column(sa.Interval, nullable=True)
     trigger_type = sa.Column(sa.Enum(ActionTrigger), nullable=False)
     _trigger_ids = sa.Column('trigger_ids', JSONB, nullable=True)
 

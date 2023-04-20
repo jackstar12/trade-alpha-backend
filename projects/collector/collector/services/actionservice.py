@@ -2,10 +2,12 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Any
 
+from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
 
 from collector.services.baseservice import BaseService
 from common.messenger import Category
+from core import utc_now
 from core.env import ENV
 from database.dbasync import db_all, db_select, db_unique, opt_eq
 from database.dbmodels.execution import Execution
@@ -59,6 +61,16 @@ class ActionService(BaseService):
             **action.all_ids
         )
 
+    async def on_action(self, action: Action, data: Any):
+        if action.delay:
+            self._scheduler.add_job(
+                func=self.execute,
+                trigger=DateTrigger(utc_now() + action.delay),
+                args=(action, data)
+            )
+        else:
+            await self.execute(action, data)
+
     async def execute(self, action: Action, data: Any):
         ns = self._messenger.get_namespace(action.type)
         self._logger.info(f'Executing action {action.id}')
@@ -74,12 +86,16 @@ class ActionService(BaseService):
                 session=self._db
             )
 
+            if ns.table.__model__:
+                instance = ns.table.__model__(**data)
+            else:
+                instance = ns.table(**data)
             if ns.table == Balance:
-                embed = discord_user.get_balance_embed(Balance(**data))
+                embed = discord_user.get_balance_embed(instance)
             elif ns.table == Trade:
-                embed = discord_user.get_trade_embed(InternalTradeModel(**data))
+                embed = discord_user.get_trade_embed(instance)
             elif ns.table == Execution:
-                embed = discord_user.get_exec_embed(Execution(**data))
+                embed = discord_user.get_exec_embed(instance)
             elif ns.table == ChapterGrant:
                 info = await db_unique(
                     select(Chapter.id, Chapter.journal_id, Chapter.title).where(
@@ -110,9 +126,7 @@ class ActionService(BaseService):
                     **action.platform.data,
                     embed={
                         'raw': embed.to_dict(),
-                        'author_id': action.user_id
                     },
-                    # message=action.message
                 )
             )
 
