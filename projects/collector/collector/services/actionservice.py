@@ -120,15 +120,18 @@ class ActionService(BaseService):
                     fields=data
                 )
 
-            await dc(
-                'send',
-                MessageRequest(
-                    **action.platform.data,
-                    embed={
-                        'raw': embed.to_dict(),
-                    },
+            try:
+                await dc.call(
+                    'send',
+                    MessageRequest(
+                        **action.platform.data,
+                        embed={
+                            'raw': embed.to_dict(),
+                        },
+                    )
                 )
-            )
+            except Exception as e:
+                self._logger.error(f'Error sending discord message: {e}')
 
         if action.trigger_type == ActionTrigger.ONCE:
             await self.remove(action)
