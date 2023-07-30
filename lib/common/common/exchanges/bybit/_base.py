@@ -94,7 +94,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
                                         on_message=self._on_message)
         # TODO: Fetch symbols https://bybit-exchange.github.io/docs/inverse/#t-querysymbol
 
-    async def startup(self):
+    async def _startup(self):
         self._logger.info('Connecting')
         await self._ws.connect()
         self._logger.info('Connected')
@@ -108,7 +108,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
         else:
             return WebsocketError(reason='Could not authenticate')
 
-    async def cleanup(self):
+    async def _cleanup(self):
         await self._ws.close()
 
     def _get_ws_url(self) -> str:

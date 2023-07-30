@@ -41,7 +41,7 @@ def fkey_name(tablename: Any, column_name: str):
 class BaseMixin:
     __tablename__: str
     __model__: Optional[Type[OrmBaseModel]] = None
-    __realtime__: Optional[bool] = None
+    __realtime__: Optional[bool] = True
 
     @property
     def sync_session(self) -> Optional[Session]:

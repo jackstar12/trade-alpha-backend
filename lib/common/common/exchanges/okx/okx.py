@@ -57,7 +57,7 @@ class OkxWorker(ExchangeWorker):
                 total += amount * price
         return balance.Balance(realized=Decimal(total), unrealized=Decimal(0), error=error)
 
-    async def cleanup(self):
+    async def _cleanup(self):
         await self.ccxt_client.close()
 
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):

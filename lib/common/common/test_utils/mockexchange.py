@@ -107,10 +107,10 @@ class MockExchange(ExchangeWorker):
             await self._on_execution(execution)
             self._execs.append(execution)
 
-    async def startup(self):
+    async def _startup(self):
         self._queue_waiter = asyncio.create_task(self.wait_queue())
 
-    async def cleanup(self):
+    async def _cleanup(self):
         self._queue_waiter.cancel()
 
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):

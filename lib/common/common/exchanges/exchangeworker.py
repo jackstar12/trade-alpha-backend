@@ -26,10 +26,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, sessionmaker
 
 import core
+from common.exchanges.channel import Channel
+from common.exchanges.exchangeticker import Subscription
 from common.messenger import TableNames, Category, Messenger
 from core import json as customjson, json
 from core.utils import combine_time_series, MINUTE, utc_now
-from database.dbasync import db_unique, db_all, db_select, db_select_all
+from database.dbasync import db_unique, db_all, db_select, db_select_all, redis
 from database.dbmodels.client import Client, ClientState
 # from database.dbmodels.ohlc import OHLC
 from database.dbmodels.execution import Execution
@@ -41,9 +43,12 @@ from database.errors import RateLimitExceeded, ExchangeUnavailable, ExchangeMain
     InvalidClientError, ClientDeletedError
 from database.models.market import Market
 from database.models.miscincome import MiscIncome
+from database.models.observer import Observer
 from database.models.ohlc import OHLC
+from database.models.ticker import Ticker
 
 if TYPE_CHECKING:
+    from collector.services.dataservice import DataService
     from database.dbmodels.balance import Balance
 
 logger = logging.getLogger(__name__)
@@ -136,7 +141,7 @@ class Limit:
         return asyncio.sleep((weight or self.default_weight) / self.refill_rate_seconds)
 
 
-class ExchangeWorker:
+class ExchangeWorker(Observer):
     supports_extended_data = False
     state = State.OK
     exchange: str = ''
@@ -162,8 +167,9 @@ class ExchangeWorker:
                  client: Client,
                  http_session: aiohttp.ClientSession,
                  db_maker: sessionmaker,
+                 data_service: DataService,
                  messenger: Messenger = None,
-                 execution_dedupe_seconds: float = 5e-3,
+                 execution_dedupe_seconds: float = 0.1,
                  commit=True):
 
         self.client_id = client.id if commit else None
@@ -172,6 +178,10 @@ class ExchangeWorker:
         self.client: Optional[Client] = client
         self.db_lock = asyncio.Lock()
         self.db_maker = db_maker
+        self.db: AsyncSession = db_maker()  # type: ignore
+        self.data_service = data_service
+
+        self._subscribed_symbols: set[str] = set()
 
         self._api_key = client.api_key
         self._api_secret = client.api_secret
@@ -181,13 +191,8 @@ class ExchangeWorker:
         self._http = http_session
         self._last_fetch: Balance | None = None
 
-        self._on_balance = None
-        self._on_new_trade = None
-        self._on_update_trade = None
         self._execution_dedupe_delay = execution_dedupe_seconds
         self._pending_execs: deque[Execution] = deque()
-        # dummy future
-        self._waiter = Future()
 
         cls = self.__class__
 
@@ -201,6 +206,61 @@ class ExchangeWorker:
             cls._request_queue = PriorityQueue()
 
         self._logger = logging.getLogger(__name__ + f' {self.exchange} - {self.client_id}')
+
+    async def refresh(self):
+        self.client = await db_unique(
+            select(Client).where(Client.id == self.client_id)
+            .execution_options(populate_existing=True),
+            Client.currently_realized,
+            (Client.open_trades, [Trade.max_pnl, Trade.min_pnl, Trade.init_balance]),
+            session=self.db
+        )
+
+        new_symbols = {trade.symbol for trade in self.client.open_trades}
+        for remove in self._subscribed_symbols.difference(new_symbols):
+            await self.data_service.unsubscribe(
+                self.client.exchange_info,
+                Subscription.get(Channel.TICKER, symbol=remove),
+                observer=self
+            )
+        for add in new_symbols.difference(self._subscribed_symbols):
+            await self.data_service.subscribe(
+                self.client.exchange_info,
+                Subscription.get(Channel.TICKER, symbol=add),
+                observer=self
+            )
+        self._subscribed_symbols = new_symbols
+        return self.client
+
+    async def update(self, ticker: Ticker):
+        async with redis.pipeline(transaction=True) as pipe:
+            for trade in self.client.open_trades:
+                if trade.symbol == ticker.symbol:
+                    trade.update_pnl(trade.calc_upnl(ticker.price))
+                    await trade.set_live_pnl(pipe)
+
+            client = self.client
+            if client.currently_realized:
+                balance = client.currently_realized.clone()
+                balance.time = utc_now()
+
+                for trade in client.open_trades:
+                    if trade.initial.market_type == MarketType.DERIVATIVES and trade.live_pnl:
+                        balance.add_amount(trade.settle, unrealized=trade.live_pnl.unrealized)
+
+                if balance.extra_currencies:
+                    for amount in balance.extra_currencies:
+                        market = Market(base=amount.currency, quote=client.currency)
+                        if not self.is_equal(market):
+                            ticker = await self.data_service.get_ticker(self.get_symbol(market), client.exchange_info)
+                            amount.rate = ticker.price if ticker else 0
+                        else:
+                            amount.rate = 1
+                    balance.evaluate()
+
+                await client.as_redis(pipe).set_balance(balance)
+                await self.messenger.pub_instance(balance, Category.LIVE)
+            await pipe.execute()
 
     async def get_balance(self,
                           priority: Priority = Priority.MEDIUM,
@@ -566,6 +626,7 @@ class ExchangeWorker:
 
     async def get_client(self, db: AsyncSession, options=None) -> Client:
         client = await db.get(Client, self.client_id, options=options)
+        self._logger.debug(f'Client: {client}')
         if client is None:
             await self.messenger.pub_channel(TableNames.CLIENT, Category.DELETE, obj={'id': self.client_id})
             raise ClientDeletedError()
@@ -603,33 +664,16 @@ class ExchangeWorker:
             return balance
 
     async def _on_execution(self, execution: Execution | list[Execution]):
-        if isinstance(execution, list):
-            self._pending_execs.extend(execution)
-        else:
-            self._pending_execs.append(execution)
-        if self._waiter and not self._waiter.done():
-            self._waiter.cancel()
-        asyncio.create_task(self._exec_waiter())
-
-    async def _exec_waiter(self):
-        """
-        Task used for grouping executions which happen close together (common with market orders)
-        in order to reduce load (less transactions to the database)
-        """
-        self._waiter = asyncio.create_task(
-            asyncio.sleep(self._execution_dedupe_delay)
-        )
-        await self._waiter
-        execs = []
-        while self._pending_execs:
-            execs.append(self._pending_execs.popleft())
-        async with self.db_maker() as db:
-            try:
-                trade = await self._add_executions(db, execs, realtime=True)
-                await db.commit()
-                self._logger.debug(f'Added executions {execs} {trade}')
-            except Exception as e:
-                self._logger.exception('Error while adding executions')
+        if not isinstance(execution, list):
+            execution = [execution]
+        try:
+            trade = await self._add_executions(self.db, execution, realtime=True)
+            self._logger.debug(f'Added executions {execution} {trade}')
+            await self.db.commit()
+            await self.refresh()
+            return
+        except Exception as e:
+            self._logger.exception('Error while adding executions')
 
     async def _add_executions(self,
                               db: AsyncSession,
@@ -705,7 +749,6 @@ class ExchangeWorker:
                                     Market(base=current.settle, quote=client.currency)
                                 ),
                                 Execution.market_type == MarketType.SPOT,
-
                             ).join(Trade.initial),
                             session=db
                         )
@@ -801,11 +844,19 @@ class ExchangeWorker:
         else:
             return n, resolutions_s[0]
 
+    async def _cleanup(self):
+        pass
+
     async def cleanup(self):
+        await self._cleanup()
+        await self.db.close()
+
+    async def _startup(self):
         pass
 
     async def startup(self):
-        pass
+        await self._startup()
+        await self.refresh()
 
     async def _get_transfers(self,
                              since: datetime = None,
@@ -1050,4 +1101,4 @@ class ExchangeWorker:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.cleanup()
+        await self._cleanup()

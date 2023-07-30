@@ -62,7 +62,7 @@ class KuCoinFuturesWorker(_KuCoinClient):
         return server["endpoint"] + f'?token={resp["token"]}'
 
 
-    async def startup(self):
+    async def _startup(self):
         self._ws = None
 
 

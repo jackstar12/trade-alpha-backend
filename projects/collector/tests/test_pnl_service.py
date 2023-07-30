@@ -63,8 +63,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
         await MockExchange.put_exec(symbol=symbol, side=Side.BUY, qty=size / 2, price=7500)
         await listener.wait(2)
 
-    await asyncio.sleep(1)
-
+    await asyncio.sleep(.1)
     trade = await get_trade()
     assert trade.qty == size / 2
 
@@ -75,7 +74,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
         await MockExchange.put_exec(symbol=symbol, side=Side.BUY, qty=size / 2, price=12500)
         await listener.wait(3)
 
-    await asyncio.sleep(.2)
+    await asyncio.sleep(.1)
     trade = await get_trade()
     assert trade.entry == 10000
     assert trade.qty == size
@@ -87,8 +86,8 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
     ) as listener:
         await MockExchange.put_exec(symbol=symbol, side=Side.SELL, qty=size / 2, price=17500)
         await listener.wait(3)
-        await asyncio.sleep(.1)
 
+    await asyncio.sleep(.1)
     trade = await get_trade()
     assert trade.open_qty == size / 2
     assert trade.qty == size
@@ -105,6 +104,8 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
     ) as listener:
         await MockExchange.put_exec(symbol=symbol, side=Side.SELL, qty=size, price=22500)
         await listener.wait(1)
+
+    await asyncio.sleep(.2)
 
     trades = await get_trades()
     assert len(trades) == 2

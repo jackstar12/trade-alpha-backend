@@ -308,39 +308,33 @@ class Messenger:
                      identifier: str,
                      namespace: NameSpace[Type[Serializer]],
                      sub: Category | str,
-                     condition: Callable[[Serializer], bool] = None,
-                     ):
+                     condition: Callable[[Serializer], bool] = None):
         @event.listens_for(target_cls, identifier)
-        def handler(mapper, connection, target: target_cls):
+        def handler(_mapper, _connection, target: target_cls):
             realtime = getattr(target, '__realtime__', True)
+            logging.debug(f'Listen: {sub=} {target=} {realtime=}')
             if realtime and (not condition or condition(target)):
                 asyncio.create_task(
-                    self.pub_channel(namespace, sub,
-                                     obj=jsonable_encoder(target.serialize(include_none=False)),
-                                     **namespace.get_ids(target))
+                    self.pub_channel(
+                        namespace, sub,
+                        obj=jsonable_encoder(target.serialize(include_none=False)),
+                        **namespace.get_ids(target)
+                    )
                 )
 
     def listen_class_all(self, target_cls: Type[Serializer], namespace: NameSpace = None):
         if not namespace:
             namespace = self.get_namespace(target_cls.__tablename__)
 
-        if namespace is TradeSpace:
+        if target_cls is Trade:
             def is_finished(trade: Trade):
                 return not trade.is_open
 
             self.listen_class(target_cls, "after_update", namespace, TradeSpace.FINISHED, condition=is_finished)
 
-        if namespace is ChapterSpace:
-            @event.listens_for(ChapterGrant, "after_insert")
-            def handler(mapper, connection, target: ChapterGrant):
-                asyncio.create_task(
-                    self.pub_channel(ChapterSpace,
-                                     ChapterSpace.PUBLISH,
-                                     obj=jsonable_encoder(target.serialize(include_none=False)),
-                                     **namespace.get_ids(target))
-                )
-
-            self.listen_class(target_cls, "after_update", namespace, ChapterSpace.FINISHED, condition=is_finished)
+        if target_cls is Chapter:
+            self.listen_class(target_cls, "after_insert", namespace, ChapterSpace.PUBLISH)
+            return
 
         self.listen_class(target_cls, "after_insert", namespace, Category.NEW)
         self.listen_class(target_cls, "after_update", namespace, Category.UPDATE)

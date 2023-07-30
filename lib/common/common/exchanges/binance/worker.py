@@ -360,10 +360,10 @@ class BinanceFutures(_BinanceBaseClient):
             extra_currencies=[]
         )
 
-    async def startup(self):
+    async def _startup(self):
         await self._ws.start()
 
-    async def cleanup(self):
+    async def _cleanup(self):
         await self._ws.stop()
 
     async def _on_message(self, ws, message):
