@@ -13,6 +13,7 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import event
 from sqlalchemy.exc import InvalidRequestError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import object_session
 from sqlalchemy.orm.util import identity_key
 
@@ -21,7 +22,7 @@ from core import json as customjson
 from database.dbmodels import Client, Balance, Chapter, Event, EventEntry, Execution
 from database.dbmodels.action import Action
 from database.dbmodels.alert import Alert
-from database.dbmodels.authgrant import AuthGrant
+from database.dbmodels.authgrant import AuthGrant, ChapterGrant, TradeGrant
 from database.dbmodels.editing import Journal
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.pnldata import PnlData
@@ -49,7 +50,8 @@ class NameSpace(Generic[TTable]):
     def from_table(cls,
                    table: Type[TTable],
                    parent: 'Optional[NameSpace]' = None,
-                   model: Optional[Type[OrmBaseModel]] = None):
+                   model: Optional[Type[OrmBaseModel]] = None,
+                   children: Optional[list[NameSpace]] = None):
         new = cls(
             parent=parent,
             name=table.__tablename__,
@@ -58,6 +60,9 @@ class NameSpace(Generic[TTable]):
             model=model or table.__model__
         )
         by_names[new.name] = new
+        if children:
+            for child in children:
+                child.parent = new
         return new
 
     def get_ids(self, instance: TTable):
@@ -124,27 +129,41 @@ class ChapterSpace(NameSpace[Chapter]):
     PUBLISH = "publish"
 
 
-USER = NameSpace.from_table(User)
-
-CLIENT = NameSpace.from_table(Client, parent=USER)
-
-BALANCE = NameSpace.from_table(Balance, parent=CLIENT)
-TRADE = TradeSpace.from_table(Trade, parent=CLIENT)
-TRANSFER = NameSpace.from_table(Transfer, parent=CLIENT)
-EXECUTION = NameSpace.from_table(Execution, parent=CLIENT)
-
-PNL_DATA = NameSpace.from_table(PnlData, parent=TRADE)
-
-ALERT = NameSpace.from_table(Alert, parent=USER)
-
-EVENT = EventSpace.from_table(Event, parent=USER)
-EVENT_SCORE = NameSpace.from_table(EventEntry, parent=EVENT)
-
-JOURNAL = NameSpace.from_table(Journal, parent=USER)
-CHAPTER = ChapterSpace.from_table(Chapter, parent=JOURNAL)
-
-ACTION = NameSpace.from_table(Action, parent=USER)
-AUTH_GRANT = NameSpace.from_table(AuthGrant, parent=USER)
+NameSpace.from_table(
+    User,
+    children=[
+        NameSpace.from_table(ChapterGrant),
+        NameSpace.from_table(
+            Client,
+            children=[
+                NameSpace.from_table(Balance),
+                TradeSpace.from_table(
+                    Trade,
+                    children=[NameSpace.from_table(PnlData)]
+                ),
+                NameSpace.from_table(Transfer),
+                NameSpace.from_table(Execution)
+            ]
+        ),
+        NameSpace.from_table(Alert),
+        EventSpace.from_table(
+            Event,
+            children=[NameSpace.from_table(EventEntry)]
+        ),
+        NameSpace.from_table(
+            Journal,
+            children=[ChapterSpace.from_table(Chapter)]
+        ),
+        NameSpace.from_table(Action),
+        NameSpace.from_table(
+            AuthGrant,
+            children=[
+                NameSpace.from_table(ChapterGrant),
+                NameSpace.from_table(TradeGrant)
+            ]
+        ),
+    ]
+)
 
 
 class Category(Enum):
@@ -187,7 +206,7 @@ class Messenger:
             if rcv_event:
                 data = event
             else:
-                data = customjson.loads(event['data'])
+                data = customjson.loads(event['data'], parse_decimal=False)
             asyncio.create_task(
                 core.return_unknown_function(coro,
                                              # namespace.model(**data) if namespace.model else data,
@@ -289,7 +308,8 @@ class Messenger:
                      identifier: str,
                      namespace: NameSpace[Type[Serializer]],
                      sub: Category | str,
-                     condition: Callable[[Serializer], bool] = None):
+                     condition: Callable[[Serializer], bool] = None,
+                     ):
         @event.listens_for(target_cls, identifier)
         def handler(mapper, connection, target: target_cls):
             realtime = getattr(target, '__realtime__', True)
@@ -304,11 +324,23 @@ class Messenger:
         if not namespace:
             namespace = self.get_namespace(target_cls.__tablename__)
 
-        if namespace is TRADE:
+        if namespace is TradeSpace:
             def is_finished(trade: Trade):
                 return not trade.is_open
 
-            self.listen_class(target_cls, "after_update", namespace, TRADE.FINISHED, condition=is_finished)
+            self.listen_class(target_cls, "after_update", namespace, TradeSpace.FINISHED, condition=is_finished)
+
+        if namespace is ChapterSpace:
+            @event.listens_for(ChapterGrant, "after_insert")
+            def handler(mapper, connection, target: ChapterGrant):
+                asyncio.create_task(
+                    self.pub_channel(ChapterSpace,
+                                     ChapterSpace.PUBLISH,
+                                     obj=jsonable_encoder(target.serialize(include_none=False)),
+                                     **namespace.get_ids(target))
+                )
+
+            self.listen_class(target_cls, "after_update", namespace, ChapterSpace.FINISHED, condition=is_finished)
 
         self.listen_class(target_cls, "after_insert", namespace, Category.NEW)
         self.listen_class(target_cls, "after_update", namespace, Category.UPDATE)

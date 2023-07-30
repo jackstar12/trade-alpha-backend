@@ -102,8 +102,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
             self.unrealized += unrealized
 
     def evaluate(self):
-        self.realized = 0
-        self.unrealized = 0
+        self.realized = self.unrealized = Decimal(0)
         for amount in self.extra_currencies:
             if amount.rate:
                 self.realized += amount.realized * amount.rate

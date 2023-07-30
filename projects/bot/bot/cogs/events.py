@@ -22,7 +22,7 @@ from database.dbmodels.event import Event
 from database.dbmodels.event import EventState
 from database.dbmodels.user import User
 from database.errors import UserInputError
-from common.messenger import EVENT
+from common.messenger import EventSpace
 from database.models.selectionoption import SelectionOption
 
 
@@ -31,10 +31,10 @@ class EventsCog(CogBase):
     async def on_ready(self):
         await self.messenger.bulk_sub(
             Event, {
-                EVENT.START: self._wrap_event_coro(self._event_start),
-                EVENT.END: self._wrap_event_coro(self._event_end),
-                EVENT.REGISTRATION_START: self._wrap_event_coro(self._event_registration_start),
-                EVENT.REGISTRATION_END: self._wrap_event_coro(self._event_registration_end)
+                EventSpace.START: self._wrap_event_coro(self._event_start),
+                EventSpace.END: self._wrap_event_coro(self._event_end),
+                EventSpace.REGISTRATION_START: self._wrap_event_coro(self._event_registration_start),
+                EventSpace.REGISTRATION_END: self._wrap_event_coro(self._event_registration_end)
             }
         )
 

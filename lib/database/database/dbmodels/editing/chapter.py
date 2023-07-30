@@ -9,8 +9,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import aliased
 
-from database.dbasync import safe_eq
+from database.dbasync import opt_eq
 from database.dbmodels.editing.pagemixin import PageMixin, cmp_dates
+from database.dbmodels.mixins.serializer import Serializer
 from database.dbsync import Base, BaseMixin
 from database.models import BaseModel
 from database.models.document import DocumentModel, TradeData
@@ -39,7 +40,7 @@ class ChapterData(BaseModel):
     #     return self.start_date + interval
 
 
-class Chapter(Base, BaseMixin, PageMixin):
+class Chapter(Base, Serializer, BaseMixin, PageMixin):
     __tablename__ = 'chapter'
 
     # Identifiers
@@ -88,10 +89,10 @@ class Chapter(Base, BaseMixin, PageMixin):
             cls.id, cls.doc
         ).filter(
             or_(
-                safe_eq(cls.id, root_id),
-                safe_eq(cls.parent_id, root_id),
+                opt_eq(cls.id, root_id),
+                opt_eq(cls.parent_id, root_id),
             ),
-            safe_eq(cls.journal_id, journal_id)
+            opt_eq(cls.journal_id, journal_id)
         ).cte(name="included", recursive=True)
 
         included_alias = aliased(included, name="parent")
@@ -116,7 +117,7 @@ class Chapter(Base, BaseMixin, PageMixin):
                 func.jsonb_array_elements(tree.c.node['content']).cast(JSONB)
             ).where(
                 func.jsonb_exists(attrs, 'data'),
-                safe_eq(tree.c.node['type'].astext, node_type)
+                opt_eq(tree.c.node['type'].astext, node_type)
             )
         )
         data = tree.c.node['attrs']['data']

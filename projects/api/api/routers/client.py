@@ -28,7 +28,7 @@ from common.exchanges import EXCHANGES
 from common.exchanges.exchangeworker import ExchangeWorker
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 from database.calc import create_intervals
-from database.dbasync import db_first, redis, async_maker, time_range, db_all, safe_eq
+from database.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq
 from database.dbmodels import TradeDB, BalanceDB, Execution, Chapter
 from database.dbmodels.authgrant import ChapterGrant, AuthGrant
 from database.dbmodels.balance import Amount
@@ -169,7 +169,7 @@ async def get_client_overview(background_tasks: BackgroundTasks,
                 select(TransferDB).where(
                     TransferDB.client_id == client.id,
                     time_range(Execution.time, query_params.since, query_params.to),
-                    safe_eq(TransferDB.coin, query_params.currency)
+                    opt_eq(TransferDB.coin, query_params.currency)
                 ).join(TransferDB.execution),
                 session=db
             )

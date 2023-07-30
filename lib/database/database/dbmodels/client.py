@@ -30,7 +30,7 @@ from database.dbmodels.transfer import Transfer
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from core import join_args, json as customjson, utc_now, join_args
 from database.dbasync import db_first, db_all, db_select_all, redis, redis_bulk_keys, RedisKey, db_unique, \
-    time_range, safe_op, safe_eq
+    time_range, opt_op, opt_eq
 from database.dbmodels.editing.chapter import Chapter
 from database.dbmodels.discord.guildassociation import GuildAssociation
 from database.dbmodels.pnldata import PnlData
@@ -365,7 +365,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
                 ).label('total_transfered')
             ).join(Transfer.execution).where(
                 time_range(dbmodels.Execution.time, since, to),
-                safe_eq(Transfer.coin, ccy),
+                opt_eq(Transfer.coin, ccy),
             ).join(
                 Transfer.client
             ),
@@ -592,7 +592,7 @@ def add_client_checks(stmt: Union[Select, Delete, Update], user_id: UUID,
     return stmt.where(
         Client.id.in_(client_ids) if client_ids else True,
         Client.user_id == user_id,
-        safe_op(Client.currency, currency)
+        opt_op(Client.currency, currency)
         # Client.type == ClientType.FULL,
         # Client.state.not_in((ClientState.INVALID, ClientState.SYNCHRONIZING)),
     )

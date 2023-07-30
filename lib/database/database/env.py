@@ -1,15 +1,13 @@
 from typing import Optional
 
 from pydantic import SecretStr
-from sqlalchemy.engine import URL
-
-from core.env import EnvBase
+from core.env import Environment
 
 
-class Environment(EnvBase):
+class DatabaseEnv(Environment):
     PG_URL: str
     REDIS_URL: str
     ENCRYPTION: SecretStr
 
 
-ENV = Environment()
+ENV = DatabaseEnv()

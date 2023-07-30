@@ -20,7 +20,7 @@ from sqlalchemy_utils import get_mapper
 import database.models.eventinfo as eventmodels
 from core.utils import join_args, utc_now
 from core.utils import safe_cmp
-from database.dbasync import db_all, safe_op
+from database.dbasync import db_all, opt_op
 from database.dbmodels.evententry import EventEntry, EventScore
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.types import Document
@@ -144,7 +144,7 @@ class Event(Base, Serializer, BaseMixin):
                 order_by=desc(EventScore.time), partition_by=EventScore.client_id
             ).label('rank')
         ).where(
-            safe_op(EventScore.time, date, operator.lt),
+            opt_op(EventScore.time, date, operator.lt),
             EventScore.event_id == self.id
         ).subquery()
 

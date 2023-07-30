@@ -2,14 +2,18 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Callable, Any
 
+from apscheduler.triggers.date import DateTrigger
 from sqlalchemy import select
 
 from collector.services.baseservice import BaseService
 from common.messenger import Category
+from core import utc_now
 from core.env import ENV
-from database.dbasync import db_all, db_select
-from database.dbmodels import Execution, Chapter
+from database.dbasync import db_all, db_select, db_unique, opt_eq
+from database.dbmodels.execution import Execution
+from database.dbmodels.editing import Chapter
 from database.dbmodels.action import Action, ActionTrigger
+from database.dbmodels.authgrant import ChapterGrant, TradeGrant
 from database.dbmodels.balance import Balance
 from database.dbmodels.discord.discorduser import DiscordUser
 from database.dbmodels.trade import Trade, InternalTradeModel
@@ -57,6 +61,16 @@ class ActionService(BaseService):
             **action.all_ids
         )
 
+    async def on_action(self, action: Action, data: Any):
+        if action.delay:
+            self._scheduler.add_job(
+                func=self.execute,
+                trigger=DateTrigger(utc_now() + action.delay),
+                args=(action, data)
+            )
+        else:
+            await self.execute(action, data)
+
     async def execute(self, action: Action, data: Any):
         ns = self._messenger.get_namespace(action.type)
         self._logger.info(f'Executing action {action.id}')
@@ -69,38 +83,55 @@ class ActionService(BaseService):
             discord_user = await db_select(
                 DiscordUser,
                 DiscordUser.user_id == action.user_id,
-                db=self._db
+                session=self._db
             )
 
+            if ns.table.__model__:
+                instance = ns.table.__model__(**data)
+            else:
+                instance = ns.table(**data)
             if ns.table == Balance:
-                embed = discord_user.get_balance_embed(Balance(**data))
+                embed = discord_user.get_balance_embed(instance)
             elif ns.table == Trade:
-                embed = discord_user.get_trade_embed(InternalTradeModel(**data))
+                embed = discord_user.get_trade_embed(instance)
             elif ns.table == Execution:
-                embed = discord_user.get_exec_embed(Execution(**data))
-            elif ns.table == Chapter:
-                url = ENV.FRONTEND_URL + f'/app/profile/journal/{data["journal_id"]}/chapter/{data["id"]}'
-                embed = discord_user.get_embed(
-                    title=data['title'],
-                    description=(action.message or ''),
-                    url=url
+                embed = discord_user.get_exec_embed(instance)
+            elif ns.table == ChapterGrant:
+                info = await db_unique(
+                    select(Chapter.id, Chapter.journal_id, Chapter.title).where(
+                        Chapter.id == data['chapter_id'],
+                        opt_eq(Chapter.journal_id, action.trigger_ids.get('journal_id'))
+                    ),
+                    session=self._db
                 )
+                embed = discord_user.get_embed(
+                    title=info.title,
+                    description=action.message,
+                    url=ENV.FRONTEND_URL + f'/app/profile/journal/{info.journal_id}/chapter/{info.id}'
+                )
+            elif ns.table == TradeGrant:
+                trade = await self._db.get(Trade, data['trade_id'])
+                embed = discord_user.get_trade_embed(trade)
+                embed.description = action.message
+                embed.url = ENV.FRONTEND_URL + f'/app/profile/trade/{trade.id}'
             else:
                 embed = discord_user.get_embed(
                     title=ns.table.__name__,
                     fields=data
                 )
-            await dc(
-                'send',
-                MessageRequest(
-                    **action.platform.data,
-                    embed={
-                        'raw': embed.to_dict(),
-                        'author_id': action.user_id
-                    },
-                    # message=action.message
+
+            try:
+                await dc.call(
+                    'send',
+                    MessageRequest(
+                        **action.platform.data,
+                        embed={
+                            'raw': embed.to_dict(),
+                        },
+                    )
                 )
-            )
+            except Exception as e:
+                self._logger.error(f'Error sending discord message: {e}')
 
         if action.trigger_type == ActionTrigger.ONCE:
             await self.remove(action)

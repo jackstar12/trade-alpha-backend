@@ -65,7 +65,7 @@ def create_rpc_server(bot):
         if request.embed:
             if request.embed.type:
                 pass
-                #TODO
+                # TODO: keep?
             else:
                 embed = discord.Embed.from_dict(request.embed.raw)
             if request.embed.author_id:

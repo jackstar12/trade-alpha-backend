@@ -1,51 +1,21 @@
 from __future__ import annotations
-import asyncio
-import logging
+
 import secrets
-from datetime import datetime, date, timedelta
 from enum import Enum
-from typing import Optional, Union, Literal, Any, TYPE_CHECKING, Sequence, TypedDict, Type, Iterable
-from uuid import UUID
+from typing import Optional, TypedDict, Type, Iterable
+
 import sqlalchemy as sa
-import pytz
-from aioredis import Redis
-from fastapi_users_db_sqlalchemy import GUID
-from sqlalchemy import Column, Integer, String, DateTime, PickleType, or_, desc, Boolean, select, func, \
-    Date, UniqueConstraint, orm
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import relationship, reconstructor, RelationshipProperty, declared_attr, backref
-
+from sqlalchemy import select, orm
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm.dynamic import AppenderQuery
-from sqlalchemy.sql import Select, Delete, Update
-from sqlalchemy_utils.types.encrypted.encrypted_type import StringEncryptedType, FernetEngine
+from sqlalchemy.orm import relationship, declared_attr, backref
 
-import os
-import dotenv
-from typing_extensions import NotRequired
-
-import database.dbmodels as dbmodels
-import core
-from database.env import ENV
-from database.errors import UserInputError
-from database.dbmodels.transfer import Transfer
-
-from database.dbmodels.mixins.editsmixin import EditsMixin
-from core import json as customjson
-from database.dbasync import db_first, db_all, db_select_all, redis, redis_bulk_keys, RedisKey, db_unique, \
-    time_range
-from database.dbmodels.editing.chapter import Chapter
-from database.dbmodels.discord.guildassociation import GuildAssociation
-from database.dbmodels.pnldata import PnlData
+from database.dbasync import db_all, redis
 from database.dbmodels.mixins.serializer import Serializer
 from database.dbmodels.user import User
-from database.models import BaseModel, InputID, OutputID
-from database.models.balance import Balance as BalanceModel, Balance
 from database.dbsync import Base, BaseMixin, FKey
+from database.models import OutputID
 from database.models.discord.guild import GuildRequest
-from database.redis import TableNames, rpc
-from database.dbmodels.trade import Trade
-from database.redis.client import ClientSpace
+from database.redis import rpc
 
 
 class DiscordPermission(TypedDict):
@@ -170,6 +140,7 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
 
 class GrantAssociaton(BaseMixin):
+    __grants__: str
     alias: str = None
 
     @declared_attr
@@ -191,6 +162,7 @@ class GrantAssociaton(BaseMixin):
 
 class EventGrant(Base, GrantAssociaton):
     __tablename__ = 'eventgrant'
+    __grants__ = 'event'
 
     event_id = sa.Column(FKey('event.id', ondelete='CASCADE'), primary_key=True)
     event = relationship('Event', lazy='raise')
@@ -207,6 +179,7 @@ class EventGrant(Base, GrantAssociaton):
 
 class JournalGrant(Base, GrantAssociaton):
     __tablename__ = 'journalgrant'
+    __grants__ = 'journal'
     journal_id = sa.Column(FKey('journal.id', ondelete='CASCADE'), primary_key=True)
 
     alias = 'journalId'
@@ -222,10 +195,12 @@ class JournalGrant(Base, GrantAssociaton):
 
 class ChapterGrant(Base, GrantAssociaton):
     __tablename__ = 'chaptergrant'
+    __grants__ = 'chapter'
 
     alias = 'chapterId'
 
     chapter_id = sa.Column(FKey('chapter.id', ondelete='CASCADE'), primary_key=True)
+    chapter = relationship('Chapter', lazy='raise')
 
     @hybrid_property
     def identity(cls):
@@ -238,6 +213,7 @@ class ChapterGrant(Base, GrantAssociaton):
 
 class TradeGrant(Base, GrantAssociaton):
     __tablename__ = 'tradegrant'
+    __grants__ = 'trade'
     trade_id = sa.Column(FKey('trade.id', ondelete='CASCADE'), primary_key=True)
 
     @hybrid_property
