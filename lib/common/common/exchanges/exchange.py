@@ -9,7 +9,7 @@ from asyncio import Future, Task
 from asyncio.queues import PriorityQueue
 from collections import deque, OrderedDict
 from dataclasses import dataclass
-from datetime import datetime, timedelta, date
+from datetime import datetime, date
 from decimal import Decimal
 from enum import Enum
 from typing import List, Dict, Optional, Union, Set
@@ -20,7 +20,6 @@ import aiohttp.client
 import pytz
 from aiohttp import ClientResponse, ClientResponseError
 from sqlalchemy import update
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
 from core import json as customjson, json
@@ -68,6 +67,13 @@ class RequestItem(NamedTuple):
 
     def __lt__(self, other):
         return self.priority.value < other.priority.value
+
+
+class Position(NamedTuple):
+    symbol: str
+    side: Side
+    size: Decimal
+    entry_price: Decimal
 
 
 class State(Enum):
@@ -285,6 +291,10 @@ class Exchange(Observer):
         self._last_fetch = balance
         balance.client_id = self.client_id
         return balance
+
+    @abc.abstractmethod
+    async def get_positions(self) -> list[Position]:
+        pass
 
     @abc.abstractmethod
     async def _get_balance(self, time: datetime, upnl=True):

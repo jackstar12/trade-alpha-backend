@@ -446,7 +446,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                 self.open_qty += execution.qty
                 if execution.commission:
                     self.total_commissions += execution.commission
-            elif execution.reduce or True:
+            elif execution.reduce:
                 if execution.qty > self.open_qty:
                     new_exec = Execution(
                         qty=execution.qty - self.open_qty,
@@ -485,7 +485,6 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                 if self.open_qty.is_zero():
                     self.update_pnl(Decimal(0), force=True, now=execution.time)
             else:
-                print('wtf', execution)
                 new = Trade.from_execution(execution, self.client_id, current_balance)
 
         return new

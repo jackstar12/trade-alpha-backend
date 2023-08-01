@@ -1,6 +1,6 @@
 import asyncio
 import itertools
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -12,9 +12,8 @@ from common.test_utils.fixtures import Channel, Messages
 from common.test_utils.mockexchange import MockExchange, RawExec
 from core import utc_now
 from database.dbasync import db_select_all, db_all
-from database.dbmodels import Client
 from database.dbmodels.trade import Trade
-from database.enums import Side, Priority
+from database.enums import Side
 
 pytestmark = pytest.mark.anyio
 
@@ -118,7 +117,7 @@ async def test_realtime(db, pnl_service, time, client, registered_client, sessio
     SANDBOX_CLIENTS,
     indirect=True
 )
-async def test_exchange(client, db, session_maker, http_session, ccxt_client, messenger, redis):
+async def test_exchange(client, session_maker, http_session, ccxt_client):
     now = utc_now()
     fut = asyncio.get_event_loop().create_future()
     execs = []
@@ -135,14 +134,21 @@ async def test_exchange(client, db, session_maker, http_session, ccxt_client, me
         on_exec
     )
 
+    _, test, _ = await exchange.get_executions(now - timedelta(minutes=3))
+
     balance = await exchange.get_balance()
 
     await exchange.start_ws()
 
     ccxt_client.create_market_buy_order(symbol, float(size))
+
+    positions = await exchange.get_positions()
+    assert positions[0].size == size
+
     ccxt_client.create_market_sell_order(symbol, float(size))
 
     await asyncio.wait_for(fut, 5)
+    await asyncio.sleep(15)
 
     _, fetched_execs, _ = await exchange.get_executions(now)
     assert len(execs) == len(fetched_execs)
@@ -154,24 +160,15 @@ async def test_exchange(client, db, session_maker, http_session, ccxt_client, me
 
 
 @pytest.fixture
-def mock_execs():
-    raw = [
+def basic_execs():
+    return MockExchange.set_execs(
         RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
         RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
         RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000),
-    ]
-    MockExchange.queue = asyncio.Queue()
-    for exec in raw:
-        MockExchange.queue.put_nowait(exec)
-    return raw
+    )
 
 
-@pytest.mark.parametrize(
-    'client',
-    [MockExchange.create()],
-    indirect=True
-)
-async def test_imports(mock_execs, pnl_service, db, time, client, registered_client):
+async def all_trades(client):
     trades = await db_select_all(
         Trade,
         eager=[Trade.executions, Trade.max_pnl, Trade.min_pnl],
@@ -180,9 +177,21 @@ async def test_imports(mock_execs, pnl_service, db, time, client, registered_cli
     execs = list(
         itertools.chain.from_iterable(trade.executions for trade in trades)
     )
+    return trades, execs
 
-    assert len(execs) == len(mock_execs)
-    assert sum(e.qty for e in execs) == sum(e.qty for e in mock_execs)
+
+@pytest.mark.parametrize(
+    'client',
+    [MockExchange.create()],
+    indirect=True
+)
+async def test_imports(basic_execs, pnl_service, db, time, client, registered_client):
+    worker = await pnl_service.add_client(client)
+    await worker.synchronize_positions()
+    trades, execs = await all_trades(client)
+
+    assert len(execs) == len(basic_execs)
+    assert sum(e.qty for e in execs) == sum(e.qty for e in basic_execs)
     assert sum(e.effective_qty for e in execs).is_zero()
 
     assert len(trades) == 1
@@ -190,3 +199,23 @@ async def test_imports(mock_execs, pnl_service, db, time, client, registered_cli
     assert trade.open_qty.is_zero()
     assert trade.qty == size
     assert trade.max_pnl.total != trades[0].min_pnl.total
+
+
+@pytest.fixture
+def advanced_execs():
+    return MockExchange.set_execs(
+        RawExec(symbol=symbol, side=Side.BUY, qty=size, price=10000, reduce=False),
+        RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000, reduce=False),
+    )
+
+
+@pytest.mark.parametrize(
+    'client',
+    [MockExchange.create()],
+    indirect=True
+)
+async def test_imports_complex(advanced_execs, pnl_service, db, time, client, registered_client):
+    trades, execs = await all_trades(client)
+    assert len(execs) == len(advanced_execs)
+    assert sum(e.qty for e in execs) == sum(e.qty for e in advanced_execs)
+    assert len(trades) == 2

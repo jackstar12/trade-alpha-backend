@@ -8,6 +8,7 @@ from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy import delete
 
+from common.exchanges.worker import Worker
 from common.test_utils.fixtures import *
 from collector.services.balanceservice import ExtendedBalanceService, BasicBalanceService
 from collector.services.dataservice import DataService

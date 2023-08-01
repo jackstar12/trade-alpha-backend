@@ -101,6 +101,13 @@ class MockExchange(Exchange):
     async def put_exec(cls, **kwargs):
         await cls.queue.put(RawExec(**kwargs))
 
+    @classmethod
+    def set_execs(cls, *execs: RawExec):
+        MockExchange.queue = asyncio.Queue()
+        for exec in execs:
+            MockExchange.queue.put_nowait(exec)
+        return execs
+
     async def wait_queue(self):
         while True:
             self._logger.info('Mock listening for execs')

@@ -5,17 +5,16 @@ from decimal import Decimal
 from typing import Dict, List, Tuple, Optional
 
 from aiohttp import ClientResponse
-from sqlalchemy import select, func
 
 from common.exchanges.bybit._base import Category, _BybitBaseClient, all_intervals, interval_map, Account
-from common.exchanges.exchange import create_limit
+from common.exchanges.exchange import create_limit, Position
 from core import get_multiple
-from core import utc_now, groupby
+from core import utc_now
 from database.dbmodels import Trade
 from database.dbmodels.balance import Balance, Amount
 from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import RawTransfer
-from database.errors import ResponseError
+from database.enums import Side
 from database.models.market import Market
 from database.models.ohlc import OHLC
 
@@ -67,39 +66,6 @@ class BybitDerivativesWorker(_BybitBaseClient):
         used = response.headers.get('X-Bapi-Limit-Status')
         logger.info(f'Remaining: {used}')
 
-    async def _get_paginated(self,
-                             limit: int,
-                             page_param: str,
-                             path: str,
-                             params: Dict,
-                             page_response: str = None,
-                             result_path: str = None,
-                             page_init: int = 1,
-                             **kwargs):
-        page = page_init
-        result = []
-        results = []
-        params['limit'] = limit
-        while result and len(result) == limit or page == page_init:
-            # https://bybit-exchange.github.io/docs/inverse/#t-usertraderecords
-            if page:
-                params[page_param] = page
-            response = await self.get(path, params=params, **kwargs)
-            page = response.get(page_response, page + 1 if page_init == 1 else page)
-            result = response.get(result_path)
-            if result:
-                results.extend(result)
-        return results
-
-    async def get_instruments(self, contract: Category) -> list[dict]:
-        resp = await self.get(
-            '/derivatives/v3/public/instruments-info',
-            params={'contract': contract.value},
-            cache=True,
-            sign=False
-        )
-        return resp['list']
-
     async def get_tickers(self, contract: Category) -> list[dict]:
         resp = await self.get(
             '/derivatives/v3/public/tickers',
@@ -133,163 +99,7 @@ class BybitDerivativesWorker(_BybitBaseClient):
             executions.extend(self._parse_exec_v3(raw) for raw in funding)
         return executions
 
-        pnlParams = {
-            'limit': 50
-        }
-
-        if self._internal_transfers and self._internal_transfers[0] == since:
-            for transfer in self._internal_transfers[1]:
-                coins_to_fetch.add(transfer.coin)
-
-        if since:
-            # pnlParams['startTime'] = self._parse_date(since.replace(hour=0, minute=0, second=0, microsecond=0))
-            pnlParams['startTime'] = self._parse_date(since - timedelta(days=7))
-
-        # https://bybit-exchange.github.io/docs/derivativesV3/contract/#t-dv_walletrecords
-        asset_records = await self._get_paginated_v3(path='/contract/v3/private/account/wallet/fund-records',
-                                                     params=pnlParams)
-
-        pnlParams["coin"] = 'USDT'
-
-        # https://bybit-exchange.github.io/docs/derivativesV3/contract/#t-dv_walletrecords
-        usd_records = await self._get_paginated_v3(path='/contract/v3/private/account/wallet/fund-records',
-                                                   params=pnlParams)
-
-        balance = await self.get_balance()
-        balance.client = self.client
-
-        records_by_assets = groupby(asset_records, lambda a: a['coin'])
-        required_execs = {}
-        existing_symbols = {}
-
-        execs = []
-
-        # {
-        #     "coin": "USDT",
-        #     "type": "AccountTransfer",
-        #     "amount": "500",
-        #     "walletBalance": "2731.63599033",
-        #     "execTime": "1658215763731"
-        # }
-        if records_by_assets:
-            # sum(Decimal(record['amount']) for record in usd_records if record['type'] == 'RealisedPNL') + (Decimal("8293.8771") - Decimal(usd_records[0]['walletBalance']))
-            # equal to sum of all closed p&ls
-
-            for coin, records in records_by_assets.items():
-                required_execs[coin] = sum(
-                    Decimal(record["amount"])
-                    for record in records
-                    if record['type'] == 'RealisedPNL' and self.parse_ms_dt(record['execTime']) >= since
-                )
-
-                required_execs[coin] += balance.get_realized(coin) - Decimal(records[0]['walletBalance'])
-
-            async with self.db_maker() as db:
-                for row in await db.execute(
-                        select(
-                            Execution.symbol,
-                            func.sum(Execution.size).label('total')
-                        )
-                                .where(Trade.client_id == self.client_id)
-                                .join(Execution.trade)
-                                .group_by(Execution.symbol),
-                ):
-                    existing_symbols[row.symbol] = row.total
-
-        for coin in required_execs:
-
-            symbols_to_fetch = []
-
-            if coin == 'USDT':
-                instruments = await self.get_tickers(Category.LINEAR)
-                instruments.sort(
-                    # When sorting the priority of fetching, the size of prior trades will be considered too
-                    key=lambda i: Decimal(i['turnover24h']) + 100 * existing_symbols.get(i['symbol'], 0),
-                    reverse=True
-                )
-                for instrument in instruments:
-                    if not instrument['symbol'].endswith('PERP'):
-                        symbols_to_fetch.append(instrument['symbol'])
-            else:
-                symbols_to_fetch.append(f'{coin}USD')
-
-            params = {'limit': 200}
-            if since_ts:
-                params['startTime'] = since_ts
-            for symbol in symbols_to_fetch:
-                params['symbol'] = symbol
-                pnlParams['symbol'] = symbol
-                try:
-                    raw_orders = await self._get_paginated_v3(path='/contract/v3/private/order/list',
-                                                              valid=lambda r: int(r['createdTime']) > since_ts,
-                                                              params=params)
-                    if raw_orders:
-                        # https://bybit-exchange.github.io/docs/derivativesV3/contract/#t-dv_closedprofitandloss
-                        closed_pnl = await self._get_paginated_v3(path='/contract/v3/private/position/closed-pnl',
-                                                                  params=pnlParams)
-
-                    else:
-                        continue
-                except ResponseError:
-                    self._logger.exception('Something went wrong with symbol: ' + symbol)
-                    continue
-
-                for raw_order in raw_orders:
-                    parsed = self._parse_order_v3(raw_order)
-
-                    if parsed:
-                        execs.append(parsed)
-
-                required_execs[coin] -= sum(Decimal(entry['closedPnl']) for entry in closed_pnl)
-
-                if not required_execs[coin]:
-                    break
-
-        return list(execs)
-
-    # https://bybit-exchange.github.io/docs/inverse/?console#t-balance
-    async def _internal_get_balance(self, contract_type: Category, time: datetime, upnl=True):
-
-        balances, tickers = await asyncio.gather(
-            self.get('/v2/private/wallet/balance'),
-            self.get('/v2/public/tickers', sign=False, cache=True)
-        )
-
-        total_realized = total_unrealized = Decimal(0)
-        extra_currencies: list[Amount] = []
-
-        ticker_prices = {
-            ticker['symbol']: ticker['last_price'] for ticker in tickers
-        }
-        err_msg = None
-        for currency, balance in balances.items():
-            realized = Decimal(balance['wallet_balance'])
-            unrealized = Decimal(balance['equity'])
-            price = 0
-            if currency == 'USDT':
-                if contract_type == Category.LINEAR:
-                    price = Decimal(1)
-            elif unrealized > 0 and contract_type == Category.INVERSE:
-                price = get_multiple(ticker_prices, f'{currency}USD', f'{currency}USDT')
-                if not price:
-                    logging.error(f'Bybit Bug: ticker prices do not contain info about {currency}:\n{ticker_prices}')
-                    continue
-            if contract_type != Category.LINEAR and realized:
-                extra_currencies.append(
-                    Amount(currency=currency, realized=realized, unrealized=unrealized)
-                )
-            total_realized += realized * Decimal(price)
-            total_unrealized += unrealized * Decimal(price)
-
-        return Balance(
-            realized=total_realized,
-            unrealized=total_unrealized,
-            extra_currencies=extra_currencies,
-            error=err_msg
-        )
-
     async def _internal_get_balance_v3(self, category: Category = None):
-
         params = {}
         if category:
             params['category'] = category.value
@@ -392,6 +202,24 @@ class BybitDerivativesWorker(_BybitBaseClient):
             ]
         else:
             return []
+
+    async def _get_internal_positions(self, category: Category) -> list[Position]:
+        data = await self.get('/v5/position/list',
+                              params={'limit': 50, 'category': category.value, 'settleCoin': 'USDT'})
+
+        return [
+            Position(
+                symbol=raw['symbol'],
+                side=Side.BUY if raw['side'] == 'Buy' else Side.SELL,
+                size=Decimal(raw['size']),
+                entry_price=Decimal(raw['avgPrice']),
+            )
+            for raw in data["list"]
+        ]
+
+    async def get_positions(self) -> list[Position]:
+        return await self._get_internal_positions(Category.LINEAR) + await self._get_internal_positions(
+            Category.INVERSE)
 
     async def _get_transfers(self, since: datetime = None, to: datetime = None) -> List[RawTransfer]:
         self._internal_transfers = (since, await self._get_internal_transfers_v3(since, Account.DERIVATIVE))
