@@ -5,12 +5,12 @@ import time
 from datetime import datetime
 from decimal import Decimal
 
-from common.exchanges.exchangeworker import ExchangeWorker
+from common.exchanges.exchange import Exchange
 
 import database.dbmodels.balance as db_balance
 
 
-class BitmexWorker(ExchangeWorker):
+class BitmexWorker(Exchange):
     exchange = 'bitmex'
     _ENDPOINT = 'https://www.bitmex.com'
 
@@ -87,7 +87,7 @@ class BitmexWorker(ExchangeWorker):
         request_signature = f'{method}{path}{f"?{query_string}" if query_string else ""}{ts}'
         if data is not None:
             request_signature += data
-        signature = hmac.new(self._api_secret.encode(), request_signature.encode(), 'sha256').hexdigest()
+        signature = hmac.new(self.client.api_secret.encode(), request_signature.encode(), 'sha256').hexdigest()
         headers['api-expires'] = str(ts)
-        headers['api-key'] = self._api_key
+        headers['api-key'] = self.client.api_key
         headers['api-signature'] = signature

@@ -3,11 +3,11 @@ from decimal import Decimal
 import database.dbmodels.balance as balance
 import ccxt.async_support as ccxt
 from datetime import datetime
-from common.exchanges.exchangeworker import ExchangeWorker
+
+from common.exchanges.exchange import Exchange
 
 
-class OkxWorker(ExchangeWorker):
-
+class OkxWorker(Exchange):
     ENDPOINT = 'https://www.okx.com'
 
     exchange = 'okx'
@@ -16,9 +16,9 @@ class OkxWorker(ExchangeWorker):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.ccxt_client = ccxt.okex({
-            'apiKey': self._api_key,
-            'secret': self._api_secret,
-            'password': self._extra_kwargs['passphrase'],
+            'apiKey': self.client.api_key,
+            'secret': self.client.api_secret,
+            'password': self.client.extra['passphrase'],
             'session': self._http
         })
 
@@ -57,7 +57,7 @@ class OkxWorker(ExchangeWorker):
                 total += amount * price
         return balance.Balance(realized=Decimal(total), unrealized=Decimal(0), error=error)
 
-    async def _cleanup(self):
+    async def clean_ws(self):
         await self.ccxt_client.close()
 
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):

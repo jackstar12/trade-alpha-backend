@@ -11,12 +11,12 @@ import pytz
 import core
 from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import RawTransfer
-from common.exchanges.exchangeworker import ExchangeWorker
+from common.exchanges.exchange import Exchange
 from database.models.ohlc import OHLC
 from database.models.ticker import Ticker
 
 
-class _KuCoinClient(ExchangeWorker, ABC):
+class _KuCoinClient(Exchange, ABC):
     required_extra_args = [
         'passphrase'
     ]
@@ -31,13 +31,13 @@ class _KuCoinClient(ExchangeWorker, ABC):
         if data is not None:
             signature_payload += data
         signature = base64.b64encode(
-            hmac.new(self._api_secret.encode('utf-8'), signature_payload.encode('utf-8'), 'sha256').digest()
+            hmac.new(self.client.api_secret.encode('utf-8'), signature_payload.encode('utf-8'), 'sha256').digest()
         ).decode()
         passphrase = base64.b64encode(
-            hmac.new(self._api_secret.encode('utf-8'), self._extra_kwargs['passphrase'].encode('utf-8'),
+            hmac.new(self.client.api_secret.encode('utf-8'), self.client.extra['passphrase'].encode('utf-8'),
                      'sha256').digest()
         ).decode()
-        headers['KC-API-KEY'] = self._api_key
+        headers['KC-API-KEY'] = self.client.api_key
         headers['KC-API-TIMESTAMP'] = str(ts)
         headers['KC-API-SIGN'] = signature
         headers['KC-API-PASSPHRASE'] = passphrase
@@ -62,7 +62,7 @@ class KuCoinFuturesWorker(_KuCoinClient):
         return server["endpoint"] + f'?token={resp["token"]}'
 
 
-    async def _startup(self):
+    async def start_ws(self):
         self._ws = None
 
 
@@ -138,8 +138,8 @@ class KuCoinFuturesWorker(_KuCoinClient):
 
         return results
 
-    async def _get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
-                        limit: int = None) -> List[OHLC]:
+    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
+                       limit: int = None) -> List[OHLC]:
         # https://docs.kucoin.com/futures/#k-chart
         limit = limit or 200  # Maximum amount of data points
         _, res = self._calc_resolution(limit,

@@ -13,6 +13,7 @@ from typing_extensions import Self
 import core
 import core.json
 
+
 class MissingMessageError(Exception):
     pass
 

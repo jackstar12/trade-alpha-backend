@@ -25,7 +25,7 @@ from api.settings import settings
 from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import BadRequest, OK, CustomJSONResponse, NotFound, ResponseModel, InternalError, Unauthorized
 from common.exchanges import EXCHANGES
-from common.exchanges.exchangeworker import ExchangeWorker
+from common.exchanges.exchangeworker import Worker
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 from database.calc import create_intervals
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq
@@ -60,7 +60,7 @@ async def new_client(body: ClientCreateBody,
                      http_session: aiohttp.ClientSession = Depends(get_http_session)):
     try:
         exchange_cls = EXCHANGES[body.exchange]
-        if issubclass(exchange_cls, ExchangeWorker):
+        if issubclass(exchange_cls, Worker):
             # Check if required keyword args are given
             if validate_kwargs(body.extra or {}, exchange_cls.required_extra_args):
                 client = body.get()

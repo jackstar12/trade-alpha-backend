@@ -15,7 +15,8 @@ from typing import Dict, List, Type, Callable, Any
 from aiohttp import ClientResponseError, ClientResponse
 
 from common.exchanges.bybit.websocket import BybitWebsocketClient
-from common.exchanges.exchangeworker import ExchangeWorker
+
+from common.exchanges.exchange import Exchange
 from core import map_list
 from core import utils, get_multiple, parse_isoformat
 from database.dbmodels.balance import Amount, Balance
@@ -71,7 +72,7 @@ interval_map = {
 all_intervals = list(interval_map.keys())
 
 
-class _BybitBaseClient(ExchangeWorker, ABC):
+class _BybitBaseClient(Exchange, ABC):
     supports_extended_data = True
 
     _ENDPOINT = 'https://api.bybit.com'
@@ -94,12 +95,12 @@ class _BybitBaseClient(ExchangeWorker, ABC):
                                         on_message=self._on_message)
         # TODO: Fetch symbols https://bybit-exchange.github.io/docs/inverse/#t-querysymbol
 
-    async def _startup(self):
+    async def start_ws(self):
         self._logger.info('Connecting')
         await self._ws.connect()
         self._logger.info('Connected')
 
-        resp = await self._ws.authenticate(self._api_key, self._api_secret)
+        resp = await self._ws.authenticate(self.client.api_key, self.client.api_secret)
 
         if resp['success']:
             await self._ws.subscribe("user.order.contractAccount")
@@ -108,7 +109,7 @@ class _BybitBaseClient(ExchangeWorker, ABC):
         else:
             return WebsocketError(reason='Could not authenticate')
 
-    async def _cleanup(self):
+    async def clean_ws(self):
         await self._ws.close()
 
     def _get_ws_url(self) -> str:
@@ -237,12 +238,12 @@ class _BybitBaseClient(ExchangeWorker, ABC):
     # https://bybit-exchange.github.io/docs/inverse/?console#t-authentication
     def _sign_request(self, method: str, path: str, headers=None, params: OrderedDict = None, data=None, **kwargs):
         ts = str(int(time.time() * 1000))
-        headers['X-BAPI-API-KEY'] = self._api_key
+        headers['X-BAPI-API-KEY'] = self.client.api_key
         headers['X-BAPI-TIMESTAMP'] = ts
         query_string = urllib.parse.urlencode(params)
-        sign_str = ts + self._api_key + query_string
+        sign_str = ts + self.client.api_key + query_string
         sign = hmac.new(
-            self._api_secret.encode('utf-8'),
+            self.client.api_secret.encode('utf-8'),
             sign_str.encode('utf-8'),
             'sha256'
         ).hexdigest()

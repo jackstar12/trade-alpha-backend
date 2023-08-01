@@ -1,24 +1,20 @@
 import asyncio
 import itertools
-from asyncio import Future
 from datetime import datetime
 from decimal import Decimal
 
 import pytest
 from sqlalchemy import select
 
-from common.exchanges.exchangeworker import ExchangeWorker
-from common.test_utils.mockexchange import MockExchange, RawExec
-from core import utc_now
-from database.dbmodels import Client, Execution
-from database.dbasync import db_select_all, db_all, db_unique, db_select
-from database.dbmodels.client import ClientState
-from database.dbmodels.trade import Trade
+from common.exchanges import SANDBOX_CLIENTS, EXCHANGES
 from common.messenger import TableNames, Category
 from common.test_utils.fixtures import Channel, Messages
-from common.exchanges import SANDBOX_CLIENTS, EXCHANGES
-from database.enums import Side
-from database.models.client import ClientCreate
+from common.test_utils.mockexchange import MockExchange, RawExec
+from core import utc_now
+from database.dbasync import db_select_all, db_all
+from database.dbmodels import Client
+from database.dbmodels.trade import Trade
+from database.enums import Side, Priority
 
 pytestmark = pytest.mark.anyio
 
@@ -33,20 +29,18 @@ size = Decimal('0.01')
 
 
 @pytest.mark.parametrize(
-    'db_client',
+    'client',
     [MockExchange.create()],
     indirect=True
 )
-async def test_realtime(db, pnl_service, time, db_client, session_maker, messenger, redis):
-    db_client: Client
-
-    first_balance = await db_client.get_latest_balance(redis)
+async def test_realtime(db, pnl_service, time, client, registered_client, session_maker, messenger, redis):
+    first_balance = await client.get_latest_balance(redis)
 
     async def get_trades() -> list[Trade]:
         async with session_maker() as db:
             return await db_all(
                 select(Trade).where(
-                    Trade.client_id == db_client.id,
+                    Trade.client_id == client.id,
                     Trade.symbol == symbol,
                 ).order_by(Trade.open_time),
                 Trade.min_pnl, Trade.max_pnl, Trade.pnl_data,
@@ -96,7 +90,7 @@ async def test_realtime(db, pnl_service, time, db_client, session_maker, messeng
     assert trade.max_pnl.total != trade.min_pnl.total
     assert trade.exit == 17500
 
-    second_balance = await db_client.get_latest_balance(redis)
+    second_balance = await client.get_latest_balance(redis)
     assert first_balance.unrealized != second_balance.unrealized
 
     async with Messages.create(
@@ -120,25 +114,43 @@ async def test_realtime(db, pnl_service, time, db_client, session_maker, messeng
 
 
 @pytest.mark.parametrize(
-    'db_client',
+    'client',
     SANDBOX_CLIENTS,
     indirect=True
 )
-async def test_exchange(db_client, pnl_service, db, session_maker, http_session, ccxt_client, messenger, redis):
-    db_client: Client
-
+async def test_exchange(client, db, session_maker, http_session, ccxt_client, messenger, redis):
     now = utc_now()
+    fut = asyncio.get_event_loop().create_future()
+    execs = []
 
-    async with Messages.create(Channel(TableNames.TRADE, Category.NEW), messenger=messenger) as listener:
-        ccxt_client.create_market_buy_order(symbol, float(size))
-        ccxt_client.create_market_sell_order(symbol, float(size))
-        await listener.wait(5)
+    async def on_exec(new):
+        execs.append(new)
+        if len(execs) == 2:
+            fut.set_result(execs)
 
-    worker = pnl_service.get_worker(db_client.id)
+    exchange = EXCHANGES[client.exchange](
+        client,
+        http_session,
+        session_maker,
+        on_exec
+    )
 
-    _, execs, _ = await worker.get_executions(now)
+    balance = await exchange.get_balance()
 
-    assert len(execs) == 2
+    await exchange.start_ws()
+
+    ccxt_client.create_market_buy_order(symbol, float(size))
+    ccxt_client.create_market_sell_order(symbol, float(size))
+
+    await asyncio.wait_for(fut, 5)
+
+    _, fetched_execs, _ = await exchange.get_executions(now)
+    assert len(execs) == len(fetched_execs)
+
+    new_balance = await exchange.get_balance()
+    assert balance != new_balance
+
+    await exchange.clean_ws()
 
 
 @pytest.fixture
@@ -155,15 +167,15 @@ def mock_execs():
 
 
 @pytest.mark.parametrize(
-    'db_client',
+    'client',
     [MockExchange.create()],
     indirect=True
 )
-async def test_imports(mock_execs, pnl_service, db, time, db_client):
+async def test_imports(mock_execs, pnl_service, db, time, client, registered_client):
     trades = await db_select_all(
         Trade,
         eager=[Trade.executions, Trade.max_pnl, Trade.min_pnl],
-        client_id=db_client.id
+        client_id=client.id
     )
     execs = list(
         itertools.chain.from_iterable(trade.executions for trade in trades)

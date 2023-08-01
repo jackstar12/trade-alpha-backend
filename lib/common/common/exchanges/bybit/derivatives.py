@@ -8,7 +8,7 @@ from aiohttp import ClientResponse
 from sqlalchemy import select, func
 
 from common.exchanges.bybit._base import Category, _BybitBaseClient, all_intervals, interval_map, Account
-from common.exchanges.exchangeworker import create_limit
+from common.exchanges.exchange import create_limit
 from core import get_multiple
 from core import utc_now, groupby
 from database.dbmodels import Trade
@@ -334,8 +334,8 @@ class BybitDerivativesWorker(_BybitBaseClient):
             error=err_msg
         )
 
-    async def _get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
-                        limit: int = None) -> List[OHLC]:
+    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
+                       limit: int = None) -> List[OHLC]:
 
         limit = limit or 200
 

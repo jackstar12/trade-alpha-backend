@@ -1,8 +1,7 @@
 from decimal import Decimal
 
 from common.exchanges.exchangeticker import ExchangeTicker, Channel, Subscription
-from common.exchanges.exchangeworker import ExchangeWorker
-from database.dbmodels.client import ExchangeInfo
+from common.exchanges.exchange import Exchange
 from database.models.async_websocket_manager import WebsocketManager
 from database.models.ticker import Ticker
 from database.models.trade import Trade
@@ -71,7 +70,7 @@ class BinanceFuturesTicker(WebsocketManager, ExchangeTicker):
                     size=msg['q'],
                     price=Decimal(msg['p']),
                     exchange='binance-futures',
-                    time=ExchangeWorker.parse_ms_dt(float(msg['E'])),
+                    time=Exchange.parse_ms_dt(float(msg['E'])),
                     perp=True
                 )
             )

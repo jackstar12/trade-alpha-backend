@@ -68,7 +68,7 @@ def data_service(service_args):
     return DataService(*service_args)
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture
 @run_service
 def pnl_service(data_service, service_args):
     return ExtendedBalanceService(*service_args, data_service=data_service)
@@ -105,15 +105,20 @@ async def test_user(db):
 
 
 @pytest.fixture
-async def db_client(pnl_service, request, time, db, test_user, messenger) -> Client:
+async def client(request, test_user, time) -> Client:
+    request.param.import_since = time
+    client: Client = request.param.get(test_user)
+    yield client
+
+
+@pytest.fixture
+async def registered_client(pnl_service, client, time, db, test_user, messenger) -> Client:
     async with Messages.create(
         Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'synchronizing'),
         Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'ok'),
         Channel(TableNames.CLIENT, Category.ADDED),
         messenger=messenger
     ) as listener:
-        request.param.import_since = time
-        client: Client = request.param.get(test_user)
         db.add(client)
         await db.commit()
         await listener.wait(10)
@@ -131,15 +136,15 @@ async def db_client(pnl_service, request, time, db, test_user, messenger) -> Cli
 
 
 @pytest.fixture
-def ccxt_client(db_client, session):
-    ccxt_class = CCXT_CLIENTS[db_client.exchange]
+def ccxt_client(client, session):
+    ccxt_class = CCXT_CLIENTS[client.exchange]
     ccxt = ccxt_class({
-        'api_key': db_client.api_key,
-        'secret': db_client.api_secret,
+        'api_key': client.api_key,
+        'secret': client.api_secret,
         'session': session,
-        **(db_client.extra or {})
+        **(client.extra or {})
     })
 
-    ccxt.set_sandbox_mode(db_client.sandbox)
+    ccxt.set_sandbox_mode(client.sandbox)
 
     return ccxt

@@ -11,6 +11,7 @@ from sqlalchemy import select, and_, or_
 from common.exchanges import EXCHANGES
 from collector.services.baseservice import BaseService
 from collector.services.dataservice import DataService, Channel, ExchangeInfo
+from common.exchanges.exchange import Exchange
 from common.exchanges.exchangeticker import Subscription
 from core import utc_now
 from database.dbasync import db_all, db_unique, db_eager
@@ -19,7 +20,7 @@ from database.dbmodels.client import Client, ClientState, ClientType
 from database.dbmodels.trade import Trade
 from database.enums import MarketType
 from database.errors import InvalidClientError
-from common.exchanges.exchangeworker import ExchangeWorker
+from common.exchanges.worker import Worker
 from common.messenger import TradeSpace
 from common.messenger import TableNames, Category
 from database.models.market import Market
@@ -28,7 +29,7 @@ from database.models.market import Market
 class ExchangeJob(NamedTuple):
     exchange: str
     job: Job
-    deque: Deque[ExchangeWorker]
+    deque: Deque[Worker]
 
 
 class Lock:
@@ -52,7 +53,7 @@ class _BalanceServiceBase(BaseService):
 
         self.data_service = data_service
         self._exchanges = EXCHANGES
-        self._workers_by_id: Dict[int, ExchangeWorker] = {}
+        self._workers_by_id: Dict[int, Worker] = {}
         self._updates = set()
         # self._worker_lock = Lock()
 
@@ -69,8 +70,8 @@ class _BalanceServiceBase(BaseService):
         )
 
     @classmethod
-    def is_valid(cls, worker: ExchangeWorker, category: ClientType):
-        if category == ClientType.FULL and worker.supports_extended_data:
+    def is_valid(cls, worker: Worker, category: ClientType):
+        if category == ClientType.FULL and worker.exchange.supports_extended_data:
             return True
         elif category == ClientType.BASIC:
             return True
@@ -118,26 +119,24 @@ class _BalanceServiceBase(BaseService):
         else:
             raise ValueError(f'Invalid {client_id=} passed in')
 
-    async def add_client(self, client: Client) -> Optional[ExchangeWorker]:
+    async def add_client(self, client: Client) -> Optional[Worker]:
         if client:
-            exchange_cls = self._exchanges.get(client.exchange)
-            if exchange_cls and issubclass(exchange_cls, ExchangeWorker):
-                worker = exchange_cls(client,
-                                      http_session=self._http_session,
-                                      data_service=self.data_service,
-                                      db_maker=self._db_maker,
-                                      messenger=self._messenger)
+            worker = Worker(
+                client,
+                http_session=self._http_session,
+                db_maker=self._db_maker,
+                data_service=self.data_service,
+                messenger=self._messenger
+            )
 
-                if self.is_valid(worker, self.client_type):
-                    self._workers_by_id[worker.client.id] = worker
-                    worker = await self._init_worker(worker)
-                    if worker:
-                        await self._messenger.pub_instance(client, Category.ADDED)
-                    return worker
-            else:
-                self._logger.error(f'Exchange class {exchange_cls} does NOT subclass ExchangeWorker')
+            if self.is_valid(worker, self.client_type):
+                self._workers_by_id[worker.client.id] = worker
+                worker = await self._init_worker(worker)
+                if worker:
+                    await self._messenger.pub_instance(client, Category.ADDED)
+                return worker
 
-    async def remove_worker(self, worker: ExchangeWorker):
+    async def remove_worker(self, worker: Worker):
         if worker:
             await self._remove_worker(worker)
             self._workers_by_id.pop(worker.client_id, None)
@@ -149,11 +148,11 @@ class _BalanceServiceBase(BaseService):
             await worker.cleanup()
         self._workers_by_id = {}
 
-    async def _remove_worker(self, worker: ExchangeWorker):
+    async def _remove_worker(self, worker: Worker):
         pass
 
     @abc.abstractmethod
-    async def _init_worker(self, worker: ExchangeWorker):
+    async def _init_worker(self, worker: Worker):
         pass
 
 
@@ -172,17 +171,17 @@ class BasicBalanceService(_BalanceServiceBase):
         trigger = IntervalTrigger(seconds=15 // (len(exchange_job.deque) or 1), jitter=2)
         exchange_job.job.reschedule(trigger)
 
-    async def _init_worker(self, worker: ExchangeWorker):
+    async def _init_worker(self, worker: Worker):
         exchange_job = self._exchange_jobs[worker.exchange]
         exchange_job.deque.append(worker)
         self.reschedule(exchange_job)
 
-    async def _remove_worker(self, worker: ExchangeWorker):
+    async def _remove_worker(self, worker: Worker):
         exchange_job = self._exchange_jobs[worker.exchange]
         exchange_job.deque.remove(worker)
         self.reschedule(exchange_job)
 
-    async def update_worker_queue(self, worker_queue: Deque[ExchangeWorker]):
+    async def update_worker_queue(self, worker_queue: Deque[Worker]):
         if worker_queue:
             worker = worker_queue[0]
             try:
@@ -274,7 +273,7 @@ class ExtendedBalanceService(_BalanceServiceBase):
         )
         pass
 
-    async def _init_worker(self, worker: ExchangeWorker):
+    async def _init_worker(self, worker: Worker):
         try:
             await worker.synchronize_positions()
             await worker.startup()

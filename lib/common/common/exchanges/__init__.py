@@ -1,10 +1,9 @@
 from enum import Enum
 from typing import Type
 
-from ccxt import Exchange
+from ccxt import Exchange as CCXTExchange
 
-from common.exchanges.exchangeworker import ExchangeWorker
-from database.dbmodels.client import ExchangeInfo
+from common.exchanges.exchange import Exchange
 from database.models.client import ClientCreate
 from common.exchanges.binance.worker import BinanceFutures, BinanceSpot
 from common.exchanges.binance.ticker import BinanceFuturesTicker
@@ -23,7 +22,7 @@ class ExchangeName(Enum):
     KUCOIN = 'kucoin'
 
 
-EXCHANGES: dict[str, Type[ExchangeWorker]] = {
+EXCHANGES: dict[str, Type[Exchange]] = {
     worker.exchange: worker
     for worker in [
         BinanceFutures,
@@ -72,7 +71,7 @@ MAINNET_CLIENTS = [
 ]
 
 
-CCXT_CLIENTS: dict[str, Type[Exchange]] = {
+CCXT_CLIENTS: dict[str, Type[CCXTExchange]] = {
     BinanceFutures.exchange: ccxt.binanceusdm,
     BinanceSpot.exchange: ccxt.binance,
     BitmexWorker.exchange: ccxt.bitmex,

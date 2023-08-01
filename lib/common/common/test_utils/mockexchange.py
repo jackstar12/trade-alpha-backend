@@ -8,13 +8,13 @@ from typing import Iterator, Optional
 import pytz
 
 from common.exchanges.channel import Channel
+from common.exchanges.exchange import Exchange
 from common.exchanges.exchangeticker import ExchangeTicker, Subscription
 from core import utc_now
 from database.dbmodels import Execution, Balance, Client
 from database.dbmodels.client import ClientType, ExchangeInfo
 from database.dbmodels.transfer import RawTransfer
 from database.enums import Side, ExecType, MarketType
-from common.exchanges.exchangeworker import ExchangeWorker
 from database.models import BaseModel
 from database.models.client import ClientCreate
 from database.models.market import Market
@@ -71,7 +71,7 @@ class MockTicker(ExchangeTicker):
         pass
 
 
-class MockExchange(ExchangeWorker):
+class MockExchange(Exchange):
     supports_extended_data = True
     exchange = 'mock'
     exec_start = datetime(year=2022, month=1, day=1, tzinfo=pytz.UTC)
@@ -109,16 +109,16 @@ class MockExchange(ExchangeWorker):
             await self._on_execution(execution)
             self.execs.append(new)
 
-    async def _startup(self):
+    async def start_ws(self):
         self._queue_waiter = asyncio.create_task(self.wait_queue())
 
-    async def _cleanup(self):
+    async def clean_ws(self):
         self._queue_waiter.cancel()
 
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):
         pass
 
-    async def _get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
+    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
                         limit: int = None) -> list[OHLC]:
         data = [
             Decimal(10000),

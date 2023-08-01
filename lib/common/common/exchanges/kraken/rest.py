@@ -7,7 +7,7 @@ from datetime import datetime
 
 from aiohttp import ClientResponse
 
-from common.exchanges.exchangeworker import ExchangeWorker, create_limit
+from common.exchanges.exchange import Exchange, create_limit
 from database import dbmodels
 
 
@@ -23,7 +23,7 @@ def get_kraken_signature(urlpath, data, secret):
 
 
 
-class KrakenRestClient(ExchangeWorker):
+class KrakenRestClient(Exchange):
 
     _ENDPOINT = "https://api.kraken.com"
 
@@ -49,8 +49,8 @@ class KrakenRestClient(ExchangeWorker):
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):
         nonce = int(time.monotonic())
         data['nonce'] = int(time.time())
-        headers['API-Key'] = self._api_key
-        headers['API-Sign'] = get_kraken_signature(path, data, self._api_secret)
+        headers['API-Key'] = self.client.api_key
+        headers['API-Sign'] = get_kraken_signature(path, data, self.client.api_secret)
 
     def _set_rate_limit_parameters(self, response: ClientResponse):
         pass

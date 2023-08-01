@@ -23,7 +23,7 @@ from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import RawTransfer
 from database.enums import Side, ExecType
 from common.exchanges.binance.futures_websocket_client import FuturesWebsocketClient
-from common.exchanges.exchangeworker import ExchangeWorker, create_limit
+from common.exchanges.exchange import Exchange, create_limit
 from database.errors import InvalidClientError
 from database.models.market import Market
 from database.models.miscincome import MiscIncome
@@ -39,7 +39,7 @@ class Type(Enum):
     COINM = 3
 
 
-class _BinanceBaseClient(ExchangeWorker, ABC):
+class _BinanceBaseClient(Exchange, ABC):
     supports_extended_data = True
 
     _ENDPOINT = 'https://api.binance.com'
@@ -49,10 +49,10 @@ class _BinanceBaseClient(ExchangeWorker, ABC):
 
     def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs) -> None:
         ts = int(time.time() * 1000)
-        headers['X-MBX-APIKEY'] = self._api_key
+        headers['X-MBX-APIKEY'] = self.client.api_key
         params['timestamp'] = ts
         query_string = urllib.parse.urlencode(params, True)
-        signature = hmac.new(self._api_secret.encode(), query_string.encode(), 'sha256').hexdigest()
+        signature = hmac.new(self.client.api_secret.encode(), query_string.encode(), 'sha256').hexdigest()
         params['signature'] = signature
 
     # https://binance-docs.github.io/apidocs/spot/en/#get-future-account-transaction-history-list-user_data
@@ -148,8 +148,8 @@ class BinanceFutures(_BinanceBaseClient):
         super().__init__(*args, **kwargs)
         self._ws = FuturesWebsocketClient(self, session=self._http, on_message=self._on_message)
         self._ccxt = ccxt.binanceusdm({
-            'apiKey': self._api_key,
-            'secret': self._api_secret
+            'apiKey': self.client.api_key,
+            'secret': self.client.api_secret
         })
         self._ccxt.set_sandbox_mode(True)
 
@@ -166,7 +166,7 @@ class BinanceFutures(_BinanceBaseClient):
         return market.base + market.quote
 
     @classmethod
-    def _exclude_from_trade(cls, execution: Execution):
+    def exclude_from_trade(cls, execution: Execution):
         return execution.symbol in ('BUSDUSDT', 'BUSDUSD', 'USDTUSD', 'USDTUSDT')
 
     @classmethod
@@ -182,8 +182,8 @@ class BinanceFutures(_BinanceBaseClient):
     async def _get_transfers(self, since: datetime = None, to: datetime = None) -> List[RawTransfer]:
         return await self._get_internal_transfers(Type.USDM, since, to)
 
-    async def _get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
-                        limit: int = None) -> List[OHLC]:
+    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
+                       limit: int = None) -> List[OHLC]:
         # https://binance-docs.github.io/apidocs/futures/en/#mark-price-kline-candlestick-data
 
         limit = limit or 499
@@ -360,10 +360,10 @@ class BinanceFutures(_BinanceBaseClient):
             extra_currencies=[]
         )
 
-    async def _startup(self):
+    async def start_ws(self):
         await self._ws.start()
 
-    async def _cleanup(self):
+    async def clean_ws(self):
         await self._ws.stop()
 
     async def _on_message(self, ws, message):
@@ -476,7 +476,7 @@ class BinanceSpot(_BinanceBaseClient):
         )
 
     @classmethod
-    def _exclude_from_trade(cls, execution: Execution):
+    def exclude_from_trade(cls, execution: Execution):
         market = cls.get_market(execution.symbol)
         return market.base == market.quote or cls.usd_like(market.base)
 
