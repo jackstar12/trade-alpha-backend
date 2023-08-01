@@ -107,8 +107,8 @@ async def test_user(db):
 @pytest.fixture
 async def db_client(pnl_service, request, time, db, test_user, messenger) -> Client:
     async with Messages.create(
-        #Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'synchronizing'),
-        #Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'ok'),
+        Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'synchronizing'),
+        Channel(TableNames.CLIENT, Category.UPDATE, validate=lambda data: data['state'] == 'ok'),
         Channel(TableNames.CLIENT, Category.ADDED),
         messenger=messenger
     ) as listener:
@@ -121,10 +121,13 @@ async def db_client(pnl_service, request, time, db, test_user, messenger) -> Cli
     try:
         yield client
     finally:
-        await db.execute(
-            delete(Client).where(Client.id == client.id)
-        )
-        await db.commit()
+        async with Messages.create(
+                Channel(TableNames.CLIENT, Category.REMOVED),
+                messenger=messenger
+        ) as listener:
+            await db.delete(client)
+            await db.commit()
+            await listener.wait(1)
 
 
 @pytest.fixture

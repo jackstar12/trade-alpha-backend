@@ -9,8 +9,10 @@ from sqlalchemy import select
 
 from common.exchanges.exchangeworker import ExchangeWorker
 from common.test_utils.mockexchange import MockExchange, RawExec
+from core import utc_now
 from database.dbmodels import Client, Execution
 from database.dbasync import db_select_all, db_all, db_unique, db_select
+from database.dbmodels.client import ClientState
 from database.dbmodels.trade import Trade
 from common.messenger import TableNames, Category
 from common.test_utils.fixtures import Channel, Messages
@@ -35,7 +37,7 @@ size = Decimal('0.01')
     [MockExchange.create()],
     indirect=True
 )
-async def test_realtime(pnl_service, time, db_client, session_maker, messenger, redis):
+async def test_realtime(db, pnl_service, time, db_client, session_maker, messenger, redis):
     db_client: Client
 
     first_balance = await db_client.get_latest_balance(redis)
@@ -63,7 +65,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
         await MockExchange.put_exec(symbol=symbol, side=Side.BUY, qty=size / 2, price=7500)
         await listener.wait(2)
 
-    await asyncio.sleep(.1)
+    await asyncio.sleep(.2)
     trade = await get_trade()
     assert trade.qty == size / 2
 
@@ -74,7 +76,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
         await MockExchange.put_exec(symbol=symbol, side=Side.BUY, qty=size / 2, price=12500)
         await listener.wait(3)
 
-    await asyncio.sleep(.1)
+    await asyncio.sleep(.2)
     trade = await get_trade()
     assert trade.entry == 10000
     assert trade.qty == size
@@ -87,7 +89,7 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
         await MockExchange.put_exec(symbol=symbol, side=Side.SELL, qty=size / 2, price=17500)
         await listener.wait(3)
 
-    await asyncio.sleep(.1)
+    await asyncio.sleep(.2)
     trade = await get_trade()
     assert trade.open_qty == size / 2
     assert trade.qty == size
@@ -122,22 +124,42 @@ async def test_realtime(pnl_service, time, db_client, session_maker, messenger, 
     SANDBOX_CLIENTS,
     indirect=True
 )
-async def test_exchange(db_client, db, session_maker, http_session, ccxt_client, messenger, redis):
+async def test_exchange(db_client, pnl_service, db, session_maker, http_session, ccxt_client, messenger, redis):
     db_client: Client
 
-    async with Messages.create(Channel(TableNames.EXECUTION, Category.NEW), messenger=messenger) as listener:
+    now = utc_now()
+
+    async with Messages.create(Channel(TableNames.TRADE, Category.NEW), messenger=messenger) as listener:
         ccxt_client.create_market_buy_order(symbol, float(size))
         ccxt_client.create_market_sell_order(symbol, float(size))
-        await listener.wait(2)
+        await listener.wait(5)
+
+    worker = pnl_service.get_worker(db_client.id)
+
+    _, execs, _ = await worker.get_executions(now)
+
+    assert len(execs) == 2
+
+
+@pytest.fixture
+def mock_execs():
+    raw = [
+        RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+        RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+        RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000),
+    ]
+    MockExchange.queue = asyncio.Queue()
+    for exec in raw:
+        MockExchange.queue.put_nowait(exec)
+    return raw
 
 
 @pytest.mark.parametrize(
     'db_client',
-    SANDBOX_CLIENTS,
+    [MockExchange.create()],
     indirect=True
 )
-async def test_imports(pnl_service, db, time, db_client):
-    return
+async def test_imports(mock_execs, pnl_service, db, time, db_client):
     trades = await db_select_all(
         Trade,
         eager=[Trade.executions, Trade.max_pnl, Trade.min_pnl],
@@ -147,8 +169,8 @@ async def test_imports(pnl_service, db, time, db_client):
         itertools.chain.from_iterable(trade.executions for trade in trades)
     )
 
-    assert len(execs) >= 3
-    assert sum(e.qty for e in execs) == 2 * size
+    assert len(execs) == len(mock_execs)
+    assert sum(e.qty for e in execs) == sum(e.qty for e in mock_execs)
     assert sum(e.effective_qty for e in execs).is_zero()
 
     assert len(trades) == 1

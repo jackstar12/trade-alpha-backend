@@ -85,8 +85,7 @@ class Observable(object):
         :param observer: The observer object to be removed.
         :type observer: Observer
         """
-        if observer in self._observers:
-            self._observers.discard(observer)
+        self._observers.discard(observer)
 
     async def notify(self, *new_state):
         """
@@ -94,7 +93,6 @@ class Observable(object):
         :param new_state: The new state.
         :type new_state: A tuple of arbitrary content.
         """
-        tasks = [asyncio.create_task(observer.update(*new_state)) for observer in self._observers]
         await asyncio.gather(
-            *tasks
+            *[asyncio.create_task(observer.update(*new_state)) for observer in self._observers]
         )

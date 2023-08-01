@@ -24,6 +24,7 @@ from aiohttp import ClientResponse, ClientResponseError
 from sqlalchemy import select, desc, asc, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, sessionmaker
+from sqlalchemy.orm.exc import StaleDataError
 
 import core
 from common.exchanges.channel import Channel
@@ -169,7 +170,6 @@ class ExchangeWorker(Observer):
                  db_maker: sessionmaker,
                  data_service: DataService,
                  messenger: Messenger = None,
-                 execution_dedupe_seconds: float = 0.1,
                  commit=True):
 
         self.client_id = client.id if commit else None
@@ -191,7 +191,6 @@ class ExchangeWorker(Observer):
         self._http = http_session
         self._last_fetch: Balance | None = None
 
-        self._execution_dedupe_delay = execution_dedupe_seconds
         self._pending_execs: deque[Execution] = deque()
 
         cls = self.__class__
@@ -205,7 +204,7 @@ class ExchangeWorker(Observer):
         if cls._request_queue is None:
             cls._request_queue = PriorityQueue()
 
-        self._logger = logging.getLogger(__name__ + f' {self.exchange} - {self.client_id}')
+        self._logger = logging.getLogger(__name__ + f' {self.exchange} id={self.client_id}')
 
     async def refresh(self):
         self.client = await db_unique(
@@ -502,7 +501,6 @@ class ExchangeWorker(Observer):
                         current_trade = None
                         for item in combine_time_series(ohlc_data, current_executions):
                             if isinstance(item, Execution):
-                                db.add(item)
                                 current_trade = await self._add_executions(db,
                                                                            [item],
                                                                            realtime=False)
@@ -626,7 +624,6 @@ class ExchangeWorker(Observer):
 
     async def get_client(self, db: AsyncSession, options=None) -> Client:
         client = await db.get(Client, self.client_id, options=options)
-        self._logger.debug(f'Client: {client}')
         if client is None:
             await self.messenger.pub_channel(TableNames.CLIENT, Category.DELETE, obj={'id': self.client_id})
             raise ClientDeletedError()
@@ -678,7 +675,7 @@ class ExchangeWorker(Observer):
     async def _add_executions(self,
                               db: AsyncSession,
                               executions: list[Execution],
-                              realtime=True, ):
+                              realtime=True):
         client = await self.get_client(db)
         current_balance = client.currently_realized
 
@@ -716,44 +713,48 @@ class ExchangeWorker(Observer):
                                        Trade.min_pnl,
                                        session=db)
 
-            for current in executions:
+            for execution in executions:
 
-                if self._exclude_from_trade(current):
+                if self._exclude_from_trade(execution):
                     continue
 
-                active_trade = await get_trade(current)
+                active_trade = await get_trade(execution)
+
+                execution.__realtime__ = realtime
+                db.add(execution)
 
                 if active_trade:
                     # Update existing trade
-
-                    current.__realtime__ = realtime
-                    db.add(current)
-
                     active_trade.__realtime__ = realtime
-                    new_trade = active_trade.add_execution(current, current_balance)
+                    new_trade = active_trade.add_execution(execution, current_balance)
                     if new_trade:
                         db.add(new_trade)
-                        new_trade.__realtime__ = realtime
-
                         active_trade = new_trade
                 else:
-                    active_trade = Trade.from_execution(current, self.client_id, current_balance)
-                    active_trade.__realtime__ = realtime
+                    active_trade = Trade.from_execution(execution, self.client_id, current_balance)
                     db.add(active_trade)
+
+                active_trade.__realtime__ = realtime
+
+                try:
+                    await db.flush()
+                except StaleDataError as e:
+                    self._logger.exception(f'Error while adding execution {execution}')
+                    pass
                 if not realtime:
-                    if current.settle:
+                    if execution.settle:
                         spot_trade = await db_unique(
                             select(Trade).where(
                                 Trade.is_open,
                                 Trade.symbol == self.get_symbol(
-                                    Market(base=current.settle, quote=client.currency)
+                                    Market(base=execution.settle, quote=client.currency)
                                 ),
                                 Execution.market_type == MarketType.SPOT,
                             ).join(Trade.initial),
                             session=db
                         )
                         if spot_trade:
-                            spot_trade.open_qty += current.net_pnl
+                            spot_trade.open_qty += execution.net_pnl
                             spot_trade.qty = max(spot_trade.qty, spot_trade.open_qty)
                     else:
                         pass
@@ -849,6 +850,12 @@ class ExchangeWorker(Observer):
 
     async def cleanup(self):
         await self._cleanup()
+        for symbol in self._subscribed_symbols:
+            await self.data_service.unsubscribe(
+                self.client.exchange_info,
+                Subscription.get(Channel.TICKER, symbol=symbol),
+                observer=self
+            )
         await self.db.close()
 
     async def _startup(self):

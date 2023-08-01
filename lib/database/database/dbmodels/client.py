@@ -226,7 +226,8 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
 
     trades: list[Trade] = relationship('Trade', lazy='raise',
                                        back_populates='client',
-                                       order_by="Trade.open_time")
+                                       order_by="Trade.open_time",
+                                       passive_deletes=True)
 
     open_trades: list[Trade] = relationship('Trade', lazy='raise',
                                             back_populates='client',
@@ -245,6 +246,7 @@ class Client(Base, Serializer, BaseMixin, EditsMixin, ClientQueryMixin):
     currently_realized: Balance = relationship('Balance',
                                                lazy='joined',
                                                foreign_keys=currently_realized_id,
+                                               passive_deletes=True,
                                                post_update=True)
 
     trade_template_id = Column(ForeignKey('template.id', ondelete='SET NULL'), nullable=True)

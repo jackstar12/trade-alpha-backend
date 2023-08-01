@@ -74,9 +74,11 @@ class MockTicker(ExchangeTicker):
 class MockExchange(ExchangeWorker):
     supports_extended_data = True
     exchange = 'mock'
-    exec_start = datetime(year=2022, month=1, day=1)
+    exec_start = datetime(year=2022, month=1, day=1, tzinfo=pytz.UTC)
 
-    _queue: asyncio.Queue = None
+    queue = asyncio.Queue()
+    execs: list[RawExec] = []
+    transfers: list[RawTransfer] = []
 
     @classmethod
     def create(cls):
@@ -86,26 +88,26 @@ class MockExchange(ExchangeWorker):
             api_key='super',
             api_secret='secret',
             sandbox=True,
-            type=ClientType.FULL
+            type=ClientType.FULL,
         )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        if not self._queue:
-            self.__class__._queue = asyncio.Queue()
-        self._execs = []
+        self.execs = []
+        while not self.queue.empty():
+            self.execs.append(self.queue.get_nowait())
 
     @classmethod
     async def put_exec(cls, **kwargs):
-        await cls._queue.put(RawExec(**kwargs))
+        await cls.queue.put(RawExec(**kwargs))
 
     async def wait_queue(self):
         while True:
             self._logger.info('Mock listening for execs')
-            new = await self.__class__._queue.get()
+            new = await self.__class__.queue.get()
             execution = new.to_exec(self.client)
             await self._on_execution(execution)
-            self._execs.append(execution)
+            self.execs.append(new)
 
     async def _startup(self):
         self._queue_waiter = asyncio.create_task(self.wait_queue())
@@ -141,15 +143,10 @@ class MockExchange(ExchangeWorker):
         ]
 
     async def _get_transfers(self, since: datetime = None, to: datetime = None) -> list[RawTransfer]:
-        return []
-        return [
-            RawTransfer(
-                amount=Decimal(1), time=self.exec_start - timedelta(days=1), coin='BTC', fee=Decimal(0)
-            )
-        ]
+        return self.transfers
 
     async def _get_executions(self, since: datetime, init=False) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
-        return self._execs, []
+        return [raw.to_exec(self.client) for raw in self.execs], []
         data = [
             dict(qty=1, price=10000, side=Side.SELL),
             dict(qty=1, price=10000, side=Side.BUY),

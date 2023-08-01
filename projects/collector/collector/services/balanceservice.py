@@ -76,22 +76,17 @@ class _BalanceServiceBase(BaseService):
             return True
 
     async def _on_client_delete(self, data: dict):
-        worker = self._get_existing_worker(data['id'])
+        self._logger.debug(f'Client deleted: {data}')
+        worker = self.get_worker(data['id'])
         if worker:
-            await self._remove_worker(worker)
-        await self._messenger.pub_channel(Client,
-                                          Category.REMOVED,
-                                          data,
-                                          client_id=data['id'])
+            await self.remove_worker(worker)
 
     async def _on_client_update(self, data: dict):
-        worker = self._get_existing_worker(data['id'])
+        worker = self.get_worker(data['id'])
         state = data['state']
         if worker:
             if state in ('archived', 'invalid') or data['type'] != self.client_type.value:
-                await self._remove_worker(worker)
-            #else:
-            #    await worker.refresh()
+                await self.remove_worker(worker)
         elif state != 'synchronizing' and data['type'] == self.client_type.value:
             await self.add_client_by_id(data['id'])
 
@@ -109,7 +104,7 @@ class _BalanceServiceBase(BaseService):
             }
         )
 
-    def _get_existing_worker(self, client_id: int):
+    def get_worker(self, client_id: int):
         return self._workers_by_id.get(client_id)
 
     async def add_client_by_id(self, client_id: int):
@@ -132,24 +127,33 @@ class _BalanceServiceBase(BaseService):
                                       data_service=self.data_service,
                                       db_maker=self._db_maker,
                                       messenger=self._messenger)
-                worker = await self._add_worker(worker)
-                if worker:
-                    await self._messenger.pub_instance(client, Category.ADDED)
-                return worker
+
+                if self.is_valid(worker, self.client_type):
+                    self._workers_by_id[worker.client.id] = worker
+                    worker = await self._init_worker(worker)
+                    if worker:
+                        await self._messenger.pub_instance(client, Category.ADDED)
+                    return worker
             else:
                 self._logger.error(f'Exchange class {exchange_cls} does NOT subclass ExchangeWorker')
+
+    async def remove_worker(self, worker: ExchangeWorker):
+        if worker:
+            await self._remove_worker(worker)
+            self._workers_by_id.pop(worker.client_id, None)
+            await worker.cleanup()
+            await self._messenger.pub_instance(worker.client, Category.REMOVED)
 
     async def teardown(self):
         for worker in self._workers_by_id.values():
             await worker.cleanup()
         self._workers_by_id = {}
 
-    @abc.abstractmethod
     async def _remove_worker(self, worker: ExchangeWorker):
         pass
 
     @abc.abstractmethod
-    async def _add_worker(self, worker: ExchangeWorker):
+    async def _init_worker(self, worker: ExchangeWorker):
         pass
 
 
@@ -168,20 +172,15 @@ class BasicBalanceService(_BalanceServiceBase):
         trigger = IntervalTrigger(seconds=15 // (len(exchange_job.deque) or 1), jitter=2)
         exchange_job.job.reschedule(trigger)
 
-    async def _add_worker(self, worker: ExchangeWorker):
-        if worker.client.id not in self._workers_by_id and self.is_valid(worker, ClientType.BASIC):
-            self._workers_by_id[worker.client.id] = worker
-
-            exchange_job = self._exchange_jobs[worker.exchange]
-            exchange_job.deque.append(worker)
-            self.reschedule(exchange_job)
+    async def _init_worker(self, worker: ExchangeWorker):
+        exchange_job = self._exchange_jobs[worker.exchange]
+        exchange_job.deque.append(worker)
+        self.reschedule(exchange_job)
 
     async def _remove_worker(self, worker: ExchangeWorker):
-        self._workers_by_id.pop(worker.client.id, None)
         exchange_job = self._exchange_jobs[worker.exchange]
         exchange_job.deque.remove(worker)
         self.reschedule(exchange_job)
-        await worker.cleanup()
 
     async def update_worker_queue(self, worker_queue: Deque[ExchangeWorker]):
         if worker_queue:
@@ -192,7 +191,7 @@ class BasicBalanceService(_BalanceServiceBase):
                     await self._balance_queue.put(balance)
                 worker_queue.rotate()
             except InvalidClientError:
-                await self._remove_worker(worker)
+                await self.remove_worker(worker)
 
     async def init(self):
 
@@ -275,21 +274,14 @@ class ExtendedBalanceService(_BalanceServiceBase):
         )
         pass
 
-    async def _add_worker(self, worker: ExchangeWorker):
-        self._workers_by_id[worker.client.id] = worker
-
-        if self.is_valid(worker, ClientType.FULL):
-            try:
-                await worker.synchronize_positions()
-                await worker.startup()
-                return worker
-            except InvalidClientError:
-                self._logger.exception(f'Error while adding {worker.client_id=}')
-                return None
-            except Exception:
-                self._logger.exception(f'Error while adding {worker.client_id=}')
-                raise
-
-    async def _remove_worker(self, worker: ExchangeWorker):
-        self._workers_by_id.pop(worker.client_id, None)
-        await worker.cleanup()
+    async def _init_worker(self, worker: ExchangeWorker):
+        try:
+            await worker.synchronize_positions()
+            await worker.startup()
+            return worker
+        except InvalidClientError:
+            self._logger.exception(f'Error while adding {worker.client_id=}')
+            return None
+        except Exception:
+            self._logger.exception(f'Error while adding {worker.client_id=}')
+            raise

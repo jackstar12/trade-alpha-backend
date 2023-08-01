@@ -46,7 +46,7 @@ class ExchangeTicker:
         raise NotImplementedError
 
     async def unsubscribe(self, sub: Subscription, observer: Observer):
-        observable = self._callbacks[sub]
+        observable = self._callbacks.get(sub)
         if observable:
             observable.detach(observer)
             if len(observable) == 0:

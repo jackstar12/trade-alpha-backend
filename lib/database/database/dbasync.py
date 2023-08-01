@@ -29,7 +29,8 @@ engine = create_async_engine(
     json_serializer=customjson.dumps_no_bytes,
     json_deserializer=customjson.loads,
     pool_size=20,
-    future=True
+    future=True,
+    echo=True
 )
 async_maker = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, future=True)
 async_session: AsyncSession = async_scoped_session(async_maker, scopefunc=asyncio.current_task)

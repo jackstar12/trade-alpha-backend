@@ -58,7 +58,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
     client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=True)
     time = Column(DateTime(timezone=True), nullable=False, index=True)
 
-    client: 'Client' = relationship('Client', lazy='raise', foreign_keys=client_id)
+    client: 'Client' = relationship('Client', lazy='noload', foreign_keys=client_id)
     extra_currencies: list[Amount] = relationship('Amount', lazy='joined', back_populates='balance')
 
     @hybrid_property
@@ -165,6 +165,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
         return string
 
     def __repr__(self):
+        return "Balance"
         return self.to_string(display_extras=False)
 
     @classmethod

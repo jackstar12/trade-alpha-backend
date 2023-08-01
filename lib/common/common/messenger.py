@@ -80,7 +80,8 @@ class NameSpace(Generic[TTable]):
                     parent_instance = None
                 if not parent_instance:
                     session: sqlalchemy.orm.Session = object_session(instance)
-                    parent_instance = session.identity_map.get(identity_key(self.parent.table, parent_id))
+                    if session:
+                        parent_instance = session.identity_map.get(identity_key(self.parent.table, parent_id))
                 result |= self.parent.get_ids(parent_instance)
         return result
 
@@ -311,9 +312,9 @@ class Messenger:
                      condition: Callable[[Serializer], bool] = None):
         @event.listens_for(target_cls, identifier)
         def handler(_mapper, _connection, target: target_cls):
-            realtime = getattr(target, '__realtime__', True)
+            realtime = getattr(target, '__realtime__', None)
             logging.debug(f'Listen: {sub=} {target=} {realtime=}')
-            if realtime and (not condition or condition(target)):
+            if realtime is not False and (not condition or condition(target)):
                 asyncio.create_task(
                     self.pub_channel(
                         namespace, sub,

@@ -437,11 +437,12 @@ class BinanceFutures(_BinanceBaseClient):
                     symbol=data['s'],
                     price=Decimal(data['ap']) or Decimal(data['p']),
                     qty=Decimal(data['q']),
-                    side=data['S'],
+                    side=Side.BUY if data['S'] == 'BUY' else Side.SELL,
                     time=self.parse_ms_dt(message['E']),
                     type=execType,
                     realized_pnl=Decimal(data['rp']),
-                    commission=Decimal(data['n'])
+                    commission=Decimal(data['n']),
+                    settle='USDT'
                 )
                 await self._on_execution(trade)
 
