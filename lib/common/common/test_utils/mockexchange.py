@@ -8,10 +8,10 @@ from typing import Iterator, Optional
 import pytz
 
 from common.exchanges.channel import Channel
-from common.exchanges.exchange import Exchange
+from common.exchanges.exchange import Exchange, Position
 from common.exchanges.exchangeticker import ExchangeTicker, Subscription
 from core import utc_now
-from database.dbmodels import Execution, Balance, Client
+from database.dbmodels import Execution, Balance, Client, User
 from database.dbmodels.client import ClientType, ExchangeInfo
 from database.dbmodels.transfer import RawTransfer
 from database.enums import Side, ExecType, MarketType
@@ -24,6 +24,8 @@ from database.models.ticker import Ticker
 
 queue = asyncio.Queue()
 
+_next_exec_time = utc_now() - timedelta(days=30)
+
 
 class RawExec(BaseModel):
     symbol: str
@@ -34,9 +36,11 @@ class RawExec(BaseModel):
     market_type: Optional[MarketType] = MarketType.DERIVATIVES
 
     def to_exec(self, client: Client):
+        global _next_exec_time
+        _next_exec_time += timedelta(hours=1)
         return Execution(**self.dict(),
                          settle=client.currency,
-                         time=utc_now(),
+                         time=_next_exec_time,
                          commission=Decimal(random.randint(50, 100) * .01),
                          type=ExecType.TRADE)
 
@@ -71,6 +75,32 @@ class MockTicker(ExchangeTicker):
         pass
 
 
+class MockCreate(ClientCreate):
+    name = 'Mock Client'
+    exchange = 'mock'
+    api_key = 'super'
+    api_secret = 'secret'
+    sandbox = True
+    type = ClientType.FULL
+    #execs: list[RawExec] = []
+    #transfers: list[RawTransfer] = []
+    #positions: list[Position] = []
+
+    def get(self, user: User = None) -> Client:
+        client = super().get(user)
+
+        #MockExchange.execs = self.execs
+        #MockExchange.transfers = self.transfers
+        #MockExchange.positions = self.positions
+
+        return client
+
+
+
+
+
+
+
 class MockExchange(Exchange):
     supports_extended_data = True
     exchange = 'mock'
@@ -79,6 +109,7 @@ class MockExchange(Exchange):
     queue = asyncio.Queue()
     execs: list[RawExec] = []
     transfers: list[RawTransfer] = []
+    positions: list[Position] = []
 
     @classmethod
     def create(cls):
@@ -106,7 +137,7 @@ class MockExchange(Exchange):
         MockExchange.queue = asyncio.Queue()
         for exec in execs:
             MockExchange.queue.put_nowait(exec)
-        return execs
+        return list(execs)
 
     async def wait_queue(self):
         while True:
@@ -115,6 +146,9 @@ class MockExchange(Exchange):
             execution = new.to_exec(self.client)
             await self._on_execution(execution)
             self.execs.append(new)
+
+    async def _get_positions(self) -> list[Position]:
+        return self.positions
 
     async def start_ws(self):
         self._queue_waiter = asyncio.create_task(self.wait_queue())
@@ -127,27 +161,23 @@ class MockExchange(Exchange):
 
     async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
                         limit: int = None) -> list[OHLC]:
-        data = [
-            Decimal(10000),
-            Decimal(12500),
-            Decimal(15000),
-            Decimal(17500),
-            Decimal(20000),
-            Decimal(22500),
-            Decimal(25000),
-            Decimal(22500)
-        ]
-        ohlc_data = [
-            OHLC(
-                open=val, high=val, low=val, close=val,
-                volume=Decimal(0),
-                time=self.exec_start + timedelta(hours=12 * index)
+        ohlc_data = []
+        since = since or self.exec_start
+        to = to or utc_now()
+
+        step = timedelta(seconds=resolution_s) if resolution_s else (to - since) / 200
+
+        while since < to:
+            since += step
+            val = Decimal(random.randint(15000, 25000))
+            ohlc_data.append(
+                OHLC(
+                    open=val, high=val, low=val, close=val,
+                    volume=Decimal(0),
+                    time=since
+                )
             )
-            for index, val in enumerate(data)
-        ]
-        return [
-            ohlc for ohlc in ohlc_data if since < ohlc.time < to
-        ]
+        return ohlc_data
 
     async def _get_transfers(self, since: datetime = None, to: datetime = None) -> list[RawTransfer]:
         return self.transfers

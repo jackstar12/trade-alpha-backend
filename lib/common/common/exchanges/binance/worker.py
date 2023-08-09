@@ -23,7 +23,7 @@ from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import RawTransfer
 from database.enums import Side, ExecType
 from common.exchanges.binance.futures_websocket_client import FuturesWebsocketClient
-from common.exchanges.exchange import Exchange, create_limit
+from common.exchanges.exchange import Exchange, create_limit, Position
 from database.errors import InvalidClientError
 from database.models.market import Market
 from database.models.miscincome import MiscIncome
@@ -359,6 +359,19 @@ class BinanceFutures(_BinanceBaseClient):
             time=time if time else datetime.now(pytz.utc),
             extra_currencies=[]
         )
+
+    async def _get_positions(self) -> list[Position]:
+        response = await self.get('/fapi/v2/account')
+        return [
+            Position(
+                symbol=position['symbol'],
+                entry_price=Decimal(position['entryPrice']),
+                qty=abs(Decimal(position['positionAmt'])),
+                side=Side.BUY if Decimal(position['positionAmt']) > 0 else Side.SELL,
+            )
+            for position in response['positions']
+            if not Decimal(position['positionAmt']).is_zero()
+        ]
 
     async def start_ws(self):
         await self._ws.start()

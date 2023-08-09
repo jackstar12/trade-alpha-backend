@@ -261,10 +261,23 @@ class Worker(Observer):
 
             prev_balance = await self._update_realized_balance(db)
 
+            real_positions = await self.exchange.get_positions()
+            positions = {trade.symbol: trade.qty for trade in client.open_trades}
+
             if executions_by_symbol:
                 for symbol, executions in executions_by_symbol.items():
                     if not symbol:
-                        return
+                        continue
+
+                    should_qty = sum(position.effective_qty for position in real_positions.get(symbol, []))
+                    open_qty = positions.get(symbol, 0)
+
+                    while executions:
+                        is_qty = sum([e.effective_qty for e in executions], start=open_qty)
+                        if is_qty != should_qty:
+                            executions.pop(0)
+                        else:
+                            break
 
                     exec_iter = iter(executions)
                     to_exec = next(exec_iter, None)
@@ -275,13 +288,6 @@ class Worker(Observer):
 
                     while to_exec:
                         current_executions = [to_exec]
-                        # TODO: What if the start point isnt from 0 ?
-
-                        open_qty = to_exec.effective_qty or 0
-
-                        for trade in client.trades:
-                            if trade.is_open and trade.symbol == symbol:
-                                open_qty += trade.open_qty
 
                         while open_qty != 0 and to_exec:
                             to_exec = next(exec_iter, None)
@@ -289,32 +295,30 @@ class Worker(Observer):
                                 current_executions.append(to_exec)
                                 if to_exec.type == ExecType.TRADE:
                                     open_qty += to_exec.effective_qty
+
                         if open_qty:
                             # If the open_qty is not 0 there is an active trade going on
                             # -> needs to be published (unlike others which are historical)
                             pass
-                        if len(current_executions) > 1:
-                            to = current_executions[-1].time
-                        else:
-                            to = datetime.now(pytz.utc)
-                        try:
-                            ohlc_data = await self.exchange.get_ohlc(symbol, since=current_executions[0].time, to=to)
-                        except ResponseError:
-                            ohlc_data = []
-                        current_trade = None
-                        for item in combine_time_series(ohlc_data, current_executions):
-                            if isinstance(item, Execution):
-                                current_trade = await self._add_executions(db,
-                                                                           [item],
-                                                                           realtime=False)
-                            elif isinstance(item, OHLC) and current_trade:
-                                if isinstance(item.open, float):
-                                    pass
-                                current_trade.update_pnl(
-                                    current_trade.calc_upnl(item.open),
-                                    now=item.time,
-                                    extra_currencies={client.currency: item.open}
-                                )
+
+                        all_trades = set()
+                        for item in executions:
+                            current_trade = await self._add_executions(db, [item], realtime=False)
+                            all_trades.add(current_trade)
+
+                        for trade in all_trades:
+                            dummy = Trade.from_execution(trade.initial, trade.client_id, trade.init_balance)
+                            ohlc_data = await self.exchange.get_ohlc(symbol, since=trade.open_time, to=trade.close_time)
+                            for item in combine_time_series(ohlc_data, trade.executions[1:-1]):
+                                if isinstance(item, Execution):
+                                    dummy.add_execution(item)
+                                    all_trades.add(current_trade)
+                                elif isinstance(item, OHLC):
+                                    trade.update_pnl(
+                                        dummy.calc_upnl(item.open),
+                                        now=item.time,
+                                        extra_currencies={client.currency: item.open}
+                                    )
                         to_exec = next(exec_iter, None)
 
             # Start Balance:
@@ -490,6 +494,7 @@ class Worker(Observer):
                         Trade.client_id == self.client_id,
                         Execution.symbol == execution.symbol,
                         Execution.market_type == execution.market_type
+
                     )
                     .join(Trade.initial)
                 )
@@ -505,13 +510,21 @@ class Worker(Observer):
                     stmt = stmt.order_by(
                         desc(Trade.open_time)
                     )
-                return await db_unique(stmt,
-                                       Trade.executions,
-                                       Trade.init_balance,
-                                       Trade.initial,
-                                       Trade.max_pnl,
-                                       Trade.min_pnl,
-                                       session=db)
+                trades = await db_all(stmt,
+                                      Trade.executions,
+                                      Trade.init_balance,
+                                      Trade.initial,
+                                      Trade.max_pnl,
+                                      Trade.min_pnl,
+                                      session=db)
+
+                if len(trades) > 1:
+                    for trade in trades:
+                        if execution.reduce and execution.side != trade.side:
+                            return trade
+                    return trades[0]
+                elif len(trades) == 1:
+                    return trades[0]
 
             for execution in executions:
 

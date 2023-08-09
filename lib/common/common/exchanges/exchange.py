@@ -22,7 +22,7 @@ from aiohttp import ClientResponse, ClientResponseError
 from sqlalchemy import update
 from sqlalchemy.orm import sessionmaker
 
-from core import json as customjson, json
+from core import json as customjson, json, utils
 from core.utils import utc_now
 from database.dbmodels.client import Client, ClientState
 # from database.dbmodels.ohlc import OHLC
@@ -72,8 +72,12 @@ class RequestItem(NamedTuple):
 class Position(NamedTuple):
     symbol: str
     side: Side
-    size: Decimal
+    qty: Decimal
     entry_price: Decimal
+
+    @property
+    def effective_qty(self):
+        return self.qty if self.side == Side.BUY else -self.qty
 
 
 class State(Enum):
@@ -293,7 +297,15 @@ class Exchange(Observer):
         return balance
 
     @abc.abstractmethod
-    async def get_positions(self) -> list[Position]:
+    async def get_positions(self) -> dict[str, list[Position]]:
+        return utils.groupby(await self._get_positions(), lambda p: p.symbol)
+
+    async def get_position(self, symbol: str, side: Side) -> Optional[Position]:
+        positions = await self._get_positions()
+        return next((p for p in positions if p.side == side and p.symbol == symbol), None)
+
+    @abc.abstractmethod
+    async def _get_positions(self) -> list[Position]:
         pass
 
     @abc.abstractmethod

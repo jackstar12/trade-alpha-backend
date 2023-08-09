@@ -6,10 +6,11 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from common.exchanges import SANDBOX_CLIENTS, EXCHANGES
+from common.exchanges import SANDBOX_CLIENTS, EXCHANGES, BybitDerivatives
+from common.exchanges.exchange import Position
 from common.messenger import TableNames, Category
 from common.test_utils.fixtures import Channel, Messages
-from common.test_utils.mockexchange import MockExchange, RawExec
+from common.test_utils.mockexchange import MockExchange, RawExec, MockCreate
 from core import utc_now
 from database.dbasync import db_select_all, db_all
 from database.dbmodels.trade import Trade
@@ -29,7 +30,7 @@ size = Decimal('0.01')
 
 @pytest.mark.parametrize(
     'client',
-    [MockExchange.create()],
+    [MockCreate()],
     indirect=True
 )
 async def test_realtime(db, pnl_service, time, client, registered_client, session_maker, messenger, redis):
@@ -134,21 +135,29 @@ async def test_exchange(client, session_maker, http_session, ccxt_client):
         on_exec
     )
 
-    _, test, _ = await exchange.get_executions(now - timedelta(minutes=3))
-
     balance = await exchange.get_balance()
 
     await exchange.start_ws()
 
+    async def get_total_position_size():
+        positions = await exchange.get_positions()
+        return sum(position.effective_qty for position in positions.get(symbol))
+
+    previous = await get_total_position_size()
+
     ccxt_client.create_market_buy_order(symbol, float(size))
 
-    positions = await exchange.get_positions()
-    assert positions[0].size == size
+    current = await get_total_position_size()
+    assert current - previous == size
 
     ccxt_client.create_market_sell_order(symbol, float(size))
 
+    current = await get_total_position_size()
+    assert current == previous
+
     await asyncio.wait_for(fut, 5)
-    await asyncio.sleep(15)
+    if client.exchange == BybitDerivatives.exchange:
+        await asyncio.sleep(20)
 
     _, fetched_execs, _ = await exchange.get_executions(now)
     assert len(execs) == len(fetched_execs)
@@ -157,15 +166,6 @@ async def test_exchange(client, session_maker, http_session, ccxt_client):
     assert balance != new_balance
 
     await exchange.clean_ws()
-
-
-@pytest.fixture
-def basic_execs():
-    return MockExchange.set_execs(
-        RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
-        RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
-        RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000),
-    )
 
 
 async def all_trades(client):
@@ -180,33 +180,15 @@ async def all_trades(client):
     return trades, execs
 
 
-@pytest.mark.parametrize(
-    'client',
-    [MockExchange.create()],
-    indirect=True
-)
-async def test_imports(basic_execs, pnl_service, db, time, client, registered_client):
-    worker = await pnl_service.add_client(client)
-    await worker.synchronize_positions()
-    trades, execs = await all_trades(client)
-
-    assert len(execs) == len(basic_execs)
-    assert sum(e.qty for e in execs) == sum(e.qty for e in basic_execs)
-    assert sum(e.effective_qty for e in execs).is_zero()
-
-    assert len(trades) == 1
-    trade = trades[0]
-    assert trade.open_qty.is_zero()
-    assert trade.qty == size
-    assert trade.max_pnl.total != trades[0].min_pnl.total
+@pytest.fixture
+def execs(request):
+    return MockExchange.set_execs(*request.param)
 
 
 @pytest.fixture
-def advanced_execs():
-    return MockExchange.set_execs(
-        RawExec(symbol=symbol, side=Side.BUY, qty=size, price=10000, reduce=False),
-        RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000, reduce=False),
-    )
+def position(request):
+    MockExchange.positions = request.param
+    return request.param
 
 
 @pytest.mark.parametrize(
@@ -214,8 +196,61 @@ def advanced_execs():
     [MockExchange.create()],
     indirect=True
 )
-async def test_imports_complex(advanced_execs, pnl_service, db, time, client, registered_client):
+@pytest.mark.parametrize(
+    'execs,position',
+    [
+        [
+            [
+                RawExec(symbol=symbol, side=Side.SELL, qty=size, price=10000),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size, price=10000),
+            ],
+            []
+        ],
+        [
+            [
+                RawExec(symbol=symbol, side=Side.SELL, qty=size, price=10000),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+            ],
+            [Position(symbol=symbol, qty=size, side=Side.BUY, entry_price=10000)]
+        ],
+        [
+            [
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000),
+                RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000),
+            ],
+            []
+        ],
+        [
+            [
+                RawExec(symbol=symbol, side=Side.BUY, qty=size, price=10000, reduce=False),
+                RawExec(symbol=symbol, side=Side.SELL, qty=size, price=10000, reduce=False),
+                RawExec(symbol=symbol, side=Side.BUY, qty=size / 2, price=10000, reduce=True),
+                RawExec(symbol=symbol, side=Side.SELL, qty=size / 2, price=10000, reduce=True),
+            ],
+            [
+                Position(symbol=symbol, qty=size / 2, side=Side.BUY, entry_price=10000),
+                Position(symbol=symbol, qty=size / 2, side=Side.SELL, entry_price=10000)
+            ]
+        ],
+        pytest.param(
+            # no sign of position start - no trade can be created, should fail
+            [RawExec(symbol=symbol, side=Side.SELL, qty=size, price=20000)],
+            [Position(symbol=symbol, qty=size, side=Side.BUY, entry_price=20000)],
+            marks=pytest.mark.xfail
+        )
+    ],
+    indirect=True
+)
+async def test_imports(execs, position, pnl_service, db, time, client, registered_client):
     trades, execs = await all_trades(client)
-    assert len(execs) == len(advanced_execs)
-    assert sum(e.qty for e in execs) == sum(e.qty for e in advanced_execs)
-    assert len(trades) == 2
+    worker = pnl_service.get_worker(client.id)
+
+    for trade in trades:
+        if trade.is_open:
+            position = await worker.exchange.get_position(trade.symbol, trade.side)
+            assert position
+            assert trade.open_qty == position.qty
+        assert trade.max_pnl.total != trade.min_pnl.total

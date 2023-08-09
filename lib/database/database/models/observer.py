@@ -3,6 +3,8 @@ import asyncio
 from abc import ABCMeta
 from abc import abstractmethod
 
+from core import call_unknown_function, return_unknown_function
+
 
 class Observer(object):
     """
@@ -94,5 +96,5 @@ class Observable(object):
         :type new_state: A tuple of arbitrary content.
         """
         await asyncio.gather(
-            *[asyncio.create_task(observer.update(*new_state)) for observer in self._observers]
+            *[return_unknown_function(observer.update, *new_state) for observer in self._observers]
         )

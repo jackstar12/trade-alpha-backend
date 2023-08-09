@@ -28,7 +28,7 @@ def get_contract_type(contract: str):
         return Category.INVERSE
 
 
-class BybitDerivativesWorker(_BybitBaseClient):
+class BybitDerivatives(_BybitBaseClient):
     # https://bybit-exchange.github.io/docs/derivativesV3/contract/#t-websocket
     _WS_ENDPOINT = 'wss://stream.bybit.com/contract/private/v3'
     _WS_SANDBOX_ENDPOINT = 'wss://stream-testnet.bybit.com/contract/private/v3'
@@ -211,15 +211,14 @@ class BybitDerivativesWorker(_BybitBaseClient):
             Position(
                 symbol=raw['symbol'],
                 side=Side.BUY if raw['side'] == 'Buy' else Side.SELL,
-                size=Decimal(raw['size']),
+                qty=Decimal(raw['size']),
                 entry_price=Decimal(raw['avgPrice']),
             )
             for raw in data["list"]
         ]
 
-    async def get_positions(self) -> list[Position]:
-        return await self._get_internal_positions(Category.LINEAR) + await self._get_internal_positions(
-            Category.INVERSE)
+    async def _get_positions(self) -> list[Position]:
+        return await self._get_internal_positions(Category.LINEAR)
 
     async def _get_transfers(self, since: datetime = None, to: datetime = None) -> List[RawTransfer]:
         self._internal_transfers = (since, await self._get_internal_transfers_v3(since, Account.DERIVATIVE))

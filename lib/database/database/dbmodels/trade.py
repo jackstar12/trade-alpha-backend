@@ -120,7 +120,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                                                order_by="Execution.time")
 
     pnl_data: list[PnlData] = relationship('PnlData',
-                                           lazy='raise',
+                                           lazy='noload',
                                            back_populates='trade',
                                            foreign_keys="PnlData.trade_id",
                                            passive_deletes=True,
@@ -411,7 +411,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                 or self.max_pnl.total == self.min_pnl.total
                 or abs((live - self.latest_pnl.total) / self.size) > Decimal(.05)
         ):
-            self.async_session.add(self.live_pnl)
+            self.pnl_data.append(self.live_pnl)
             self.latest_pnl = self.live_pnl
             latest = self.latest_pnl.total
             if latest:
@@ -428,7 +428,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
         return significant
 
-    def add_execution(self, execution: Execution, current_balance: Balance):
+    def add_execution(self, execution: Execution, current_balance: Optional[Balance] = None):
         self.executions.append(execution)
         new = None
 
@@ -540,7 +540,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         return False
 
     @classmethod
-    def from_execution(cls, execution: Execution, client_id: int, current_balance: Balance):
+    def from_execution(cls, execution: Execution, client_id: int, current_balance: Optional[Balance] = None):
 
         trade = Trade(
             entry=execution.price,

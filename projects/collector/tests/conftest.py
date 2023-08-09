@@ -69,7 +69,7 @@ def data_service(service_args):
     return DataService(*service_args)
 
 
-@pytest.fixture
+@pytest.fixture(scope='session')
 @run_service
 def pnl_service(data_service, service_args):
     return ExtendedBalanceService(*service_args, data_service=data_service)
@@ -120,6 +120,9 @@ async def registered_client(pnl_service, client, time, db, test_user, messenger)
         Channel(TableNames.CLIENT, Category.ADDED),
         messenger=messenger
     ) as listener:
+        await db.execute(
+            delete(Client).where(Client.api_key == client.api_key, Client.exchange == client.exchange)
+        )
         db.add(client)
         await db.commit()
         await listener.wait(10)

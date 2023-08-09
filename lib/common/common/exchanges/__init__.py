@@ -8,7 +8,7 @@ from database.models.client import ClientCreate
 from common.exchanges.binance.worker import BinanceFutures, BinanceSpot
 from common.exchanges.binance.ticker import BinanceFuturesTicker
 from common.exchanges.bitmex.bitmex import BitmexWorker
-from common.exchanges.bybit.derivatives import BybitDerivativesWorker
+from common.exchanges.bybit.derivatives import BybitDerivatives
 from common.exchanges.bybit.ticker import BybitDerivativesTicker
 from common.exchanges.kucoin.kucoin import KuCoinFuturesWorker
 from common.exchanges.okx.okx import OkxWorker
@@ -29,7 +29,7 @@ EXCHANGES: dict[str, Type[Exchange]] = {
         BinanceSpot,
         BitmexWorker,
         KuCoinFuturesWorker,
-        BybitDerivativesWorker,
+        BybitDerivatives,
         OkxWorker,
     ]
 }
@@ -47,7 +47,7 @@ SANDBOX_CLIENTS = [
     #    sandbox=True
     #),
     ClientCreate(
-        exchange=BybitDerivativesWorker.exchange,
+        exchange=BybitDerivatives.exchange,
         api_key="NmLYouOiPq3wRlu5x3",
         api_secret="YY2GIlQI47scbDAGTccByGEbW8Oiio4msXj8",
         sandbox=True,
@@ -77,7 +77,7 @@ CCXT_CLIENTS: dict[str, Type[CCXTExchange]] = {
     BitmexWorker.exchange: ccxt.bitmex,
     KuCoinFuturesWorker.exchange: ccxt.kucoin,
     OkxWorker.exchange: ccxt.okex,
-    BybitDerivativesWorker.exchange: ccxt.bybit,
+    BybitDerivatives.exchange: ccxt.bybit,
 }
 
 __all__ = [
