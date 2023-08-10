@@ -14,8 +14,7 @@ from database.dbmodels.user import User
 
 
 class Authenticator:
-
-    def __init__(self, redis: Redis, session_expiration: int, session_cookie_name = None):
+    def __init__(self, redis: Redis, session_expiration: int, session_cookie_name=None):
         self.redis = redis
         self.session_expiration = session_expiration
         self.session_cookie_name = session_cookie_name or settings.session_cookie_name
@@ -24,27 +23,26 @@ class Authenticator:
         session_id = request.cookies.get(self.session_cookie_name)
         if session_id is None:
             raise HTTPException(
-                status_code=HTTPStatus.UNAUTHORIZED,
-                detail='Missing session cookie'
+                status_code=HTTPStatus.UNAUTHORIZED, detail="Missing session cookie"
             )
         return session_id
 
     async def verify_id(
-        self, request: Request,
+        self,
+        request: Request,
     ) -> Optional[UUID4]:
         session_id = self._get_session_id(request)
         user_id = await self.redis.get(session_id)
         if user_id is None:
             raise HTTPException(
-                status_code=HTTPStatus.UNAUTHORIZED,
-                detail='Invalid session'
+                status_code=HTTPStatus.UNAUTHORIZED, detail="Invalid session"
             )
 
-        return UUID4(user_id.decode('utf-8'))
+        return UUID4(user_id.decode("utf-8"))
 
     async def write_token(self, user: User) -> str:
         token = secrets.token_urlsafe()
-        await self.redis.sadd(f'sessions:{user.id}', token)
+        await self.redis.sadd(f"sessions:{user.id}", token)
         await self.redis.set(token, str(user.id), ex=self.session_expiration)
         return token
 
@@ -53,15 +51,14 @@ class Authenticator:
 
     async def set_session_cookie(self, response: Response, user: User):
         response.set_cookie(
-            self.session_cookie_name,
-            value=await self.write_token(user)
+            self.session_cookie_name, value=await self.write_token(user)
         )
 
     def unset_session_cooke(self, response: Response):
         response.delete_cookie(self.session_cookie_name)
 
     async def invalidate_user_sessions(self, user: User):
-        await self.redis.delete(f'sessions:{user.id}')
+        await self.redis.delete(f"sessions:{user.id}")
 
     async def invalidate_session(self, request: Request):
         session_id = self._get_session_id(request)
@@ -84,7 +81,7 @@ class RedisStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID
             return None
 
         try:
-            parsed_id = user_manager.parse_id(user_id.decode('utf-8'))
+            parsed_id = user_manager.parse_id(user_id.decode("utf-8"))
             return await user_manager.get(parsed_id)
         except (exceptions.UserNotExists, exceptions.InvalidID):
             return None
@@ -96,4 +93,3 @@ class RedisStrategy(Strategy[models.UP, models.ID], Generic[models.UP, models.ID
 
     async def destroy_token(self, token: str, user: models.UP) -> None:
         await self.redis.delete(token)
-

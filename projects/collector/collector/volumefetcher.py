@@ -3,22 +3,24 @@ from datetime import datetime, timedelta
 from collections import deque
 from database.models.coin import Coin
 from database.models.volumeratio import VolumeRatio
-from typing import Dict, List
+from typing import Optional, Dict, List
 
 from database.models.singleton import Singleton
 import aiohttp
 
 
 class VolumeFetcher(Singleton):
-    _ENDPOINT = 'https://ftx.com/api/'
+    _ENDPOINT = "https://ftx.com/api/"
 
-    def init(self,
-             session: aiohttp.ClientSession = None,
-             time_window: timedelta = timedelta(seconds=14400),
-             max_time_range: timedelta = timedelta(days=13),
-             time_frames: List[timedelta] = None,
-             *args,
-             **kwargs):
+    def init(
+        self,
+        session: Optional[aiohttp.ClientSession] = None,
+        time_window: timedelta = timedelta(seconds=14400),
+        max_time_range: timedelta = timedelta(days=13),
+        time_frames: Optional[List[timedelta]] = None,
+        *args,
+        **kwargs,
+    ):
         self._session = session
         self._time_window = time_window
         self._max_time_range = max_time_range
@@ -28,39 +30,37 @@ class VolumeFetcher(Singleton):
         await self._bootstrap()
 
     async def _get(self, path: str, **kwargs):
-        async with self._session.request('GET', self._ENDPOINT + path, **kwargs) as response:
+        async with self._session.request(
+            "GET", self._ENDPOINT + path, **kwargs
+        ) as response:
             if response.status == 200:
                 j = await response.json()
-                if j.get('success'):
-                    return j['result']
+                if j.get("success"):
+                    return j["result"]
             else:
                 print(await response.json())
 
     async def _get_markets_by_name(self, **kwargs):
-        markets = await self._get('markets', **kwargs)
+        markets = await self._get("markets", **kwargs)
         if markets:
-            markets_by_name = {
-                market["name"]: market for market in markets
-            }
+            markets_by_name = {market["name"]: market for market in markets}
             return markets_by_name
 
     async def _get_market_data(self, market: str, start_time: datetime, **kwargs):
         return await self._get(
-            f'markets/{market}/candles',
-            params={
-                'start_time': str(start_time.timestamp()),
-                'resolution': str(900)
-            },
-            **kwargs
+            f"markets/{market}/candles",
+            params={"start_time": str(start_time.timestamp()), "resolution": str(900)},
+            **kwargs,
         )
 
     async def _bootstrap(self):
-
         if self._session is None:
             self._session = aiohttp.ClientSession()
 
         spot_markets_by_name = await self._get_markets_by_name(params={"type": "spot"})
-        perp_markets_by_name = await self._get_markets_by_name(params={"type": "future"})
+        perp_markets_by_name = await self._get_markets_by_name(
+            params={"type": "future"}
+        )
 
         if not spot_markets_by_name:
             raise Exception
@@ -69,9 +69,9 @@ class VolumeFetcher(Singleton):
             raise Exception
 
         for perp_name in perp_markets_by_name:
-            if 'PERP' in perp_name:
-                coin_name = perp_name.split('-')[0]
-                spot_name = f'{coin_name}/USD'
+            if "PERP" in perp_name:
+                coin_name = perp_name.split("-")[0]
+                spot_name = f"{coin_name}/USD"
                 if spot_name in spot_markets_by_name:
                     self._data[coin_name] = Coin(
                         coin_name=coin_name,
@@ -80,13 +80,12 @@ class VolumeFetcher(Singleton):
                         spot_data=None,
                         perp_data=None,
                         ratio_data=None,
-                        avg_ratio=None
+                        avg_ratio=None,
                     )
 
         await self._update_forever()
 
     async def _update_volume_history(self, coin: Coin):
-
         if coin.spot_data:
             start_time = coin.spot_data[-1]
         else:
@@ -112,7 +111,7 @@ class VolumeFetcher(Singleton):
             perp_aggr += perp_data[i]["volume"]
             ratio = VolumeRatio(
                 date=datetime.fromisoformat(spot_data[i]["startTime"]),
-                ratio=spot_aggr / perp_aggr if perp_aggr else 1
+                ratio=spot_aggr / perp_aggr if perp_aggr else 1,
             )
             coin.avg_ratio += ratio.ratio
             coin.ratio_data.append(ratio)
@@ -125,9 +124,9 @@ class VolumeFetcher(Singleton):
                 await self._update_volume_history(coin)
             coins = list(self._data.values())
             coins.sort(key=lambda x: x.avg_ratio, reverse=True)
-            print('Biggest Accumulators')
+            print("Biggest Accumulators")
             for i in range(0, 5):
-                print(f'{coins[i].coin_name}: {coins[i].avg_ratio}')
+                print(f"{coins[i].coin_name}: {coins[i].avg_ratio}")
             await asyncio.sleep(self._time_window.total_seconds())
 
     def _on_message(self):

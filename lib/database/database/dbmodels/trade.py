@@ -7,8 +7,23 @@ from typing import Optional, TYPE_CHECKING
 import pytz
 import sqlalchemy.exc
 from aioredis import Redis
-from sqlalchemy import Column, Integer, ForeignKey, String, Table, orm, Numeric, delete, DateTime, func, case, extract, \
-    or_, and_, event
+from sqlalchemy import (
+    Column,
+    Integer,
+    ForeignKey,
+    String,
+    Table,
+    orm,
+    Numeric,
+    delete,
+    DateTime,
+    func,
+    case,
+    extract,
+    or_,
+    and_,
+    event,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, aliased
@@ -32,9 +47,12 @@ from database.enums import Side, ExecType, Status, TradeSession
 import core
 from database.dbmodels.symbol import CurrencyMixin
 
-trade_association = Table('trade_association', Base.metadata,
-                          Column('trade_id', FKey('trade.id', ondelete="CASCADE"), primary_key=True),
-                          Column('label_id', FKey('label.id', ondelete="CASCADE"), primary_key=True))
+trade_association = Table(
+    "trade_association",
+    Base.metadata,
+    Column("trade_id", FKey("trade.id", ondelete="CASCADE"), primary_key=True),
+    Column("label_id", FKey("label.id", ondelete="CASCADE"), primary_key=True),
+)
 
 
 # class TradeType(Enum):
@@ -49,14 +67,16 @@ class InternalTradeModel(BasicTrade):
 
 
 class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
-    __tablename__ = 'trade'
-    __serializer_forbidden__ = ['client']
+    __tablename__ = "trade"
+    __serializer_forbidden__ = ["client"]
     __model__ = InternalTradeModel
 
     id = Column(Integer, primary_key=True)
-    client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=False)
-    client = relationship('Client', lazy='noload')
-    labels = relationship('Label', lazy='noload', secondary=trade_association, backref='trades')
+    client_id = Column(Integer, FKey("client.id", ondelete="CASCADE"), nullable=False)
+    client = relationship("Client", lazy="noload")
+    labels = relationship(
+        "Label", lazy="noload", secondary=trade_association, backref="trades"
+    )
 
     symbol = Column(String, nullable=False)
 
@@ -72,39 +92,45 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     total_commissions: Decimal = Column(Numeric, nullable=True, default=Decimal(0))
     settle = Column(String(5), nullable=False)
 
-    init_balance_id = Column(Integer, ForeignKey('balance.id', ondelete='SET NULL'), nullable=False)
+    init_balance_id = Column(
+        Integer, ForeignKey("balance.id", ondelete="SET NULL"), nullable=False
+    )
     init_balance = relationship(
-        'Balance',
-        lazy='raise',
+        "Balance",
+        lazy="raise",
         foreign_keys=init_balance_id,
         passive_deletes=True,
-        uselist=False
+        uselist=False,
     )
 
     init_amount = relationship(
-        'Amount',
-        lazy='raise',
-        primaryjoin='and_(Trade.init_balance_id == foreign(Amount.balance_id), Trade.settle == foreign(Amount.currency) )',
+        "Amount",
+        lazy="raise",
+        primaryjoin="and_(Trade.init_balance_id == foreign(Amount.balance_id), Trade.settle == foreign(Amount.currency) )",
         passive_deletes=True,
-        uselist=False
+        uselist=False,
     )
 
-    max_pnl_id = Column(Integer, ForeignKey('pnldata.id', ondelete='SET NULL'), nullable=True)
+    max_pnl_id = Column(
+        Integer, ForeignKey("pnldata.id", ondelete="SET NULL"), nullable=True
+    )
     max_pnl: Optional[PnlData] = relationship(
-        'PnlData',
-        lazy='raise',
+        "PnlData",
+        lazy="raise",
         foreign_keys=max_pnl_id,
         passive_deletes=True,
-        post_update=True
+        post_update=True,
     )
 
-    min_pnl_id = Column(Integer, ForeignKey('pnldata.id', ondelete='SET NULL'), nullable=True)
+    min_pnl_id = Column(
+        Integer, ForeignKey("pnldata.id", ondelete="SET NULL"), nullable=True
+    )
     min_pnl: Optional[PnlData] = relationship(
-        'PnlData',
-        lazy='raise',
+        "PnlData",
+        lazy="raise",
         foreign_keys=min_pnl_id,
         passive_deletes=True,
-        post_update=True
+        post_update=True,
     )
 
     tp: Decimal = Column(Numeric, nullable=True)
@@ -112,53 +138,53 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     order_count = Column(Integer, nullable=True)
 
-    executions: list[Execution] = relationship('Execution',
-                                               foreign_keys='[Execution.trade_id]',
-                                               back_populates='trade',
-                                               lazy='raise',
-                                               passive_deletes=True,
-                                               order_by="Execution.time")
+    executions: list[Execution] = relationship(
+        "Execution",
+        foreign_keys="[Execution.trade_id]",
+        back_populates="trade",
+        lazy="raise",
+        passive_deletes=True,
+        order_by="Execution.time",
+    )
 
-    pnl_data: list[PnlData] = relationship('PnlData',
-                                           lazy='noload',
-                                           back_populates='trade',
-                                           foreign_keys="PnlData.trade_id",
-                                           passive_deletes=True,
-                                           order_by="PnlData.time")
+    pnl_data: list[PnlData] = relationship(
+        "PnlData",
+        lazy="noload",
+        back_populates="trade",
+        foreign_keys="PnlData.trade_id",
+        passive_deletes=True,
+        order_by="PnlData.time",
+    )
 
-    initial_execution_id = Column(Integer, FKey('execution.id', ondelete='SET NULL'), nullable=True)
+    initial_execution_id = Column(
+        Integer, FKey("execution.id", ondelete="SET NULL"), nullable=True
+    )
     initial: Execution = relationship(
-        'Execution',
-        lazy='joined',
+        "Execution",
+        lazy="joined",
         foreign_keys=initial_execution_id,
         post_update=True,
         passive_deletes=True,
-        primaryjoin='Execution.id == Trade.initial_execution_id'
+        primaryjoin="Execution.id == Trade.initial_execution_id",
     )
 
     notes = Column(Document, nullable=True)
 
     @hybrid_property
     def count(self):
-        return func.count().label('count')
+        return func.count().label("count")
 
     @hybrid_property
     def gross_win(self):
         return func.sum(
-            case(
-                {self.realized_pnl > 0: self.realized_pnl},
-                else_=0
-            )
-        ).label('gross_win')
+            case({self.realized_pnl > 0: self.realized_pnl}, else_=0)
+        ).label("gross_win")
 
     @hybrid_property
     def gross_loss(self):
         return func.sum(
-            case(
-                {self.realized_pnl < 0: self.realized_pnl},
-                else_=0
-            )
-        ).label('gross_loss')
+            case({self.realized_pnl < 0: self.realized_pnl}, else_=0)
+        ).label("gross_loss")
 
     @hybrid_property
     def total_commissions_stmt(self):
@@ -172,11 +198,9 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         except sqlalchemy.exc.InvalidRequestError:
             self.latest_pnl = None
 
-    def __init__(self, upnl: Decimal = None, *args, **kwargs):
+    def __init__(self, upnl: Optional[Decimal] = None, *args, **kwargs):
         self.live_pnl: PnlData = PnlData(
-            unrealized=upnl,
-            realized=self.realized_pnl,
-            time=datetime.now(pytz.utc)
+            unrealized=upnl, realized=self.realized_pnl, time=datetime.now(pytz.utc)
         )
         self.latest_pnl: PnlData = core.list_last(self.pnl_data, None)
         super().__init__(*args, **kwargs)
@@ -215,7 +239,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     @classmethod
     def is_(cls, session: TradeSession):
-        hour = extract('hour', cls.open_time)
+        hour = extract("hour", cls.open_time)
         if session == TradeSession.ASIA:
             return hour >= 22 or hour < 9
         if session == TradeSession.LONDON:
@@ -230,7 +254,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     @weekday.expression
     def weekday(cls):
-        return extract('dow', cls.open_time)
+        return extract("dow", cls.open_time)
 
     @hybrid_property
     def account_gain(self):
@@ -243,10 +267,6 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     @hybrid_property
     def account_size(self):
         return self.size / self.init_amount.realized
-
-    @hybrid_property
-    def net_pnl(self):
-        return self.realized_pnl - self.total_commissions
 
     @hybrid_property
     def compact_pnl_data(self):
@@ -285,7 +305,9 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     @hybrid_property
     def fomo_ratio(self):
         if self.max_pnl.total != self.min_pnl.total:
-            return 1 - (self.realized_pnl - self.min_pnl.total) / (self.max_pnl.total - self.min_pnl.total)
+            return 1 - (self.realized_pnl - self.min_pnl.total) / (
+                self.max_pnl.total - self.min_pnl.total
+            )
         else:
             return 0
 
@@ -300,9 +322,11 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
     @hybrid_property
     def status(self):
         return (
-            Status.OPEN if self.open_qty != 0
-            else
-            Status.WIN if self.realized_pnl > 0 else Status.LOSS
+            Status.OPEN
+            if self.open_qty != 0
+            else Status.WIN
+            if self.realized_pnl > 0
+            else Status.LOSS
         )
 
     @hybrid_property
@@ -317,41 +341,54 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     @classmethod
     def apply(cls, param: FilterParam, stmt):
-        if param.field == 'label_ids':
-            return stmt.join(trade_association, and_(
-                trade_association.columns.trade_id == cls.id,
-                or_(
-                    trade_association.columns.label_id == value if param.op == Operator.INCLUDES else not cls.is_(value)
-                    for value in param.values
-                )
-            ))
+        if param.field == "label_ids":
+            return stmt.join(
+                trade_association,
+                and_(
+                    trade_association.columns.trade_id == cls.id,
+                    or_(
+                        trade_association.columns.label_id == value
+                        if param.op == Operator.INCLUDES
+                        else not cls.is_(value)
+                        for value in param.values
+                    ),
+                ),
+            )
         col = getattr(cls, param.field)
         if col == cls.side:
             alias = aliased(Execution)
-            return stmt.join(alias, and_(
-                cls.initial_execution_id == alias.id,
-                or_(*[
-                    param.cmp_func(alias.side, value)
-                    for value in param.values
-                ])
-            ))
+            return stmt.join(
+                alias,
+                and_(
+                    cls.initial_execution_id == alias.id,
+                    or_(*[param.cmp_func(alias.side, value) for value in param.values]),
+                ),
+            )
         elif col == cls.sessions:
-            return stmt.where(*[
-                cls.is_(value) if param.op == Operator.INCLUDES else not cls.is_(value)
-                for value in param.values
-            ])
+            return stmt.where(
+                *[
+                    cls.is_(value)
+                    if param.op == Operator.INCLUDES
+                    else not cls.is_(value)
+                    for value in param.values
+                ]
+            )
         else:
             raise ValueError
 
     @classmethod
     def validator(cls, field: str):
-        if field == 'sessions':
+        if field == "sessions":
             return TradeSession
-        if field == 'label_ids':
+        if field == "label_ids":
             return int
 
     def calc_pnl(self, qty: Decimal, exit: Decimal):
-        diff = 1 / self.entry - 1 / Decimal(exit) if self.inverse else Decimal(exit) - self.entry
+        diff = (
+            1 / self.entry - 1 / Decimal(exit)
+            if self.inverse
+            else Decimal(exit) - self.entry
+        )
         raw = diff * qty
         return raw * -1 if self.initial.side == Side.SELL else raw
 
@@ -364,15 +401,16 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
     async def set_live_pnl(self, redis: Redis):
         await redis.hset(
-            self.redis_key, key='upnl', value=float(self.live_pnl.unrealized)
+            self.redis_key, key="upnl", value=float(self.live_pnl.unrealized)
         )
 
-    def update_pnl(self,
-                   upnl: int | Decimal,
-                   force=False,
-                   now: datetime = None,
-                   extra_currencies: dict[str, Decimal] = None):
-
+    def update_pnl(
+        self,
+        upnl: int | Decimal,
+        force=False,
+        now: Optional[datetime] = None,
+        extra_currencies: Optional[dict[str, Decimal]] = None,
+    ):
         if not now:
             now = datetime.now(pytz.utc)
         self.live_pnl = PnlData(
@@ -383,8 +421,11 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
             time=now,
             extra_currencies={
                 currency: rate
-                for currency, rate in extra_currencies.items() if currency != self.settle
-            } if extra_currencies else None
+                for currency, rate in extra_currencies.items()
+                if currency != self.settle
+            }
+            if extra_currencies
+            else None,
         )
 
         if not self.max_pnl:
@@ -392,24 +433,24 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                 trade=self,
                 realized=Decimal(0),
                 unrealized=Decimal(0),
-                time=self.open_time
+                time=self.open_time,
             )
         if not self.min_pnl:
             self.min_pnl = PnlData(
                 trade=self,
                 realized=Decimal(0),
                 unrealized=Decimal(0),
-                time=self.open_time
+                time=self.open_time,
             )
 
         significant = False
 
         live = self.live_pnl.total
         if (
-                not self.latest_pnl
-                or force
-                or self.max_pnl.total == self.min_pnl.total
-                or abs((live - self.latest_pnl.total) / self.size) > Decimal(.05)
+            not self.latest_pnl
+            or force
+            or self.max_pnl.total == self.min_pnl.total
+            or abs((live - self.latest_pnl.total) / self.size) > Decimal(0.05)
         ):
             self.pnl_data.append(self.live_pnl)
             self.latest_pnl = self.live_pnl
@@ -428,7 +469,9 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
         return significant
 
-    def add_execution(self, execution: Execution, current_balance: Optional[Balance] = None):
+    def add_execution(
+        self, execution: Execution, current_balance: Optional[Balance] = None
+    ):
         self.executions.append(execution)
         new = None
 
@@ -439,8 +482,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         if execution.type in (ExecType.TRADE, ExecType.TRANSFER):
             if execution.side == self.initial.side:
                 self.entry = weighted_avg(
-                    (self.entry, execution.price),
-                    (self.qty, execution.qty)
+                    (self.entry, execution.price), (self.qty, execution.qty)
                 )
                 self.qty += execution.qty
                 self.open_qty += execution.qty
@@ -455,26 +497,33 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                         side=execution.side,
                         time=execution.time,
                         type=execution.type,
-                        settle=execution.settle
+                        settle=execution.settle,
                     )
                     # Because the execution is "split" we also have to assign
                     # the commissions accordingly
                     if execution.commission:
-                        new_exec.commission = execution.commission * new_exec.qty / execution.qty
+                        new_exec.commission = (
+                            execution.commission * new_exec.qty / execution.qty
+                        )
                         execution.commission -= new_exec.commission
                     execution.qty = self.open_qty
 
-                    new = Trade.from_execution(new_exec, self.client_id, current_balance)
+                    new = Trade.from_execution(
+                        new_exec, self.client_id, current_balance
+                    )
 
                 if self.exit is None:
                     self.exit = execution.price
                 else:
                     realized_qty = self.qty - self.open_qty
-                    self.exit = weighted_avg((self.exit, execution.price),
-                                             (realized_qty, execution.qty))
+                    self.exit = weighted_avg(
+                        (self.exit, execution.price), (realized_qty, execution.qty)
+                    )
 
                 if execution.realized_pnl is None:
-                    execution.realized_pnl = self.calc_pnl(execution.qty, execution.price)
+                    execution.realized_pnl = self.calc_pnl(
+                        execution.qty, execution.price
+                    )
 
                 self.open_qty -= execution.qty
                 self.realized_pnl += execution.realized_pnl
@@ -489,9 +538,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
         return new
 
-    async def reverse_to(self,
-                         date: datetime,
-                         db: AsyncSession) -> Optional[Trade]:
+    async def reverse_to(self, date: datetime, db: AsyncSession) -> Optional[Trade]:
         """
         Method used for setting a trade back to a specific point in time.
         Used when an invalid series of executions is detected (e.g. websocket shut down
@@ -507,7 +554,9 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
 
             if date > self.open_time:
                 # First, create a new copy based on the same initial execution
-                new_trade = Trade.from_execution(self.initial, self.client_id, self.init_balance)
+                new_trade = Trade.from_execution(
+                    self.initial, self.client_id, self.init_balance
+                )
                 new_trade.__realtime__ = False
 
                 # Then reapply the executions that are not due for deletion
@@ -521,8 +570,7 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
                 self.__realtime__ = False
                 await db.execute(
                     delete(PnlData).where(
-                        PnlData.trade_id == self.id,
-                        PnlData.time > date
+                        PnlData.trade_id == self.id, PnlData.time > date
                     )
                 )
 
@@ -540,14 +588,20 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         return False
 
     @classmethod
-    def from_execution(cls, execution: Execution, client_id: int, current_balance: Optional[Balance] = None):
-
+    def from_execution(
+        cls,
+        execution: Execution,
+        client_id: int,
+        current_balance: Optional[Balance] = None,
+    ):
         trade = Trade(
             entry=execution.price,
             qty=execution.qty,
             open_time=execution.time,
             open_qty=execution.qty,
-            transferred_qty=execution.qty if execution.type == ExecType.TRANSFER else Decimal(0),
+            transferred_qty=execution.qty
+            if execution.type == ExecType.TRANSFER
+            else Decimal(0),
             initial=execution,
             total_commissions=execution.commission,
             symbol=execution.symbol,
@@ -556,26 +610,20 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
             settle=execution.settle,
             client_id=client_id,
             init_balance=current_balance,
-            realized_pnl=0
+            realized_pnl=0,
         )
         execution.trade = trade
 
         trade.max_pnl = PnlData(
-            trade=trade,
-            realized=Decimal(0),
-            unrealized=Decimal(0),
-            time=execution.time
+            trade=trade, realized=Decimal(0), unrealized=Decimal(0), time=execution.time
         )
         trade.min_pnl = PnlData(
-            trade=trade,
-            realized=Decimal(0),
-            unrealized=Decimal(0),
-            time=execution.time
+            trade=trade, realized=Decimal(0), unrealized=Decimal(0), time=execution.time
         )
         return trade
 
 
-@event.listens_for(Trade, 'before_update')
+@event.listens_for(Trade, "before_update")
 def before_update(mapper, connection, trade: Trade):
     if not trade.is_open and not trade.close_time:
         trade.close_time = trade.executions[-1].time

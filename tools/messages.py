@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import select
 
 from common.messenger import Messenger, NameSpaceInput
-from database.dbasync import db_all, redis, db_unique
+from database.dbasync import redis, db_unique
 
 
 async def publish(namespace: NameSpaceInput, topic: str, id: Any = None):
@@ -16,8 +16,8 @@ async def publish(namespace: NameSpaceInput, topic: str, id: Any = None):
         select(namespace.table).where(
             namespace.table.id == id,
         ),
-        getattr(namespace.table, 'client', None),
-        getattr(namespace.table, 'user', None),
+        getattr(namespace.table, "client", None),
+        getattr(namespace.table, "user", None),
     )
     print(instance, namespace.table, id)
     await messenger.pub_instance(
@@ -26,7 +26,7 @@ async def publish(namespace: NameSpaceInput, topic: str, id: Any = None):
     )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Reset a specific client")
     parser.add_argument("--ns", help="Namespace", type=str)
     parser.add_argument("--topic", help="Topic to publish", type=str)

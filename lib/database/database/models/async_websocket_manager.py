@@ -3,8 +3,7 @@ import logging
 import secrets
 import time
 from asyncio import Future
-from random import random
-from typing import Callable, Any
+from typing import Optional, Callable, Any
 
 import aiohttp
 from aiohttp import WSMessage
@@ -23,18 +22,20 @@ class WebsocketManager:
 
     # Note that the url is provided through a function because some exchanges
     # have authentication embedded into the url
-    def __init__(self,
-                 session: aiohttp.ClientSession,
-                 get_url: Callable[..., str] | str,
-                 on_connect: Callable[[Self], None] = None,
-                 ping_forever_seconds: int = None,
-                 logger: logging.Logger = None):
+    def __init__(
+        self,
+        session: aiohttp.ClientSession,
+        get_url: Callable[..., str] | str,
+        on_connect: Optional[Callable[[Self], None]] = None,
+        ping_forever_seconds: Optional[int] = None,
+        logger: Optional[logging.Logger] = None,
+    ):
         self._ws: aiohttp.ClientWebSocketResponse = None
         self._session = session
         self._get_url = get_url
         self._on_connect = on_connect
         self._ping_forever_seconds = ping_forever_seconds
-        self._logger = logger.getChild('WS') if logger else logging.getLogger(__name__)
+        self._logger = logger.getChild("WS") if logger else logging.getLogger(__name__)
 
         self._waiting: dict[str, Future] = {}
 
@@ -49,13 +50,13 @@ class WebsocketManager:
     def _get_error(cls, message: dict) -> Exception | None:
         return None
 
-    async def send(self, msg: str | bytes, msg_id: Any = None):
+    async def send(self, msg: str | bytes, msg_id: Optional[Any] = None):
         if not self.connected:
             return
 
         if isinstance(msg, str):
-            msg = msg.encode('')
-        #self._logger.debug(f'SENDING: {msg} {self._ws.closed=}')
+            msg = msg.encode("")
+        # self._logger.debug(f'SENDING: {msg} {self._ws.closed=}')
         await self._ws._writer.send(msg, binary=False)
 
         if msg_id:
@@ -67,7 +68,7 @@ class WebsocketManager:
             except asyncio.exceptions.CancelledError:
                 raise MissingMessageError()
 
-    def send_json(self, data: dict, msg_id: Any = None):
+    def send_json(self, data: dict, msg_id: Optional[Any] = None):
         return self.send(core.json.dumps(data), msg_id=msg_id)
 
     async def close(self):
@@ -87,7 +88,7 @@ class WebsocketManager:
         ts = time.time()
         while not self.connected:
             if time.time() - ts > self._CONNECT_TIMEOUT_S:
-                self._logger.info('Timeout')
+                self._logger.info("Timeout")
                 self._ws = None
                 break
             await asyncio.sleep(0.25)
@@ -98,10 +99,10 @@ class WebsocketManager:
 
     async def _run(self):
         url = self._get_url() if callable(self._get_url) else self._get_url
-        self._logger.info(f'Connecting to {url}')
+        self._logger.info(f"Connecting to {url}")
         async with self._session.ws_connect(url, autoping=True) as ws:
             self._ws = ws
-            self._logger.info(f'Connected to {url}')
+            self._logger.info(f"Connected to {url}")
             asyncio.create_task(self._ping_forever())
             core.call_unknown_function(self._on_connect, self)
             async for msg in ws:
@@ -128,11 +129,11 @@ class WebsocketManager:
                         pass
                     await self._callback(self._on_message, ws, message)
                 if msg.type == aiohttp.WSMsgType.ERROR:
-                    self._logger.info(f'DISCONNECTED {self=}')
+                    self._logger.info(f"DISCONNECTED {self=}")
                     await self._callback(self._on_error, ws)
                     break
                 if msg.type == aiohttp.WSMsgType.CLOSED:
-                    self._logger.info(f'DISCONNECTED {self=}')
+                    self._logger.info(f"DISCONNECTED {self=}")
                     await self._callback(self._on_close, ws)
                     await self.reconnect()
                     break
@@ -155,7 +156,7 @@ class WebsocketManager:
             try:
                 await f(ws, *args, **kwargs)
             except Exception:
-                logging.exception('Error running websocket callback:')
+                logging.exception("Error running websocket callback:")
 
     async def _on_close(self, ws):
         await self.reconnect()

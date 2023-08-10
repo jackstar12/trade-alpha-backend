@@ -1,7 +1,6 @@
 from __future__ import annotations
 from datetime import date, timedelta
 from enum import Enum
-from operator import and_
 from typing import TypedDict, Optional
 from typing import TYPE_CHECKING
 from fastapi_users_db_sqlalchemy import GUID
@@ -10,11 +9,9 @@ import sqlalchemy as sa
 from sqlalchemy import orm, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import relationship, aliased
 
 from database import dbmodels
 from database.dbmodels.editing.template import Template
-import core
 from database.dbmodels.mixins.editsmixin import EditsMixin
 from database.dbsync import Base, BaseMixin
 from database.dbmodels.types import Document
@@ -27,9 +24,14 @@ if TYPE_CHECKING:
     from database.dbmodels.editing.chapter import Chapter
 
 journal_association = sa.Table(
-    'journal_association', Base.metadata,
-    sa.Column('journal_id', sa.ForeignKey('journal.id', ondelete="CASCADE"), primary_key=True),
-    sa.Column('client_id', sa.ForeignKey('client.id', ondelete="CASCADE"), primary_key=True)
+    "journal_association",
+    Base.metadata,
+    sa.Column(
+        "journal_id", sa.ForeignKey("journal.id", ondelete="CASCADE"), primary_key=True
+    ),
+    sa.Column(
+        "client_id", sa.ForeignKey("client.id", ondelete="CASCADE"), primary_key=True
+    ),
 )
 
 
@@ -49,12 +51,14 @@ class IntervalType(Enum):
 
 
 class Journal(BaseMixin, Base, EditsMixin):
-    __tablename__ = 'journal'
+    __tablename__ = "journal"
     __allow_unmapped = True
 
     id = sa.Column(sa.Integer, primary_key=True)
-    user_id = sa.Column(GUID, sa.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    user = orm.relationship('User', lazy='noload', foreign_keys=user_id)
+    user_id = sa.Column(
+        GUID, sa.ForeignKey("user.id", ondelete="CASCADE"), nullable=False
+    )
+    user = orm.relationship("User", lazy="noload", foreign_keys=user_id)
 
     title = sa.Column(sa.Text, nullable=False)
     chapter_interval = sa.Column(sa.Enum(IntervalType), nullable=True)
@@ -63,44 +67,41 @@ class Journal(BaseMixin, Base, EditsMixin):
     # data: JournalData = sa.Column(Data, nullable=True)
 
     clients = orm.relationship(
-        'Client',
-        lazy='noload',
+        "Client",
+        lazy="noload",
         secondary=journal_association,
-        backref=orm.backref('journals', lazy='noload')
+        backref=orm.backref("journals", lazy="noload"),
     )
 
-    chapters: 'list[Chapter]' = orm.relationship(
-        'Chapter',
-        lazy='noload',
-        cascade="all, delete",
-        back_populates="journal"
+    chapters: "list[Chapter]" = orm.relationship(
+        "Chapter", lazy="noload", cascade="all, delete", back_populates="journal"
     )
 
-    current_chapter: 'Chapter' = orm.relationship('Chapter',
-                                                  primaryjoin="and_("
-                                                              "Chapter.journal_id == Journal.id, "
-                                                              "Chapter.data['end_date'].astext.cast(Date) >= func.current_date()"
-                                                              ")",
-                                                  lazy='noload',
-                                                  back_populates="journal",
-                                                  viewonly=True,
-                                                  uselist=False
-                                                  )
+    current_chapter: "Chapter" = orm.relationship(
+        "Chapter",
+        primaryjoin="and_("
+        "Chapter.journal_id == Journal.id, "
+        "Chapter.data['end_date'].astext.cast(Date) >= func.current_date()"
+        ")",
+        lazy="noload",
+        back_populates="journal",
+        viewonly=True,
+        uselist=False,
+    )
 
     overview = sa.Column(Document, nullable=True)
 
-    default_template_id = sa.Column(sa.ForeignKey('template.id', ondelete="SET NULL"), nullable=True)
-    default_template = orm.relationship('Template',
-                                        lazy='noload',
-                                        foreign_keys=default_template_id,
-                                        uselist=False)
+    default_template_id = sa.Column(
+        sa.ForeignKey("template.id", ondelete="SET NULL"), nullable=True
+    )
+    default_template = orm.relationship(
+        "Template", lazy="noload", foreign_keys=default_template_id, uselist=False
+    )
 
-    def create_chapter(self, parent_id: int = None, template: Template = None):
-        new_chapter = db_chapter.Chapter(
-            journal=self,
-            parent_id=parent_id,
-            data=None
-        )
+    def create_chapter(
+        self, parent_id: Optional[int] = None, template: Optional[Template] = None
+    ):
+        new_chapter = db_chapter.Chapter(journal=self, parent_id=parent_id, data=None)
 
         if self.type == JournalType.INTERVAL:
             if self.current_chapter:
@@ -122,8 +123,7 @@ class Journal(BaseMixin, Base, EditsMixin):
                 end_date = start
 
             new_chapter.data = db_chapter.ChapterData(
-                start_date=start,
-                end_date=end_date
+                start_date=start, end_date=end_date
             )
 
         if template:
@@ -131,7 +131,7 @@ class Journal(BaseMixin, Base, EditsMixin):
             new_chapter.doc[0] = DocumentModel(
                 type="title",
                 attrs={
-                    'level': 1,
+                    "level": 1,
                 },
                 # content=[
                 #    DocumentModel(
@@ -147,7 +147,7 @@ class Journal(BaseMixin, Base, EditsMixin):
                     DocumentModel(
                         type="title",
                         attrs={
-                            'level': 1,
+                            "level": 1,
                         },
                         # content=[
                         #    DocumentModel(
@@ -157,26 +157,24 @@ class Journal(BaseMixin, Base, EditsMixin):
                         # ]
                     )
                 ],
-                type='doc'
+                type="doc",
             )
 
-        data = {
-            'clientIds': [str(id) for id in self.client_ids]
-        }
+        data = {"clientIds": [str(id) for id in self.client_ids]}
 
         if new_chapter.data:
-            data['dates'] = {
-                'since': new_chapter.data.start_date,
-                'to': new_chapter.data.end_date,
+            data["dates"] = {
+                "since": new_chapter.data.start_date,
+                "to": new_chapter.data.end_date,
             }
 
-        new_chapter.doc[0].attrs['data'] = data
+        new_chapter.doc[0].attrs["data"] = data
         new_chapter.doc[0].type = "title"
 
         self.chapters.append(new_chapter)
         return new_chapter
 
-    async def update(self, template: Template = None):
+    async def update(self, template: Optional[Template] = None):
         return
         if self.name == JournalType.INTERVAL:
             template = template or self.default_template
@@ -196,20 +194,20 @@ class Journal(BaseMixin, Base, EditsMixin):
 
     @client_ids.expression
     def client_ids(self):
-        return (
-            select(dbmodels.Client.id).join(self.clients).scalar_subquery()
-        )
+        return select(dbmodels.Client.id).join(self.clients).scalar_subquery()
 
     async def init(self, db_session: AsyncSession):
         return
 
     def flatten_content(self):
         pass
-#test = aliased(Client.id)
+
+
+# test = aliased(Client.id)
 #
-#Journal.client_ids = relationship(
+# Journal.client_ids = relationship(
 #    test,
 #    primaryjoin=and_(
-#journal_association.
+# journal_association.
 #    )
-#)
+# )

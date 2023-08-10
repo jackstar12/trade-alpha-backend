@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple
 
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -36,7 +36,7 @@ def get_oauth_router(
     authenticator: Authenticator,
     get_user_manager: DependencyCallable[UserManager],
     state_secret: SecretType,
-    redirect_url: str = None,
+    redirect_url: Optional[str] = None,
 ) -> APIRouter:
     """Generate a router with the OAuth routes."""
     router = APIRouter()
@@ -108,7 +108,7 @@ def get_oauth_router(
         ),
         user_manager: UserManager = Depends(get_user_manager),
         strategy: Strategy[models.UP, models.ID] = Depends(backend.get_strategy),
-        current_user: models.UP = Depends(authenticator.current_user(optional=True))
+        current_user: models.UP = Depends(authenticator.current_user(optional=True)),
     ):
         token, state = access_token_state
         account_id, account_email = await oauth_client.get_id_email(
@@ -167,9 +167,8 @@ def get_oauth_router(
     )
     async def disconnect(
         user_manager: UserManager = Depends(get_user_manager),
-        current_user: models.UP = Depends(authenticator.current_user(optional=False))
+        current_user: models.UP = Depends(authenticator.current_user(optional=False)),
     ):
-
         user = await user_manager.disconnect_oauth_callback(
             current_user,
             oauth_client.name,

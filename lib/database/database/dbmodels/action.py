@@ -30,11 +30,11 @@ class ActionTrigger(Enum):
 
 
 class Action(Base, BaseMixin, EditsMixin, Serializer):
-    __tablename__ = 'action'
+    __tablename__ = "action"
 
     id = sa.Column(sa.Integer, primary_key=True)
-    user_id = sa.Column(sa.ForeignKey('user.id', ondelete='CASCADE'), nullable=False)
-    user: User = relationship('User', lazy='raise')
+    user_id = sa.Column(sa.ForeignKey("user.id", ondelete="CASCADE"), nullable=False)
+    user: User = relationship("User", lazy="raise")
 
     name = sa.Column(sa.String, nullable=True)
     type = sa.Column(sa.Enum(ActionType), nullable=False)
@@ -43,7 +43,7 @@ class Action(Base, BaseMixin, EditsMixin, Serializer):
     message = sa.Column(sa.String, nullable=True)
     delay = sa.Column(sa.Interval, nullable=True)
     trigger_type = sa.Column(sa.Enum(ActionTrigger), nullable=False)
-    _trigger_ids = sa.Column('trigger_ids', JSONB, nullable=True)
+    _trigger_ids = sa.Column("trigger_ids", JSONB, nullable=True)
 
     @hybrid_property
     def trigger_ids(self):
@@ -55,6 +55,6 @@ class Action(Base, BaseMixin, EditsMixin, Serializer):
 
     @hybrid_property
     def all_ids(self):
-        res = {'user_id': self.user_id}
+        res = {"user_id": self.user_id}
         res |= self.trigger_ids
         return res

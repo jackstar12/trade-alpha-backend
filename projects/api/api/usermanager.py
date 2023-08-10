@@ -15,7 +15,6 @@ SECRET = "SECRET"
 
 
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
-
     reset_password_token_secret = SECRET
     verification_token_secret = SECRET
 
@@ -23,13 +22,21 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         print(f"User {user.id} has registered.")
 
     async def on_after_forgot_password(
-        self, user: User, token: str, request: Optional[Request] = None, authenticator = Depends(Authenticator)
+        self,
+        user: User,
+        token: str,
+        request: Optional[Request] = None,
+        authenticator=Depends(Authenticator),
     ):
         await authenticator.invalidate_user_sessions(user)
         print(f"User {user.id} has forgot their password. Reset token: {token}")
 
     async def on_after_request_verify(
-        self, user: User, token: str, request: Optional[Request] = None, authenticator = Depends(Authenticator)
+        self,
+        user: User,
+        token: str,
+        request: Optional[Request] = None,
+        authenticator=Depends(Authenticator),
     ):
         await authenticator.invalidate_user_sessions(user)
         print(f"Verification requested for user {user.id}. Verification token: {token}")

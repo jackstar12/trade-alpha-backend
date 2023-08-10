@@ -7,8 +7,8 @@ router = APIRouter(
     dependencies=[Depends(CurrentUser)],
     responses={
         401: {"msg": "Wrong Email or Password"},
-        400: {"msg": "Email is already used"}
-    }
+        400: {"msg": "Email is already used"},
+    },
 )
 
 
@@ -21,8 +21,8 @@ router = APIRouter(
 #     }
 #
 #
-#@router.websocket('/client/ws')
-#async def client_websocket(websocket: WebSocket, csrf_token: str = Query(...),
+# @router.websocket('/client/ws')
+# async def client_websocket(websocket: WebSocket, csrf_token: str = Query(...),
 #                           authenticator: Authenticator = Depends(get_authenticator)):
 #    await websocket.accept()
 #

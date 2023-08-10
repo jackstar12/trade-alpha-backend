@@ -1,7 +1,6 @@
 # inside of a "create the database" script, first create
 # tables:
 from database.dbsync import Base, engine
-import database.dbmodels as dbmodels
 from alembic.config import Config
 from alembic import command
 
@@ -15,5 +14,5 @@ def init_db():
     command.stamp(alembic_cfg, "head")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     init_db()

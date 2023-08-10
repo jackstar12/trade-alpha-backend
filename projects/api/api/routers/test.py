@@ -9,12 +9,12 @@ from api.users import CurrentUser
 router = APIRouter(
     tags=["transfer"],
     responses={
-        401: {'detail': 'Wrong Email or Password'},
-        400: {'detail': "Email is already used"}
-    }
+        401: {"detail": "Wrong Email or Password"},
+        400: {"detail": "Email is already used"},
+    },
 )
 
 
-@router.get('/test')
+@router.get("/test")
 async def test(user: User = Depends(CurrentUser), db: AsyncSession = Depends(get_db)):
     assert object_session(user) == db.sync_session

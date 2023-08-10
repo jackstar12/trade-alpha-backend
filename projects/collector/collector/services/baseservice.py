@@ -13,13 +13,14 @@ from core import call_unknown_function
 
 
 class BaseService:
-
-    def __init__(self,
-                 http_session: aiohttp.ClientSession,
-                 redis: Redis,
-                 scheduler: AsyncIOScheduler,
-                 session_maker: sessionmaker,
-                 **kwargs):
+    def __init__(
+        self,
+        http_session: aiohttp.ClientSession,
+        redis: Redis,
+        scheduler: AsyncIOScheduler,
+        session_maker: sessionmaker,
+        **kwargs,
+    ):
         self._http_session = http_session
         self._messenger = Messenger(redis)
         self._redis = redis
@@ -27,7 +28,7 @@ class BaseService:
         self._db: AsyncSession = None
         self._db_maker = session_maker
         self._db_lock = asyncio.Lock()
-        self._logger = logging.getLogger(f'Collector: {self.__class__.__name__}')
+        self._logger = logging.getLogger(f"Collector: {self.__class__.__name__}")
 
     async def init(self):
         pass
@@ -37,7 +38,9 @@ class BaseService:
             @wraps(coro)
             async def wrapper(data: dict):
                 async with self._db_lock:
-                    instance = await self._db.get(table, data['id'], populate_existing=True)
+                    instance = await self._db.get(
+                        table, data["id"], populate_existing=True
+                    )
                 return await call_unknown_function(coro, instance)
 
             return wrapper
@@ -53,11 +56,11 @@ class BaseService:
         pass
 
     async def __aenter__(self):
-        self._logger.info('Initialising')
+        self._logger.info("Initialising")
         self._db = self._db_maker()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._logger.info('Exiting')
+        self._logger.info("Exiting")
         await self._db.close()
         await self.teardown()

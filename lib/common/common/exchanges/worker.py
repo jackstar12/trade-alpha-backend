@@ -4,14 +4,13 @@ import asyncio
 import itertools
 import logging
 from collections import deque
-from datetime import datetime, date
+from datetime import date
 from decimal import Decimal
 from operator import or_
-from typing import List, Tuple, Optional
+from typing import Optional
 from typing import TYPE_CHECKING
 
 import aiohttp
-import pytz
 from sqlalchemy import select, desc, asc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload, sessionmaker
@@ -26,14 +25,14 @@ from common.messenger import TableNames, Category, Messenger
 from core.utils import combine_time_series, MINUTE, utc_now
 from database.dbasync import db_unique, db_all, db_select, db_select_all, redis
 from database.dbmodels.client import Client, ClientState
+
 # from database.dbmodels.ohlc import OHLC
 from database.dbmodels.execution import Execution
 from database.dbmodels.pnldata import PnlData
 from database.dbmodels.trade import Trade
 from database.dbmodels.transfer import Transfer
-from database.enums import Priority, ExecType, MarketType
-from database.errors import ResponseError, \
-    ClientDeletedError
+from database.enums import ExecType, MarketType
+from database.errors import ClientDeletedError
 from database.models.market import Market
 from database.models.observer import Observer
 from database.models.ohlc import OHLC
@@ -47,22 +46,26 @@ logger = logging.getLogger(__name__)
 
 
 class Worker(Observer):
-
-    def __init__(self,
-                 client: Client,
-                 http_session: aiohttp.ClientSession,
-                 db_maker: sessionmaker,
-                 data_service: DataService,
-                 messenger: Messenger = None,
-                 commit=True):
-
+    def __init__(
+        self,
+        client: Client,
+        http_session: aiohttp.ClientSession,
+        db_maker: sessionmaker,
+        data_service: DataService,
+        messenger: Optional[Messenger] = None,
+        commit=True,
+    ):
         exchange_cls = EXCHANGES.get(client.exchange)
 
         if exchange_cls and issubclass(exchange_cls, Exchange):
-            self.exchange = exchange_cls(client, http_session=http_session, db_maker=db_maker,
-                                         on_execution=self._on_execution)
+            self.exchange = exchange_cls(
+                client,
+                http_session=http_session,
+                db_maker=db_maker,
+                on_execution=self._on_execution,
+            )
         else:
-            raise ValueError(f'Invalid exchange: {client.exchange}')
+            raise ValueError(f"Invalid exchange: {client.exchange}")
 
         self.client_id = client.id if commit else None
         self.messenger = messenger
@@ -76,7 +79,9 @@ class Worker(Observer):
 
         self._pending_execs: deque[Execution] = deque()
 
-        self._logger = logging.getLogger(__name__ + f' {self.exchange} id={self.client_id}')
+        self._logger = logging.getLogger(
+            __name__ + f" {self.exchange} id={self.client_id}"
+        )
 
     async def cleanup(self):
         await self.exchange.clean_ws()
@@ -84,7 +89,7 @@ class Worker(Observer):
             await self.data_service.unsubscribe(
                 self.client.exchange_info,
                 Subscription.get(Channel.TICKER, symbol=symbol),
-                observer=self
+                observer=self,
             )
         await self.db.close()
 
@@ -94,11 +99,12 @@ class Worker(Observer):
 
     async def refresh(self):
         self.client = await db_unique(
-            select(Client).where(Client.id == self.client_id)
+            select(Client)
+            .where(Client.id == self.client_id)
             .execution_options(populate_existing=True),
             Client.currently_realized,
             (Client.open_trades, [Trade.max_pnl, Trade.min_pnl, Trade.init_balance]),
-            session=self.db
+            session=self.db,
         )
 
         new_symbols = {trade.symbol for trade in self.client.open_trades}
@@ -106,13 +112,13 @@ class Worker(Observer):
             await self.data_service.unsubscribe(
                 self.client.exchange_info,
                 Subscription.get(Channel.TICKER, symbol=remove),
-                observer=self
+                observer=self,
             )
         for add in new_symbols.difference(self._subscribed_symbols):
             await self.data_service.subscribe(
                 self.client.exchange_info,
                 Subscription.get(Channel.TICKER, symbol=add),
-                observer=self
+                observer=self,
             )
         self._subscribed_symbols = new_symbols
         return self.client
@@ -130,15 +136,21 @@ class Worker(Observer):
                 balance.time = utc_now()
 
                 for trade in client.open_trades:
-                    if trade.initial.market_type == MarketType.DERIVATIVES and trade.live_pnl:
-                        balance.add_amount(trade.settle, unrealized=trade.live_pnl.unrealized)
+                    if (
+                        trade.initial.market_type == MarketType.DERIVATIVES
+                        and trade.live_pnl
+                    ):
+                        balance.add_amount(
+                            trade.settle, unrealized=trade.live_pnl.unrealized
+                        )
 
                 if balance.extra_currencies:
                     for amount in balance.extra_currencies:
                         market = Market(base=amount.currency, quote=client.currency)
                         if not self.exchange.is_equal(market):
-                            ticker = await self.data_service.get_ticker(self.exchange.get_symbol(market),
-                                                                        client.exchange_info)
+                            ticker = await self.data_service.get_ticker(
+                                self.exchange.get_symbol(market), client.exchange_info
+                            )
                             amount.rate = ticker.price if ticker else 0
                         else:
                             amount.rate = 1
@@ -157,7 +169,9 @@ class Worker(Observer):
         new balance object
         """
         async with self.db_maker() as db:
-            client = await self._get_client(db, options=(selectinload(Client.recent_history),))
+            client = await self._get_client(
+                db, options=(selectinload(Client.recent_history),)
+            )
             self.client = client
             result = await self.exchange.get_balance()
 
@@ -169,7 +183,9 @@ class Worker(Observer):
                         history[-1].time = date
                         return None
                 if result.error:
-                    logger.error(f'Error while fetching {client.id=} balance: {result.error}')
+                    logger.error(
+                        f"Error while fetching {client.id=} balance: {result.error}"
+                    )
                 else:
                     await client.as_redis().set_balance(result)
             return result
@@ -190,13 +206,20 @@ class Worker(Observer):
         """
         async with self.db_maker() as db:
             client: Client = await db_select(
-                Client, Client.id == self.client_id,
+                Client,
+                Client.id == self.client_id,
                 eager=[
-                    (Client.trades, [Trade.executions, Trade.init_balance, Trade.initial]),
-                    (Client.open_trades, [Trade.executions, Trade.init_balance, Trade.initial]),
-                    Client.currently_realized
+                    (
+                        Client.trades,
+                        [Trade.executions, Trade.init_balance, Trade.initial],
+                    ),
+                    (
+                        Client.open_trades,
+                        [Trade.executions, Trade.init_balance, Trade.initial],
+                    ),
+                    Client.currently_realized,
                 ],
-                session=db
+                session=db,
             )
             client.state = ClientState.SYNCHRONIZING
             await db.commit()
@@ -207,26 +230,26 @@ class Worker(Observer):
             transfers, all_executions, misc = await self.exchange.get_executions(since)
 
             check_executions = await db_all(
-                select(Execution).order_by(
-                    asc(Execution.time)
-                ).join(
-                    Execution.trade, isouter=True
-                ).join(
-                    Execution.transfer, isouter=True
-                ).where(
+                select(Execution)
+                .order_by(asc(Execution.time))
+                .join(Execution.trade, isouter=True)
+                .join(Execution.transfer, isouter=True)
+                .where(
                     or_(
                         Trade.client_id == self.client_id,
-                        Transfer.client_id == self.client_id
+                        Transfer.client_id == self.client_id,
                     ),
                     Execution.time > since if since else True,
                 ),
-                session=db
+                session=db,
             )
 
             valid_until = since
             abs_exec_sum = abs_check_sum = Decimal(0)
             exec_sum = check_sum = Decimal(0)
-            for execution, check in itertools.zip_longest(all_executions, check_executions):
+            for execution, check in itertools.zip_longest(
+                all_executions, check_executions
+            ):
                 if execution:
                     if not execution.qty and not execution.realized_pnl:
                         pass
@@ -238,7 +261,11 @@ class Worker(Observer):
                 if abs_exec_sum == abs_check_sum and abs_exec_sum != 0:
                     valid_until = (execution or check).time
 
-            all_executions = [e for e in all_executions if e.time > valid_until] if valid_until else all_executions
+            all_executions = (
+                [e for e in all_executions if e.time > valid_until]
+                if valid_until
+                else all_executions
+            )
 
             executions_by_symbol = core.groupby(all_executions, lambda e: e.symbol)
 
@@ -269,11 +296,16 @@ class Worker(Observer):
                     if not symbol:
                         continue
 
-                    should_qty = sum(position.effective_qty for position in real_positions.get(symbol, []))
+                    should_qty = sum(
+                        position.effective_qty
+                        for position in real_positions.get(symbol, [])
+                    )
                     open_qty = positions.get(symbol, 0)
 
                     while executions:
-                        is_qty = sum([e.effective_qty for e in executions], start=open_qty)
+                        is_qty = sum(
+                            [e.effective_qty for e in executions], start=open_qty
+                        )
                         if is_qty != should_qty:
                             executions.pop(0)
                         else:
@@ -303,13 +335,21 @@ class Worker(Observer):
 
                         all_trades = set()
                         for item in executions:
-                            current_trade = await self._add_executions(db, [item], realtime=False)
+                            current_trade = await self._add_executions(
+                                db, [item], realtime=False
+                            )
                             all_trades.add(current_trade)
 
                         for trade in all_trades:
-                            dummy = Trade.from_execution(trade.initial, trade.client_id, trade.init_balance)
-                            ohlc_data = await self.exchange.get_ohlc(symbol, since=trade.open_time, to=trade.close_time)
-                            for item in combine_time_series(ohlc_data, trade.executions[1:-1]):
+                            dummy = Trade.from_execution(
+                                trade.initial, trade.client_id, trade.init_balance
+                            )
+                            ohlc_data = await self.exchange.get_ohlc(
+                                symbol, since=trade.open_time, to=trade.close_time
+                            )
+                            for item in combine_time_series(
+                                ohlc_data, trade.executions[1:-1]
+                            ):
                                 if isinstance(item, Execution):
                                     dummy.add_execution(item)
                                     all_trades.add(current_trade)
@@ -317,7 +357,7 @@ class Worker(Observer):
                                     trade.update_pnl(
                                         dummy.calc_upnl(item.open),
                                         now=item.time,
-                                        extra_currencies={client.currency: item.open}
+                                        extra_currencies={client.currency: item.open},
                                     )
                         to_exec = next(exec_iter, None)
 
@@ -337,10 +377,12 @@ class Worker(Observer):
             balances = []
             pnl_data = await db_select_all(
                 PnlData,
-                PnlData.trade_id.in_(execution.trade_id for execution in all_executions),
+                PnlData.trade_id.in_(
+                    execution.trade_id for execution in all_executions
+                ),
                 eager=[PnlData.trade],
                 apply=lambda s: s.order_by(desc(PnlData.time)),
-                session=db
+                session=db,
             )
 
             pnl_iter = iter(pnl_data)
@@ -348,7 +390,9 @@ class Worker(Observer):
 
             # Note that we iterate through the executions reversed because we have to reconstruct
             # the history from the only known point (which is the present)
-            for prev_exec, execution, next_exec in core.prev_now_next(reversed(all_executions)):
+            for prev_exec, execution, next_exec in core.prev_now_next(
+                reversed(all_executions)
+            ):
                 execution: Execution
                 prev_exec: Execution
                 next_exec: Execution
@@ -358,14 +402,19 @@ class Worker(Observer):
                 current_balance.__realtime__ = False
 
                 if execution.type == ExecType.TRANSFER:
-                    current_balance.add_amount(execution.settle, realized=-execution.effective_qty)
+                    current_balance.add_amount(
+                        execution.settle, realized=-execution.effective_qty
+                    )
 
                 pnl_by_trade = {}
 
                 if next_exec:
                     # The closest pnl from each trade should be taken into account
                     while cur_pnl and cur_pnl.time > next_exec.time:
-                        if cur_pnl.time < execution.time and cur_pnl.trade_id not in pnl_by_trade:
+                        if (
+                            cur_pnl.time < execution.time
+                            and cur_pnl.trade_id not in pnl_by_trade
+                        ):
                             pnl_by_trade[cur_pnl.trade_id] = cur_pnl
                         cur_pnl = next(pnl_iter, None)
 
@@ -373,14 +422,16 @@ class Worker(Observer):
                     execution.trade.init_balance = current_balance
 
                 if execution.net_pnl:
-                    current_balance.add_amount(execution.settle, realized=-execution.net_pnl)
+                    current_balance.add_amount(
+                        execution.settle, realized=-execution.net_pnl
+                    )
 
                 if current_balance.extra_currencies:
                     for amount in current_balance.extra_currencies:
                         amount.rate = await self.exchange.conversion_rate(
                             Market(base=amount.currency, quote=client.currency),
                             execution.time,
-                            resolution_s=5 * MINUTE
+                            resolution_s=5 * MINUTE,
                         )
                     current_balance.evaluate()
 
@@ -432,7 +483,9 @@ class Worker(Observer):
     async def _get_client(self, db: AsyncSession, options=None) -> Client:
         client = await db.get(Client, self.client_id, options=options)
         if client is None:
-            await self.messenger.pub_channel(TableNames.CLIENT, Category.DELETE, obj={'id': self.client_id})
+            await self.messenger.pub_channel(
+                TableNames.CLIENT, Category.DELETE, obj={"id": self.client_id}
+            )
             raise ClientDeletedError()
         return client
 
@@ -443,16 +496,20 @@ class Worker(Observer):
             client = await self._get_client(db)
             client.currently_realized = balance
             spot_trades = await db_all(
-                select(Trade).where(
+                select(Trade)
+                .where(
                     Trade.client_id == client.id,
                     Trade.is_open,
-                    Execution.market_type == MarketType.SPOT
-                ).join(Trade.initial),
-                session=db
+                    Execution.market_type == MarketType.SPOT,
+                )
+                .join(Trade.initial),
+                session=db,
             )
 
             for trade in spot_trades:
-                realized = balance.get_realized(ccy=self.exchange.get_market(trade.symbol).base)
+                realized = balance.get_realized(
+                    ccy=self.exchange.get_market(trade.symbol).base
+                )
                 trade.open_qty = realized
                 if realized > trade.qty:
                     trade.qty = realized
@@ -469,17 +526,16 @@ class Worker(Observer):
             execution = [execution]
         try:
             trade = await self._add_executions(self.db, execution, realtime=True)
-            self._logger.debug(f'Added executions {execution} {trade}')
+            self._logger.debug(f"Added executions {execution} {trade}")
             await self.db.commit()
             await self.refresh()
             return
-        except Exception as e:
-            self._logger.exception('Error while adding executions')
+        except Exception:
+            self._logger.exception("Error while adding executions")
 
-    async def _add_executions(self,
-                              db: AsyncSession,
-                              executions: list[Execution],
-                              realtime=True):
+    async def _add_executions(
+        self, db: AsyncSession, executions: list[Execution], realtime=True
+    ):
         client = await self._get_client(db)
         current_balance = client.currently_realized
 
@@ -487,14 +543,13 @@ class Worker(Observer):
             active_trade: Optional[Trade] = None
 
             async def get_trade(execution: Execution) -> Optional[Trade]:
-
                 stmt = (
-                    select(Trade).where(
+                    select(Trade)
+                    .where(
                         # Trade.symbol.like(f'{symbol}%'),
                         Trade.client_id == self.client_id,
                         Execution.symbol == execution.symbol,
-                        Execution.market_type == execution.market_type
-
+                        Execution.market_type == execution.market_type,
                     )
                     .join(Trade.initial)
                 )
@@ -502,21 +557,23 @@ class Worker(Observer):
                 # The distinguishing here is pretty important because Liquidation Execs can happen
                 # after a trade has been closed on paper (e.g. insurance fund on binance). These still have to be
                 # attributed to the corresponding trade.
-                if execution.type in (ExecType.TRADE, ExecType.TRANSFER, ExecType.FUNDING):
-                    stmt = stmt.where(
-                        Trade.is_open
-                    )
+                if execution.type in (
+                    ExecType.TRADE,
+                    ExecType.TRANSFER,
+                    ExecType.FUNDING,
+                ):
+                    stmt = stmt.where(Trade.is_open)
                 elif execution.type in (ExecType.FUNDING, ExecType.LIQUIDATION):
-                    stmt = stmt.order_by(
-                        desc(Trade.open_time)
-                    )
-                trades = await db_all(stmt,
-                                      Trade.executions,
-                                      Trade.init_balance,
-                                      Trade.initial,
-                                      Trade.max_pnl,
-                                      Trade.min_pnl,
-                                      session=db)
+                    stmt = stmt.order_by(desc(Trade.open_time))
+                trades = await db_all(
+                    stmt,
+                    Trade.executions,
+                    Trade.init_balance,
+                    Trade.initial,
+                    Trade.max_pnl,
+                    Trade.min_pnl,
+                    session=db,
+                )
 
                 if len(trades) > 1:
                     for trade in trades:
@@ -527,7 +584,6 @@ class Worker(Observer):
                     return trades[0]
 
             for execution in executions:
-
                 if self.exchange.exclude_from_trade(execution):
                     continue
 
@@ -544,27 +600,32 @@ class Worker(Observer):
                         db.add(new_trade)
                         active_trade = new_trade
                 else:
-                    active_trade = Trade.from_execution(execution, self.client_id, current_balance)
+                    active_trade = Trade.from_execution(
+                        execution, self.client_id, current_balance
+                    )
                     db.add(active_trade)
 
                 active_trade.__realtime__ = realtime
 
                 try:
                     await db.flush()
-                except StaleDataError as e:
-                    self._logger.exception(f'Error while adding execution {execution}')
+                except StaleDataError:
+                    self._logger.exception(f"Error while adding execution {execution}")
                     pass
                 if not realtime:
                     if execution.settle:
                         spot_trade = await db_unique(
-                            select(Trade).where(
+                            select(Trade)
+                            .where(
                                 Trade.is_open,
-                                Trade.symbol == self.exchange.get_symbol(
+                                Trade.symbol
+                                == self.exchange.get_symbol(
                                     Market(base=execution.settle, quote=client.currency)
                                 ),
                                 Execution.market_type == MarketType.SPOT,
-                            ).join(Trade.initial),
-                            session=db
+                            )
+                            .join(Trade.initial),
+                            session=db,
                         )
                         if spot_trade:
                             spot_trade.open_qty += execution.net_pnl
@@ -583,34 +644,8 @@ class Worker(Observer):
 
             return active_trade
 
-    @classmethod
-    def _calc_resolution(cls,
-                         n: int,
-                         resolutions_s: List[int],
-                         since: datetime,
-                         to: datetime = None) -> Optional[Tuple[int, int]]:
-        """
-        Small helper for finding out which resolution [s] suits a given amount of data points requested best.
-
-        Used in order to avoid unreasonable amounts (or too little in general)
-        of data being fetched, look which timeframe suits the given limit best
-
-        :param n: n data points
-        :param resolutions_s: Possibilities (have to be sorted!)
-        :param since: used to calculate seconds passed
-        :param now: [optional] can be passed to replace datetime.now()
-        :return: Fitting resolution or  None
-        """
-        if to:
-            for res in resolutions_s:
-                current_n = (to - since).total_seconds() // res
-                if current_n <= n:
-                    return int(current_n), res
-        else:
-            return n, resolutions_s[0]
-
     def __repr__(self):
-        return f'<Worker exchange={self.exchange} client_id={self.client_id}>'
+        return f"<Worker exchange={self.exchange} client_id={self.client_id}>"
 
     async def __aenter__(self):
         return self

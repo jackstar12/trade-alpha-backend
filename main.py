@@ -1,5 +1,4 @@
 import api.app as app
 import uvicorn
 
-uvicorn.run(app, host='localhost', port=5000)
-
+uvicorn.run(app, host="localhost", port=5000)

@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot import utils
 from bot.cogs.cogbase import CogBase
+from typing import Optional
 
 
 class LeaderboardCog(CogBase):
-
     # @cog_ext.cog_subcommand(
     #     base="leaderboard",
     #     name="balance",
@@ -34,16 +34,20 @@ class LeaderboardCog(CogBase):
                 name="time",
                 description="Timeframe for gain. If not specified, gain since start will be used.",
                 required=False,
-                option_type=SlashCommandOptionType.STRING
+                option_type=SlashCommandOptionType.STRING,
             )
-        ]
+        ],
     )
     @utils.log_and_catch_errors()
-    @utils.time_args(('time', None))
+    @utils.time_args(("time", None))
     @utils.with_db
     @utils.server_only
-    async def leaderboard_gain(self, ctx: SlashContext, db: AsyncSession, time: datetime = None):
+    async def leaderboard_gain(
+        self, ctx: SlashContext, db: AsyncSession, time: Optional[datetime] = None
+    ):
         await ctx.defer()
         await ctx.send(
-            embed=await utils.get_leaderboard(self.bot, ctx.guild_id, ctx.channel_id, since=time, db=db)
+            embed=await utils.get_leaderboard(
+                self.bot, ctx.guild_id, ctx.channel_id, since=time, db=db
+            )
         )

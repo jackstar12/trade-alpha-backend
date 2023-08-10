@@ -3,7 +3,7 @@ import asyncio
 from abc import ABCMeta
 from abc import abstractmethod
 
-from core import call_unknown_function, return_unknown_function
+from core import return_unknown_function
 
 
 class Observer(object):
@@ -24,6 +24,7 @@ class Observer(object):
         ...     def update(self, new_value):
         ...         print('{} received new value: {}'.format(self._name, new_value[0]))
     """
+
     __metaclass__ = ABCMeta
 
     @abstractmethod
@@ -58,7 +59,7 @@ class Observable(object):
         ...
     """
 
-    def __init__(self, name = None):
+    def __init__(self, name=None):
         """
         :param name: A name may be set for this class, but if not set the class name is used.
         """
@@ -78,7 +79,7 @@ class Observable(object):
         :raise ValueError is raised if the observer object is not of type Observer
         """
         if not isinstance(observer, Observer):
-            raise ValueError('You need to pass a valid Observer class object')
+            raise ValueError("You need to pass a valid Observer class object")
         self._observers.add(observer)
 
     def detach(self, observer):
@@ -96,5 +97,8 @@ class Observable(object):
         :type new_state: A tuple of arbitrary content.
         """
         await asyncio.gather(
-            *[return_unknown_function(observer.update, *new_state) for observer in self._observers]
+            *[
+                return_unknown_function(observer.update, *new_state)
+                for observer in self._observers
+            ]
         )

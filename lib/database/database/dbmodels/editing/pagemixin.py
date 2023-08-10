@@ -18,10 +18,7 @@ if TYPE_CHECKING:
 
 
 def cmp_dates(col, val):
-    return or_(
-        col.astext.cast(Date) <= val.date() if val else True,
-        col == JSONB.NULL
-    )
+    return or_(col.astext.cast(Date) <= val.date() if val else True, col == JSONB.NULL)
 
 
 class PageMixin(EditsMixin):
@@ -30,8 +27,7 @@ class PageMixin(EditsMixin):
 
     @declared_attr
     def parent_id(self):
-        return sa.Column(sa.ForeignKey(self.id, ondelete="CASCADE"),
-                         nullable=True)
+        return sa.Column(sa.ForeignKey(self.id, ondelete="CASCADE"), nullable=True)
 
     if TYPE_CHECKING:
         doc: DocumentModel
@@ -40,10 +36,12 @@ class PageMixin(EditsMixin):
 
     @declared_attr
     def children(self):
-        return orm.relationship(self,
-                                backref=orm.backref('parent', remote_side=[self.id]),
-                                lazy='noload',
-                                cascade="all, delete")
+        return orm.relationship(
+            self,
+            backref=orm.backref("parent", remote_side=[self.id]),
+            lazy="noload",
+            cascade="all, delete",
+        )
 
     @hybrid_property
     def title(self):
@@ -54,7 +52,7 @@ class PageMixin(EditsMixin):
 
     @title.expression
     def title(self):
-        return self.doc['content'][0]['content'][0]['text'].astext
+        return self.doc["content"][0]["content"][0]["text"].astext
 
     @hybrid_property
     def body(self):
@@ -73,12 +71,11 @@ class PageMixin(EditsMixin):
 
     @classmethod
     async def all_childs(cls, root_id: int, db):
-
-        included = select(
-            cls.id
-        ).filter(
-            cls.parent_id == root_id
-        ).cte(name="included", recursive=True)
+        included = (
+            select(cls.id)
+            .filter(cls.parent_id == root_id)
+            .cte(name="included", recursive=True)
+        )
 
         included_alias = aliased(included, name="parent")
         chapter_alias = aliased(cls, name="child")
@@ -86,16 +83,10 @@ class PageMixin(EditsMixin):
         included = included.union_all(
             select(
                 chapter_alias.id,
-            ).filter(
-                chapter_alias.parent_id == included_alias.c.id
-            )
+            ).filter(chapter_alias.parent_id == included_alias.c.id)
         )
 
-        child_stmt = select(
-            cls
-        ).where(
-            cls.id.in_(included)
-        )
+        child_stmt = select(cls).where(cls.id.in_(included))
 
         child = await db_all(child_stmt, session=db)
         return child

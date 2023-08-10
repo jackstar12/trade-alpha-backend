@@ -10,22 +10,15 @@ from database.dbmodels.user import User
 
 
 def label_filter(stmt: Any, user: User):
-    return stmt.join(
-        LabelDB.group
-    ).where(
-        LabelGroupDB.user_id == user.id
-    )
+    return stmt.join(LabelDB.group).where(LabelGroupDB.user_id == user.id)
 
 
-router = APIRouter(
-    tags=["Label"],
-    prefix="/label"
+router = APIRouter(tags=["Label"], prefix="/label")
+
+add_crud_routes(
+    router,
+    table=LabelDB,
+    read_schema=LabelInfo,
+    create_schema=CreateLabel,
+    default_route=Route(add_filters=label_filter),
 )
-
-add_crud_routes(router,
-                table=LabelDB,
-                read_schema=LabelInfo,
-                create_schema=CreateLabel,
-                default_route=Route(
-                    add_filters=label_filter
-                ))

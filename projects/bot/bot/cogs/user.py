@@ -9,15 +9,14 @@ from bot.cogs.cogbase import CogBase
 
 
 class UserCog(CogBase):
-
     @cog_ext.cog_slash(
-        name="delete",
-        description="Deletes everything associated to you.",
-        options=[]
+        name="delete", description="Deletes everything associated to you.", options=[]
     )
     @utils.log_and_catch_errors()
     async def delete_all(self, ctx: SlashContext):
-        user = await dbutils.get_discord_user(ctx.author_id, eager_loads=[DiscordUser.clients])
+        user = await dbutils.get_discord_user(
+            ctx.author_id, eager_loads=[DiscordUser.clients]
+        )
 
         async def confirm_delete(ctx):
             for client in user.clients:
@@ -30,25 +29,22 @@ class UserCog(CogBase):
             author_id=ctx.author_id,
             yes_callback=confirm_delete,
             yes_message="Successfully deleted all your data",
-            hidden=True
+            hidden=True,
         )
 
-        await ctx.send('Do you really want to delete **all your accounts**? This action is unreversable.',
-                       components=[button_row],
-                       hidden=True)
+        await ctx.send(
+            "Do you really want to delete **all your accounts**? This action is unreversable.",
+            components=[button_row],
+            hidden=True,
+        )
 
     @cog_ext.cog_slash(
-        name="info",
-        description="Shows your stored information",
-        options=[]
+        name="info", description="Shows your stored information", options=[]
     )
     @utils.log_and_catch_errors()
     async def info(self, ctx: SlashContext):
         user = await dbutils.get_discord_user(
-            ctx.author_id,
-            eager_loads=[(DiscordUser.clients, Client.events)]
+            ctx.author_id, eager_loads=[(DiscordUser.clients, Client.events)]
         )
         embeds = await user.get_discord_embed(self.bot)
-        await ctx.send(content='', embeds=embeds, hidden=True)
-
-
+        await ctx.send(content="", embeds=embeds, hidden=True)

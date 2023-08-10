@@ -14,8 +14,8 @@ class TradeSession(Enum):
 
 
 class Side(Enum):
-    BUY = 'buy'
-    SELL = 'sell'
+    BUY = "buy"
+    SELL = "sell"
 
 
 class Status(Enum):

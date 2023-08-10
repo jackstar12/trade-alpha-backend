@@ -6,7 +6,6 @@ import inspect
 import itertools
 import logging
 import operator
-import os
 import re
 import sys
 import typing
@@ -14,12 +13,11 @@ from asyncio import Task
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Callable, Union, Dict, Any
+from typing import Optional, Callable, Union, Any
 from typing import TYPE_CHECKING
 
 import pytz
 
-import core.env as config
 
 if TYPE_CHECKING:
     pass
@@ -33,17 +31,10 @@ def utc_now():
 
 
 def date_string(d: date | datetime):
-    return d.strftime('%Y-%m-%d')
+    return d.strftime("%Y-%m-%d")
 
 
-CURRENCY_PRECISION = {
-    '$': 2,
-    'USD': 2,
-    '%': 2,
-    'BTC': 6,
-    'XBT': 6,
-    'ETH': 4
-}
+CURRENCY_PRECISION = {"$": 2, "USD": 2, "%": 2, "BTC": 6, "XBT": 6, "ETH": 4}
 
 
 def round_ccy(amount: typing.SupportsRound, ccy: str):
@@ -55,33 +46,35 @@ def weighted_avg(values: tuple[Decimal, Decimal], weights: tuple[Decimal, Decima
     return values[0] * (weights[0] / total) + values[1] * (weights[1] / total)
 
 
-
 # Some consts to make TF tables prettier
 MINUTE = 60
 HOUR = MINUTE * 60
 DAY = HOUR * 24
 WEEK = DAY * 7
 
-_regrex_pattern = re.compile("["
-                             u"\U0001F600-\U0001F64F"  # emoticons
-                             u"\U0001F300-\U0001F5FF"  # symbols & pictographs
-                             u"\U0001F680-\U0001F6FF"  # transport & map symbols
-                             u"\U0001F1E0-\U0001F1FF"  # flags (iOS)
-                             u"\U00002500-\U00002BEF"  # chinese char
-                             u"\U00002702-\U000027B0"
-                             u"\U00002702-\U000027B0"
-                             u"\U000024C2-\U0001F251"
-                             u"\U0001f926-\U0001f937"
-                             u"\U00010000-\U0010ffff"
-                             u"\u2640-\u2642"
-                             u"\u2600-\u2B55"
-                             u"\u200d"
-                             u"\u23cf"
-                             u"\u23e9"
-                             u"\u231a"
-                             u"\ufe0f"  # dingbats
-                             u"\u3030"
-                             "]+", re.UNICODE)
+_regrex_pattern = re.compile(
+    "["
+    "\U0001F600-\U0001F64F"  # emoticons
+    "\U0001F300-\U0001F5FF"  # symbols & pictographs
+    "\U0001F680-\U0001F6FF"  # transport & map symbols
+    "\U0001F1E0-\U0001F1FF"  # flags (iOS)
+    "\U00002500-\U00002BEF"  # chinese char
+    "\U00002702-\U000027B0"
+    "\U00002702-\U000027B0"
+    "\U000024C2-\U0001F251"
+    "\U0001f926-\U0001f937"
+    "\U00010000-\U0010ffff"
+    "\u2640-\u2642"
+    "\u2600-\u2B55"
+    "\u200d"
+    "\u23cf"
+    "\u23e9"
+    "\u231a"
+    "\ufe0f"  # dingbats
+    "\u3030"
+    "]+",
+    re.UNICODE,
+)
 
 
 def setup_logger(debug: bool = False):
@@ -90,8 +83,12 @@ def setup_logger(debug: bool = False):
     for handler in logger.handlers:
         print(handler.name)
         logger.removeHandler(handler)
-    logger.setLevel(logging.DEBUG if debug else logging.INFO)  # Change this to DEBUG if you want a lot more info
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    logger.setLevel(
+        logging.DEBUG if debug else logging.INFO
+    )  # Change this to DEBUG if you want a lot more info
+    formatter = logging.Formatter(
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    )
 
     # if not os.path.exists(config.LOG_OUTPUT_DIR):
     #     os.mkdir(config.LOG_OUTPUT_DIR)
@@ -105,22 +102,24 @@ def setup_logger(debug: bool = False):
     return logger
 
 
-def calc_percentage(then: Union[float, Decimal], now: Union[float, Decimal], string=True) -> float | str | Decimal:
+def calc_percentage(then, now, string=True) -> float | str | Decimal:
     diff = now - then
     num_cls = type(then)
     if diff == 0.0:
-        result = '0'
+        result = "0"
     elif then > 0:
-        result = f'{round(100 * (diff / then), ndigits=3)}'
+        result = f"{round(100 * (diff / then), ndigits=3)}"
     else:
-        result = '0'
+        result = "0"
     return result if string else num_cls(result)
 
 
-def calc_percentage_diff(then: Union[float, Decimal], diff: Union[float, Decimal]) -> float | str | Decimal:
+def calc_percentage_diff(
+    then: Union[float, Decimal], diff: Union[float, Decimal]
+) -> float | str | Decimal:
     num_cls = type(then)
     if diff == 0:
-        result = '0'
+        result = "0"
     elif then > 0:
         result = round(100 * (diff / then), ndigits=3)
     else:
@@ -128,8 +127,8 @@ def calc_percentage_diff(then: Union[float, Decimal], diff: Union[float, Decimal
     return num_cls(result)
 
 
-TIn = typing.TypeVar('TIn')
-TOut = typing.TypeVar('TOut')
+TIn = typing.TypeVar("TIn")
+TOut = typing.TypeVar("TOut")
 CoroOrCallable = Union[Callable[[TIn], TOut], Callable[[TIn], typing.Awaitable[TOut]]]
 
 
@@ -139,39 +138,39 @@ def call_unknown_function(fn: CoroOrCallable, *args, **kwargs):
             res = fn(*args, **kwargs)
             if inspect.isawaitable(res):
                 return asyncio.create_task(res)
-        except Exception as e:
-            print(
-                f'Exception occured while execution {fn} {args=} {kwargs=}'
-            )
+        except Exception:
+            print(f"Exception occured while execution {fn} {args=} {kwargs=}")
             logger.exception(
-                f'Exception occured while execution {fn} {args=} {kwargs=}'
+                f"Exception occured while execution {fn} {args=} {kwargs=}"
             )
             raise
 
 
-async def return_unknown_function(fn: CoroOrCallable, *args, **kwargs) -> typing.Optional[Task]:
+async def return_unknown_function(
+    fn: CoroOrCallable, *args, **kwargs
+) -> typing.Optional[Task]:
     if callable(fn):
         try:
             res = fn(*args, **kwargs)
             if inspect.isawaitable(res):
                 return await res
             return res
-        except Exception as e:
-            print(
-                f'Exception occured while execution {fn} {args=} {kwargs=}'
-            )
+        except Exception:
+            print(f"Exception occured while execution {fn} {args=} {kwargs=}")
             logger.exception(
-                f'Exception occured while execution {fn} {args=} {kwargs=}'
+                f"Exception occured while execution {fn} {args=} {kwargs=}"
             )
             raise
 
 
 def validate_kwargs(kwargs: dict, required: list[str] | set[str]):
-    return len(kwargs.keys()) >= len(required) and all(required_kwarg in kwargs for required_kwarg in required)
+    return len(kwargs.keys()) >= len(required) and all(
+        required_kwarg in kwargs for required_kwarg in required
+    )
 
 
-_KT = typing.TypeVar('_KT')
-_VT = typing.TypeVar('_VT')
+_KT = typing.TypeVar("_KT")
+_VT = typing.TypeVar("_VT")
 
 
 def get_multiple(d: dict[_KT, _VT], *keys: str) -> typing.Optional[_VT]:
@@ -190,9 +189,8 @@ def get_multiple_dict(key: str, *dicts: dict[_KT, _VT]) -> typing.Optional[_VT]:
             return d[key]
 
 
-
 def parse_isoformat(iso: str):
-    return datetime.fromisoformat(iso.replace('Z', '+00:00'))
+    return datetime.fromisoformat(iso.replace("Z", "+00:00"))
 
 
 def readable_time(time: datetime) -> str:
@@ -204,7 +202,7 @@ def readable_time(time: datetime) -> str:
     """
     now = datetime.now(pytz.utc)
     if time is None:
-        time_str = 'since start'
+        time_str = "since start"
     else:
         if time.date() == now.date():
             time_str = f'since {time.strftime("%H:%M")}'
@@ -216,21 +214,18 @@ def readable_time(time: datetime) -> str:
     return time_str
 
 
-def list_last(l: list, default: Any = None):
-    return l[-1] if l else default
+def list_last(list: list, default: Optional[Any] = None):
+    return list[-1] if list else default
 
 
 def combine_time_series(*time_series: typing.Iterable):
-    return sorted(
-        itertools.chain.from_iterable(time_series),
-        key=lambda a: a.time
-    )
+    return sorted(itertools.chain.from_iterable(time_series), key=lambda a: a.time)
 
 
-T = typing.TypeVar('T')
+T = typing.TypeVar("T")
 
 
-def prev_now_next(iterable: typing.Iterable[T], skip: Callable = None):
+def prev_now_next(iterable: typing.Iterable[T], skip: Optional[Callable] = None):
     i = iter(iterable)
     prev = None
     now = next(i, None)
@@ -243,8 +238,10 @@ def prev_now_next(iterable: typing.Iterable[T], skip: Callable = None):
         now = _next
 
 
-def join_args(*args, denominator=':'):
-    return denominator.join([str(arg.value if isinstance(arg, Enum) else arg) for arg in args if arg])
+def join_args(*args, denominator=":"):
+    return denominator.join(
+        [str(arg.value if isinstance(arg, Enum) else arg) for arg in args if arg]
+    )
 
 
 def safe_cmp_default(fnc: Callable[[T, T], T], a: T, b: T):
@@ -259,16 +256,20 @@ def sum_iter(iterator: typing.Iterable[T]):
     return functools.reduce(operator.add, iterator)
 
 
-KT = typing.TypeVar('KT')
-VT = typing.TypeVar('VT')
+KT = typing.TypeVar("KT")
+VT = typing.TypeVar("VT")
 
 
-def groupby(items: typing.Iterable[VT], key: str | Callable[[VT], KT], use_set=False) -> dict[KT, list[VT]]:
+def groupby(
+    items: typing.Iterable[VT], key: str | Callable[[VT], KT], use_set=False
+) -> dict[KT, list[VT]]:
     res = {}
 
     if isinstance(key, str):
+
         def key_fn(x: VT) -> KT:
             return getattr(x, key)
+
     else:
         key_fn = key
     for item in items:
@@ -282,11 +283,15 @@ def groupby(items: typing.Iterable[VT], key: str | Callable[[VT], KT], use_set=F
     return res
 
 
-def groupby_unique(items: typing.Iterable[VT], key: str | Callable[[VT], KT]) -> dict[KT, VT]:
+def groupby_unique(
+    items: typing.Iterable[VT], key: str | Callable[[VT], KT]
+) -> dict[KT, VT]:
     res = {}
     if isinstance(key, str):
+
         def key_fn(x: VT) -> KT:
             return getattr(x, key)
+
     else:
         key_fn = key
     for item in items:
@@ -323,33 +328,31 @@ def get_timedelta(time_str: str) -> typing.Optional[timedelta]:
     day = 0
     week = 0
     second = 0
-    args = time_str.split(' ')
+    args = time_str.split(" ")
 
     if len(args) > 0:
         for arg in args:
             try:
-                if 'h' in arg:
-                    hour += int(arg.rstrip('h'))
-                elif 'm' in arg:
-                    minute += int(arg.rstrip('m'))
-                elif 's' in arg:
-                    second += int(arg.rstrip('s'))
-                elif 'w' in arg:
-                    week += int(arg.rstrip('w'))
-                elif 'd' in arg:
-                    day += int(arg.rstrip('d'))
+                if "h" in arg:
+                    hour += int(arg.rstrip("h"))
+                elif "m" in arg:
+                    minute += int(arg.rstrip("m"))
+                elif "s" in arg:
+                    second += int(arg.rstrip("s"))
+                elif "w" in arg:
+                    week += int(arg.rstrip("w"))
+                elif "d" in arg:
+                    day += int(arg.rstrip("d"))
                 else:
-                    raise ValueError(f'Invalid time argument: {arg}')
+                    raise ValueError(f"Invalid time argument: {arg}")
             except ValueError:  # Make sure both cases are treated the same
-                raise ValueError(f'Invalid time argument: {arg}')
+                raise ValueError(f"Invalid time argument: {arg}")
     result = timedelta(hours=hour, minutes=minute, days=day, weeks=week, seconds=second)
 
-
     if not result:
-        raise ValueError(f'Invalid time argument: {time_str}')
+        raise ValueError(f"Invalid time argument: {time_str}")
 
     return result
-
 
 
 def mask_dict(d, *keys, value_func=None):

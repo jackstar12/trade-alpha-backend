@@ -41,13 +41,13 @@ class MessageEmbed(BaseModel):
 
 class TradeEmbed(BaseModel):
     raw: InternalTradeModel
-    type: Literal['trade']
+    type: Literal["trade"]
     author_id: Optional[UUID]
 
 
 class ChapterEmbed(BaseModel):
     raw: Balance
-    type: Literal['balance']
+    type: Literal["balance"]
     author_id: Optional[UUID]
 
 
@@ -74,14 +74,11 @@ class GuildData(OrmBaseModel):
                 name=guild.name,
                 icon_url=str(guild.icon_url),
                 text_channels=[
-                    TextChannel(
-                        id=tc.id,
-                        name=tc.name,
-                        category=tc.category.name
-                    )
-                    for tc in guild.text_channels if tc.permissions_for(member).read_messages
+                    TextChannel(id=tc.id, name=tc.name, category=tc.category.name)
+                    for tc in guild.text_channels
+                    if tc.permissions_for(member).read_messages
                 ],
-                is_admin=member.guild_permissions.administrator
+                is_admin=member.guild_permissions.administrator,
             )
 
 
@@ -93,10 +90,12 @@ class Guild(OrmBaseModel):
     tier: Tier
 
     @classmethod
-    def from_association(cls, data: GuildData, guild: GuildDB, association: GuildAssociationDB):
+    def from_association(
+        cls, data: GuildData, guild: GuildDB, association: GuildAssociationDB
+    ):
         return cls(
             data=data,
             tier=guild.tier,
             events=guild.events,
-            client_id=association.client_id if association else None
+            client_id=association.client_id if association else None,
         )

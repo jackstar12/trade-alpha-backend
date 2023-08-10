@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import SecretStr
 from core.env import Environment
 

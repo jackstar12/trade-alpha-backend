@@ -1,5 +1,7 @@
 .idea
 .run
+.mypy_cache
+.ruff_cache
 key.py
 data
 archive

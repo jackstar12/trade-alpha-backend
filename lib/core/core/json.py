@@ -24,14 +24,20 @@ def default(obj: Any):
 
 
 def dumps(obj: Any, indent=False):
-    test = orjson.dumps(obj,
-                        default=default,
-                        option=orjson.OPT_OMIT_MICROSECONDS | orjson.OPT_INDENT_2 if indent else orjson.OPT_OMIT_MICROSECONDS)
+    test = orjson.dumps(
+        obj,
+        default=default,
+        option=orjson.OPT_OMIT_MICROSECONDS | orjson.OPT_INDENT_2
+        if indent
+        else orjson.OPT_OMIT_MICROSECONDS,
+    )
     return test
 
 
 def dumps_no_bytes(obj: Any):
-    return orjson.dumps(obj, default=default, option=orjson.OPT_OMIT_MICROSECONDS).decode('utf-8')
+    return orjson.dumps(
+        obj, default=default, option=orjson.OPT_OMIT_MICROSECONDS
+    ).decode("utf-8")
 
 
 def loads_bytes(obj: Any):

@@ -1,7 +1,7 @@
 import operator
 from datetime import datetime
 from sqlalchemy import or_
-from typing import Any, Type, TypeVar, Generic
+from typing import Optional, Any, Type, TypeVar, Generic
 
 from database.dbsync import BaseMixin
 from database.models import BaseModel
@@ -14,7 +14,7 @@ def excludes(a, b):
 
 class FilterMixin:
     @classmethod
-    def apply(cls, param: 'FilterParam', stmt):
+    def apply(cls, param: "FilterParam", stmt):
         raise ValueError
 
     @classmethod
@@ -22,7 +22,7 @@ class FilterMixin:
         raise ValueError
 
 
-T = TypeVar('T', bound=BaseMixin)
+T = TypeVar("T", bound=BaseMixin)
 
 
 class FilterParam(BaseModel, Generic[T]):
@@ -31,17 +31,23 @@ class FilterParam(BaseModel, Generic[T]):
     values: list[Any]
 
     @classmethod
-    def parse(cls, key: str, raw_values: list[Any], table: Type[FilterMixin], model: Type[BaseModel] = None):
+    def parse(
+        cls,
+        key: str,
+        raw_values: list[Any],
+        table: Type[FilterMixin],
+        model: Optional[Type[BaseModel]] = None,
+    ):
         # Key format:
         # key[operator]
         # e.g. realized_pnl[gt]
-        if key.endswith(']'):
-            split = key[:-1].split('[')
+        if key.endswith("]"):
+            split = key[:-1].split("[")
         else:
-            raise ValueError('Invalid key')
+            raise ValueError("Invalid key")
 
         if len(split) != 2:
-            raise ValueError('Invalid key')
+            raise ValueError("Invalid key")
 
         field = split[0]
         op = split[1]
@@ -64,25 +70,21 @@ class FilterParam(BaseModel, Generic[T]):
         elif model and field in model.__fields__:
             compare_field = model.__fields__[field]
 
-            if op in ('includes', 'excludes'):
-                values, errors = compare_field.validate(raw_values, {}, loc='none')
+            if op in ("includes", "excludes"):
+                values, errors = compare_field.validate(raw_values, {}, loc="none")
                 if errors:
-                    raise ValueError('Invalid input value')
+                    raise ValueError("Invalid input value")
             else:
                 for value in raw_values:
-                    validated, errors = compare_field.validate(value, {}, loc='none')
+                    validated, errors = compare_field.validate(value, {}, loc="none")
                     if errors:
-                        raise ValueError('Invalid input value')
+                        raise ValueError("Invalid input value")
                     values.append(validated)
 
         else:
-            raise ValueError('Unknown field')
+            raise ValueError("Unknown field")
 
-        return cls(
-            field=field,
-            op=op,
-            values=values
-        )
+        return cls(field=field, op=op, values=values)
 
     @property
     def cmp_func(self):
@@ -94,7 +96,6 @@ class FilterParam(BaseModel, Generic[T]):
             return getattr(operator, str(self.op.value))
 
     def apply(self, stmt, table: Type[FilterMixin]):
-
         try:
             return table.apply(self, stmt)
         except ValueError:
@@ -103,10 +104,7 @@ class FilterParam(BaseModel, Generic[T]):
         col = getattr(table, self.field)
         cmp_func = self.cmp_func
 
-        return stmt.where(or_(
-            cmp_func(col, value)
-            for value in self.values
-        ))
+        return stmt.where(or_(cmp_func(col, value) for value in self.values))
 
     def check(self, other: T):
         compare_value = getattr(other, self.field)

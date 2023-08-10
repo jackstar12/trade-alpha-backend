@@ -37,24 +37,24 @@ class TradeData(BaseModel):
     clientIds: list[int]
     tradeIds: list[int]
     dates: Dates
-    tradeSource: Literal['all', 'select', 'children']
+    tradeSource: Literal["all", "select", "children"]
     filters: FilterOptions
 
 
 class DocumentModel(BaseModel):
     type: str
-    content: 'Optional[list[DocumentModel]]'
-    type: 'Optional[str]'
-    text: 'Optional[str]'
-    attrs: 'Optional[dict[str, Any]]'
-    marks: 'Optional[list[Mark]]'
+    content: "Optional[list[DocumentModel]]"
+    type: "Optional[str]"
+    text: "Optional[str]"
+    attrs: "Optional[dict[str, Any]]"
+    marks: "Optional[list[Mark]]"
 
     @property
     def title(self):
         titleNode = self[0]
-        return getattr(titleNode[0], 'text', None)
+        return getattr(titleNode[0], "text", None)
 
-    def __getitem__(self, i) -> 'DocumentModel' | None:
+    def __getitem__(self, i) -> "DocumentModel" | None:
         if self.content:
             return self.content[i]
         return None
@@ -67,17 +67,11 @@ class DocumentModel(BaseModel):
             return self.content.__len__()
         return 0
 
-    def json(
-            self,
-            **kwargs
-    ) -> str:
+    def json(self, **kwargs) -> str:
         return super().json(**kwargs, exclude_none=True)
 
-    def dict(
-            self,
-            **kwargs
-    ) -> dict:
-        kwargs['exclude_none'] = True
+    def dict(self, **kwargs) -> dict:
+        kwargs["exclude_none"] = True
         return super().dict(**kwargs)
 
     def get_from_heading(self, heading_id: str) -> Optional[DocumentModel]:
@@ -88,12 +82,11 @@ class DocumentModel(BaseModel):
 
             if current.content:
                 for node in current.content:
-
                     if node.type == "heading":
                         if result is None:
-                            if node.attrs.get('id') == heading_id:
-                                result = DocumentModel(type='doc', content=[])
-                        elif node.attrs['level'] >= result[0].attrs['level']:
+                            if node.attrs.get("id") == heading_id:
+                                result = DocumentModel(type="doc", content=[])
+                        elif node.attrs["level"] >= result[0].attrs["level"]:
                             return True
 
                     if result is None:
@@ -111,8 +104,8 @@ class DocumentModel(BaseModel):
         results = []
 
         def recursive(current: DocumentModel):
-            if current.attrs and current.attrs['data']:
-                results.append(current.attrs['data'])
+            if current.attrs and current.attrs["data"]:
+                results.append(current.attrs["data"])
 
             if current.content:
                 for node in current.content:
@@ -124,10 +117,7 @@ class DocumentModel(BaseModel):
 
     @property
     def all_trades(self):
-        return [
-            result['tradeIds']
-            for result in self.all_data
-        ]
+        return [result["tradeIds"] for result in self.all_data]
 
 
 DocumentModel.update_forward_refs()

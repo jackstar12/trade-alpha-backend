@@ -1,6 +1,6 @@
-from pydantic import SecretStr, AnyHttpUrl
+from pydantic import SecretStr
 
-from core.env import EnvBase, Environment
+from core.env import Environment
 
 
 class Env(Environment):

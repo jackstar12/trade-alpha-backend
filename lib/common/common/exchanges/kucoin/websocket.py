@@ -6,7 +6,6 @@ from database.models.async_websocket_manager import WebsocketManager
 
 
 class KucoinWebsocket(WebsocketManager):
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._waiting_ids: set[int] = set()
@@ -26,21 +25,21 @@ class KucoinWebsocket(WebsocketManager):
         return new
 
     async def send_message(self, type: str, **kwargs):
-        return await self.send_json({
-            "id": self._generate_id(),
-            "type": type,
-            **kwargs
-        })
+        return await self.send_json({"id": self._generate_id(), "type": type, **kwargs})
 
     async def ping(self):
         asyncio.create_task(self._ping_timeout_waiter())
         return await self.send_message("ping")
 
     async def subscribe(self, topic: str, private_channel: bool):
-        return await self.send_message("subscribe", topic=topic, privateChannel=private_channel)
+        return await self.send_message(
+            "subscribe", topic=topic, privateChannel=private_channel
+        )
 
     async def unsubscribe(self, topic: str, private_channel: bool):
-        return await self.send_message("unsubscribe", topic=topic, privateChannel=private_channel)
+        return await self.send_message(
+            "unsubscribe", topic=topic, privateChannel=private_channel
+        )
 
     def _on_message(self, ws, message: dict):
         msg_type = message["type"]
@@ -50,5 +49,3 @@ class KucoinWebsocket(WebsocketManager):
             self._ping_timeout.cancel()
         if msg_type == "message":
             pass
-
-

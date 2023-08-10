@@ -1,27 +1,36 @@
 import asyncio
 import dataclasses
-import operator
 import time
 from collections import OrderedDict
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Dict, List, Mapping, Any, Type, TypeVar, Generic, Awaitable, Sequence, Iterable
+from typing import (
+    Optional,
+    Dict,
+    List,
+    Mapping,
+    Any,
+    Type,
+    TypeVar,
+    Generic,
+    Awaitable,
+    Iterable,
+)
 from uuid import UUID
 
 import pytz
 from fastapi import Depends
 from fastapi_users.types import DependencyCallable
-from sqlalchemy import select, Column, asc, desc
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.dependencies import get_user_id
 from api.models.client import get_query_params
 from database.dbmodels.mixins.filtermixin import FilterParam
 from api.models.websocket import ClientConfig
 from api.users import DefaultGrant
 from core import json as customjson
 from database.calc import calc_daily
-from database.dbasync import redis, db_all, redis_bulk, RedisKey, db_first, time_range, redis_bulk_hashes
+from database.dbasync import redis, db_all, redis_bulk, RedisKey, db_first
 from database.dbmodels import TradeDB
 from database.dbmodels.authgrant import AuthGrant
 from database.dbmodels.balance import Balance
@@ -30,7 +39,7 @@ from database.dbmodels.client import ClientQueryParams
 from database.dbmodels.user import User
 from database.dbsync import BaseMixin
 from database.models import BaseModel
-from database.models.document import FilterInput, FilterOptions, Operator
+from database.models.document import Operator
 from database.redis.client import ClientSpace, ClientCacheKeys
 from database.utils import query_table
 
@@ -48,40 +57,44 @@ def get_dec(mapping: Mapping, key: Any, default: Any):
     return Decimal(mapping.get(key, default))
 
 
-def update_client_data_trades(cache: Dict, trades: List[Dict], config: ClientConfig, save_cache=True):
+def update_client_data_trades(
+    cache: Dict, trades: List[Dict], config: ClientConfig, save_cache=True
+):
     result = {}
     new_trades = {}
-    existing_trades = cache.get('trades', None)
+    existing_trades = cache.get("trades", None)
     now = datetime.now(tz=pytz.utc)
 
-    winners, losers = get_dec(cache, 'winners', 0), get_dec(cache, 'losers', 0)
-    total_win, total_loss = get_dec(cache, 'avg_win', 0) * winners, get_dec(cache, 'avg_loss', 0) * losers
+    winners, losers = get_dec(cache, "winners", 0), get_dec(cache, "losers", 0)
+    total_win, total_loss = (
+        get_dec(cache, "avg_win", 0) * winners,
+        get_dec(cache, "avg_loss", 0) * losers,
+    )
 
     for trade in trades:
         # Get existing entry
-        existing = existing_trades.get(trade['id'])
-        if trade['status'] == 'win':
+        existing_trades.get(trade["id"])
+        if trade["status"] == "win":
             winners += 1
-            total_win += trade['realized_pnl']
-        elif trade['status'] == 'loss':
+            total_win += trade["realized_pnl"]
+        elif trade["status"] == "loss":
             losers += 1
-            total_loss += trade['realized_pnl']
-        update_dicts(
-            result, cache
-        )
-        tr_id = str(trade['id'])
+            total_loss += trade["realized_pnl"]
+        update_dicts(result, cache)
+        tr_id = str(trade["id"])
         new_trades[tr_id] = existing_trades[tr_id] = trade
 
     update_dicts(result, trades=new_trades)
 
     update_dicts(
-        result, cache,
+        result,
+        cache,
         winners=winners,
         losers=losers,
         avg_win=total_win / winners if winners else 1,
         avg_loss=total_loss / losers if losers else 1,
         win_ratio=ratio(winners, losers),
-        ts=now.timestamp()
+        ts=now.timestamp(),
     )
 
     if save_cache:
@@ -90,8 +103,10 @@ def update_client_data_trades(cache: Dict, trades: List[Dict], config: ClientCon
     return result
 
 
-async def update_client_data_balance(cache: Dict, client: Client, config: ClientConfig, save_cache=True) -> Dict:
-    cached_date = datetime.fromtimestamp(int(cache.get('ts', 0)), tz=pytz.UTC)
+async def update_client_data_balance(
+    cache: Dict, client: Client, config: ClientConfig, save_cache=True
+) -> Dict:
+    cached_date = datetime.fromtimestamp(int(cache.get("ts", 0)), tz=pytz.UTC)
     now = datetime.now(tz=pytz.UTC)
 
     if config.since:
@@ -104,7 +119,9 @@ async def update_client_data_balance(cache: Dict, client: Client, config: Client
     new_history = []
 
     async def append(balance: Balance):
-        new_history.append(balance.serialize(full=True, data=True, currency=config.currency))
+        new_history.append(
+            balance.serialize(full=True, data=True, currency=config.currency)
+        )
 
     daily = await calc_daily(
         client=client,
@@ -112,35 +129,38 @@ async def update_client_data_balance(cache: Dict, client: Client, config: Client
         since=since_date,
         to=config.to,
         now=now,
-        forEach=append
+        forEach=append,
     )
-    result['history'] = new_history
-    cache['history'] += new_history
+    result["history"] = new_history
+    cache["history"] += new_history
 
-    winning_days, losing_days = cache.get('winning_days', 0), cache.get('losing_days', 0)
+    winning_days, losing_days = cache.get("winning_days", 0), cache.get(
+        "losing_days", 0
+    )
     for day in daily:
         if day.gain.absolute > 0:
             winning_days += 1
         elif day.gain.absolute < 0:
             losing_days += 1
-    result['daily'] = daily
+    result["daily"] = daily
 
     # When updating daily cache it's important to set the last day to the current day
-    daily_cache = cache.get('daily', [])
+    daily_cache = cache.get("daily", [])
     if daily:
         if daily_cache and cached_date.weekday() == now.weekday():
             daily_cache[-1] = daily[0]
             daily_cache += daily[1:]
         else:
             daily_cache += daily
-    cache['daily'] = daily_cache
+    cache["daily"] = daily_cache
 
     update_dicts(
-        result, cache,
+        result,
+        cache,
         daily_win_ratio=ratio(winning_days, losing_days),
         winning_days=winning_days,
         losing_days=losing_days,
-        ts=now.timestamp()
+        ts=now.timestamp(),
     )
 
     if save_cache:
@@ -150,14 +170,14 @@ async def update_client_data_balance(cache: Dict, client: Client, config: Client
 
 
 async def get_cached_data(config: ClientConfig):
-    redis_key = f'client:data:{config.id}:{config.since.timestamp() if config.since else None}:{config.to.timestamp() if config.to else None}:{config.currency}'
+    redis_key = f"client:data:{config.id}:{config.since.timestamp() if config.since else None}:{config.to.timestamp() if config.to else None}:{config.currency}"
     cached = await redis.get(redis_key)
     if cached:
         return customjson.loads(cached)
 
 
 async def set_cached_data(data: Dict, config: ClientConfig):
-    redis_key = f'client:data:{config.id}:{config.since.timestamp() if config.since else None}:{config.to.timestamp() if config.to else None}:{config.currency}'
+    redis_key = f"client:data:{config.id}:{config.since.timestamp() if config.since else None}:{config.to.timestamp() if config.to else None}:{config.currency}"
     await redis.set(redis_key, customjson.dumps(data))
 
 
@@ -166,13 +186,13 @@ async def create_client_data_serialized(client: Client, config: ClientConfig):
     cached = None
     if cached:
         s = cached
-        s['source'] = 'cache'
+        s["source"] = "cache"
     else:
         s = client.serialize(full=False, data=False)
-        s['trades'] = {}
-        s['source'] = 'database'
+        s["trades"] = {}
+        s["source"] = "database"
 
-    cached_date = datetime.fromtimestamp(int(s.get('ts', 0)), tz=pytz.UTC)
+    cached_date = datetime.fromtimestamp(int(s.get("ts", 0)), tz=pytz.UTC)
 
     now = datetime.now(tz=pytz.UTC)
 
@@ -190,17 +210,20 @@ async def create_client_data_serialized(client: Client, config: ClientConfig):
 
         await update_client_data_balance(s, client, config, save_cache=False)
 
-        trades = [trade.serialize(data=True) for trade in client.trades if
-                  since_date <= trade.open_time <= to_date]
+        trades = [
+            trade.serialize(data=True)
+            for trade in client.trades
+            if since_date <= trade.open_time <= to_date
+        ]
         update_client_data_trades(s, trades, config, save_cache=False)
 
-        s['ts'] = now.timestamp()
+        s["ts"] = now.timestamp()
         asyncio.create_task(set_cached_data(s, config))
 
     return s
 
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)
 
 
 def _parse_date(val: bytes) -> datetime:
@@ -214,20 +237,22 @@ class ClientCache(Generic[T]):
     data_model: Type[T]
     query_params: ClientQueryParams
     user_id: UUID
-    client_last_exec: dict[int, datetime] = dataclasses.field(default_factory=lambda: {})
+    client_last_exec: dict[int, datetime] = dataclasses.field(
+        default_factory=lambda: {}
+    )
 
     async def read(self, db: AsyncSession) -> tuple[list[T], list[int]]:
         pairs = OrderedDict()
 
         if not self.query_params.client_ids:
             self.query_params.client_ids = await db_all(
-                select(Client.id).filter(
-                    Client.user_id == self.user_id
-                ),
-                session=db
+                select(Client.id).filter(Client.user_id == self.user_id), session=db
             )
 
-        clients = [ClientRedis(self.user_id, client_id) for client_id in self.query_params.client_ids]
+        clients = [
+            ClientRedis(self.user_id, client_id)
+            for client_id in self.query_params.client_ids
+        ]
 
         for client_id in self.query_params.client_ids:
             client = ClientRedis(self.user_id, client_id)
@@ -235,14 +260,19 @@ class ClientCache(Generic[T]):
             #    RedisKey(ClientSpace.LAST_EXEC, parse=_parse_date)
             # ]
             pairs[client.cache_hash] = [
-                RedisKey(self.cache_data_key, ClientSpace.QUERY_PARAMS, model=self.query_params.__class__)
+                RedisKey(
+                    self.cache_data_key,
+                    ClientSpace.QUERY_PARAMS,
+                    model=self.query_params.__class__,
+                )
             ]
 
-        key = RedisKey(self.cache_data_key, ClientSpace.QUERY_PARAMS, model=self.query_params.__class__)
-        data = await redis_bulk({
-            client.cache_hash: [key]
-            for client in clients
-        })
+        key = RedisKey(
+            self.cache_data_key,
+            ClientSpace.QUERY_PARAMS,
+            model=self.query_params.__class__,
+        )
+        data = await redis_bulk({client.cache_hash: [key] for client in clients})
 
         hits = []
         misses = []
@@ -252,11 +282,11 @@ class ClientCache(Generic[T]):
 
             if cached_query_params and self.query_params.within(cached_query_params):
                 ts1 = time.perf_counter()
-                raw_overview, = await client.read_cache(
+                (raw_overview,) = await client.read_cache(
                     RedisKey(self.cache_data_key, model=self.data_model),
                 )
                 ts2 = time.perf_counter()
-                print('Reading Cache', ts2 - ts1)
+                print("Reading Cache", ts2 - ts1)
                 if raw_overview:
                     hits.append(raw_overview)
                     continue
@@ -269,43 +299,53 @@ class ClientCache(Generic[T]):
         return await ClientRedis(self.user_id, client_id).redis_set(
             keys={
                 RedisKey(self.cache_data_key): data,
-                RedisKey(self.cache_data_key, ClientSpace.QUERY_PARAMS): self.query_params
+                RedisKey(
+                    self.cache_data_key, ClientSpace.QUERY_PARAMS
+                ): self.query_params,
             },
-            space='cache'
+            space="cache",
         )
 
 
-def ClientCacheDependency(cache_data_key: ClientCacheKeys,
-                          data_model: Type[BaseModel],
-                          grant_dependency: DependencyCallable[AuthGrant] = None,
-                          query_params_dep: DependencyCallable[ClientQueryParams] = get_query_params):
-    def __call__(query_params: ClientQueryParams = Depends(query_params_dep),
-                 grant: AuthGrant = Depends(grant_dependency or DefaultGrant)):
+def ClientCacheDependency(
+    cache_data_key: ClientCacheKeys,
+    data_model: Type[BaseModel],
+    grant_dependency: Optional[DependencyCallable[AuthGrant]] = None,
+    query_params_dep: DependencyCallable[ClientQueryParams] = get_query_params,
+):
+    def __call__(
+        query_params: ClientQueryParams = Depends(query_params_dep),
+        grant: AuthGrant = Depends(grant_dependency or DefaultGrant),
+    ):
         return ClientCache(
             cache_data_key=cache_data_key,
             data_model=data_model,
             query_params=query_params,
-            user_id=grant.user_id
+            user_id=grant.user_id,
         )
 
     return __call__
 
 
-TTable = TypeVar('TTable', bound=BaseMixin)
+TTable = TypeVar("TTable", bound=BaseMixin)
 
 
-def query_trades(*eager,
-                 user_id: UUID,
-                 query_params: ClientQueryParams,
-                 trade_ids: Iterable[int] = None,
-                 db: AsyncSession,
-                 filters: list[FilterParam] = None):
+def query_trades(
+    *eager,
+    user_id: UUID,
+    query_params: ClientQueryParams,
+    trade_ids: Optional[Iterable[int]] = None,
+    db: AsyncSession,
+    filters: Optional[list[FilterParam]] = None,
+):
     if not filters:
         filters = []
 
     if query_params.currency:
         filters.append(
-            FilterParam.construct(field='settle', values=[query_params.currency], op=Operator.EQ)
+            FilterParam.construct(
+                field="settle", values=[query_params.currency], op=Operator.EQ
+            )
         )
 
     return query_table(
@@ -316,7 +356,7 @@ def query_trades(*eager,
         ids=trade_ids,
         query_params=query_params,
         filters=filters,
-        db=db
+        db=db,
     )
 
     # return db_all(
@@ -338,14 +378,22 @@ def query_trades(*eager,
     # )
 
 
-def query_balance(*eager,
-                  user: User,
-                  balance_id: List[int],
-                  query_params: ClientQueryParams,
-                  db: AsyncSession):
-    return query_table(*eager,
-                       table=Balance, time_col=Balance.time, user_id=user.id,
-                       ids=balance_id, query_params=query_params, db=db)
+def query_balance(
+    *eager,
+    user: User,
+    balance_id: List[int],
+    query_params: ClientQueryParams,
+    db: AsyncSession,
+):
+    return query_table(
+        *eager,
+        table=Balance,
+        time_col=Balance.time,
+        user_id=user.id,
+        ids=balance_id,
+        query_params=query_params,
+        db=db,
+    )
     # return db_all(
     #     add_client_filters(
     #         select(Balance).filter(
@@ -365,15 +413,18 @@ def query_balance(*eager,
     # )
 
 
-def get_user_client(user: User, client_id: int, *eager, db: AsyncSession = None) -> Awaitable[Optional[Client]]:
+def get_user_client(
+    user: User, client_id: int, *eager, db: Optional[AsyncSession] = None
+) -> Awaitable[Optional[Client]]:
     return db_first(
-        add_client_checks(select(Client), user.id, {client_id}),
-        *eager,
-        session=db
+        add_client_checks(select(Client), user.id, {client_id}), *eager, session=db
     )
 
 
-def get_user_clients(user: User, ids: List[int] = None, *eager, db: AsyncSession = None) -> Awaitable[list[Client]]:
-    return db_all(
-        add_client_checks(select(Client), user.id, ids), *eager, session=db
-    )
+def get_user_clients(
+    user: User,
+    ids: Optional[List[int]] = None,
+    *eager,
+    db: Optional[AsyncSession] = None,
+) -> Awaitable[list[Client]]:
+    return db_all(add_client_checks(select(Client), user.id, ids), *eager, session=db)

@@ -25,11 +25,11 @@ class DiscordPermission(TypedDict):
 
 
 class AssociationType(Enum):
-    EVENT = 'event'
-    CHAPTER = 'chapter'
-    TRADE = 'trade'
-    JOURNAL = 'journal'
-    TEMPLATE = 'template'
+    EVENT = "event"
+    CHAPTER = "chapter"
+    TRADE = "trade"
+    JOURNAL = "journal"
+    TEMPLATE = "template"
 
     def get_impl(self) -> Type[GrantAssociaton]:
         if self == AssociationType.EVENT:
@@ -45,21 +45,27 @@ class AssociationType(Enum):
 
 
 class AuthGrant(Base, BaseMixin, Serializer):
-    __tablename__ = 'authgrant'
+    __tablename__ = "authgrant"
     id = sa.Column(sa.Integer, primary_key=True)
     name = sa.Column(sa.String, nullable=True)
-    user_id = sa.Column(FKey('user.id', ondelete='CASCADE'), nullable=False)
+    user_id = sa.Column(FKey("user.id", ondelete="CASCADE"), nullable=False)
     expires = sa.Column(sa.DateTime(timezone=True), nullable=True)
     wildcards = sa.Column(sa.ARRAY(sa.Enum(AssociationType)), nullable=True)
     data = sa.Column(sa.JSON, nullable=True)
     token = sa.Column(sa.String, nullable=True)
 
-    user = relationship('User')
+    user = relationship("User")
 
-    granted_journals = relationship('Journal', secondary='journalgrant', backref=backref('grants', lazy='noload'))
-    granted_chapters = relationship('Chapter', secondary='chaptergrant', backref=backref('grants', lazy='noload'))
-    granted_events = relationship('Event', secondary='eventgrant')
-    templates = relationship('Template', secondary='templategrant', backref=backref('grants', lazy='noload'))
+    granted_journals = relationship(
+        "Journal", secondary="journalgrant", backref=backref("grants", lazy="noload")
+    )
+    granted_chapters = relationship(
+        "Chapter", secondary="chaptergrant", backref=backref("grants", lazy="noload")
+    )
+    granted_events = relationship("Event", secondary="eventgrant")
+    templates = relationship(
+        "Template", secondary="templategrant", backref=backref("grants", lazy="noload")
+    )
 
     def __init__(self, *args, root=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -67,7 +73,7 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
     @hybrid_property
     def public(self):
-        return self.token == None
+        return self.token is None
 
     @public.setter
     def public(self, value: bool):
@@ -82,44 +88,57 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
     @property
     def journals(self):
-        return self.user.journals if self.is_root_for(AssociationType.JOURNAL) else self.granted_journals
+        return (
+            self.user.journals
+            if self.is_root_for(AssociationType.JOURNAL)
+            else self.granted_journals
+        )
 
     @property
     def events(self):
-        return self.user.events if self.is_root_for(AssociationType.EVENT) else self.granted_events
+        return (
+            self.user.events
+            if self.is_root_for(AssociationType.EVENT)
+            else self.granted_events
+        )
 
     @property
     def owner(self):
-        return self.sync_session.get(User, self.user_id) if self.sync_session else self.user
+        return (
+            self.sync_session.get(User, self.user_id)
+            if self.sync_session
+            else self.user
+        )
 
     @hybrid_property
     def discord(self) -> DiscordPermission:
-        return self.data.get('discord') if self.data else None
+        return self.data.get("discord") if self.data else None
 
     @discord.expression
     def discord(self):
-        return self.data['discord']
+        return self.data["discord"]
 
     @discord.setter
     def discord(self, value: DiscordPermission):
         if value:
             if not self.data:
                 self.data = {}
-            self.data['discord'] = value
+            self.data["discord"] = value
         elif self.data:
-            self.data.pop('discord')
+            self.data.pop("discord")
 
     def is_root_for(self, assoc_type: AssociationType):
         return self.root or (self.wildcards and assoc_type in self.wildcards)
 
-    async def check_ids(self, asooc_type: AssociationType, ids: Optional[Iterable[int]] = None):
+    async def check_ids(
+        self, asooc_type: AssociationType, ids: Optional[Iterable[int]] = None
+    ):
         impl = asooc_type.get_impl()
         return await db_all(
             select(impl.identity).where(
-                impl.grant_id == self.id,
-                impl.identity.in_(list(ids)) if ids else True
+                impl.grant_id == self.id, impl.identity.in_(list(ids)) if ids else True
             ),
-            session=self.async_session
+            session=self.async_session,
         )
 
     async def validate(self):
@@ -128,14 +147,15 @@ class AuthGrant(Base, BaseMixin, Serializer):
     async def check(self, user: User):
         if user and self.user_id == user.id:
             self.root = True
-        if self.data and 'discord' in self.data:
+        if self.data and "discord" in self.data:
             assert user and user.discord, "No discord account provided"
-            client = rpc.Client('discord', redis)
-            guild = await client.call('guild',
-                                      request=GuildRequest(
-                                          user_id=user.discord.account_id,
-                                          guild_id=self.discord['guild_id'])
-                                      )
+            client = rpc.Client("discord", redis)
+            guild = await client.call(
+                "guild",
+                request=GuildRequest(
+                    user_id=user.discord.account_id, guild_id=self.discord["guild_id"]
+                ),
+            )
             assert guild, "Invalid guild"
 
 
@@ -145,7 +165,7 @@ class GrantAssociaton(BaseMixin):
 
     @declared_attr
     def grant_id(self):
-        return sa.Column(FKey('authgrant.id', ondelete='CASCADE'), primary_key=True)
+        return sa.Column(FKey("authgrant.id", ondelete="CASCADE"), primary_key=True)
 
     @declared_attr
     def grant(self):
@@ -161,11 +181,11 @@ class GrantAssociaton(BaseMixin):
 
 
 class EventGrant(Base, GrantAssociaton):
-    __tablename__ = 'eventgrant'
-    __grants__ = 'event'
+    __tablename__ = "eventgrant"
+    __grants__ = "event"
 
-    event_id = sa.Column(FKey('event.id', ondelete='CASCADE'), primary_key=True)
-    event = relationship('Event', lazy='raise')
+    event_id = sa.Column(FKey("event.id", ondelete="CASCADE"), primary_key=True)
+    event = relationship("Event", lazy="raise")
     registrations_left = sa.Column(sa.Integer, nullable=True)
 
     @hybrid_property
@@ -178,11 +198,11 @@ class EventGrant(Base, GrantAssociaton):
 
 
 class JournalGrant(Base, GrantAssociaton):
-    __tablename__ = 'journalgrant'
-    __grants__ = 'journal'
-    journal_id = sa.Column(FKey('journal.id', ondelete='CASCADE'), primary_key=True)
+    __tablename__ = "journalgrant"
+    __grants__ = "journal"
+    journal_id = sa.Column(FKey("journal.id", ondelete="CASCADE"), primary_key=True)
 
-    alias = 'journalId'
+    alias = "journalId"
 
     @hybrid_property
     def identity(cls):
@@ -194,13 +214,13 @@ class JournalGrant(Base, GrantAssociaton):
 
 
 class ChapterGrant(Base, GrantAssociaton):
-    __tablename__ = 'chaptergrant'
-    __grants__ = 'chapter'
+    __tablename__ = "chaptergrant"
+    __grants__ = "chapter"
 
-    alias = 'chapterId'
+    alias = "chapterId"
 
-    chapter_id = sa.Column(FKey('chapter.id', ondelete='CASCADE'), primary_key=True)
-    chapter = relationship('Chapter', lazy='raise')
+    chapter_id = sa.Column(FKey("chapter.id", ondelete="CASCADE"), primary_key=True)
+    chapter = relationship("Chapter", lazy="raise")
 
     @hybrid_property
     def identity(cls):
@@ -212,9 +232,9 @@ class ChapterGrant(Base, GrantAssociaton):
 
 
 class TradeGrant(Base, GrantAssociaton):
-    __tablename__ = 'tradegrant'
-    __grants__ = 'trade'
-    trade_id = sa.Column(FKey('trade.id', ondelete='CASCADE'), primary_key=True)
+    __tablename__ = "tradegrant"
+    __grants__ = "trade"
+    trade_id = sa.Column(FKey("trade.id", ondelete="CASCADE"), primary_key=True)
 
     @hybrid_property
     def identity(cls):
@@ -226,8 +246,8 @@ class TradeGrant(Base, GrantAssociaton):
 
 
 class TemplateGrant(Base, GrantAssociaton):
-    __tablename__ = 'templategrant'
-    template_id = sa.Column(FKey('template.id', ondelete='CASCADE'), primary_key=True)
+    __tablename__ = "templategrant"
+    template_id = sa.Column(FKey("template.id", ondelete="CASCADE"), primary_key=True)
 
     @hybrid_property
     def identity(cls):

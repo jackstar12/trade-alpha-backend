@@ -5,8 +5,6 @@ router = APIRouter(
     dependencies=[],
     responses={
         401: {"msg": "Wrong Email or Password"},
-        400: {"msg": "Email is already used"}
-    }
+        400: {"msg": "Email is already used"},
+    },
 )
-
-

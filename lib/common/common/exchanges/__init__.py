@@ -16,10 +16,10 @@ import ccxt
 
 
 class ExchangeName(Enum):
-    FTX = 'ftx'
-    BINANCE_FUTURES = 'binance-futures'
-    BYBIT = 'bybit'
-    KUCOIN = 'kucoin'
+    FTX = "ftx"
+    BINANCE_FUTURES = "binance-futures"
+    BYBIT = "bybit"
+    KUCOIN = "kucoin"
 
 
 EXCHANGES: dict[str, Type[Exchange]] = {
@@ -35,29 +35,29 @@ EXCHANGES: dict[str, Type[Exchange]] = {
 }
 
 EXCHANGE_TICKERS = {
-    'binance-futures': BinanceFuturesTicker,
-    'bybit-derivatives': BybitDerivativesTicker,
+    "binance-futures": BinanceFuturesTicker,
+    "bybit-derivatives": BybitDerivativesTicker,
 }
 
 SANDBOX_CLIENTS = [
-    #ClientCreate(
+    # ClientCreate(
     #    exchange=BinanceFutures.exchange,
     #    api_key="6ec9e23293ee07f187a8fbe4b575e6102da766daaa3e356db5d898ddfbb74684",
     #    api_secret="e9d2849343a017e466873810431b256bf13333ec257ead90618becb0f1a59ac6",
     #    sandbox=True
-    #),
+    # ),
     ClientCreate(
         exchange=BybitDerivatives.exchange,
         api_key="NmLYouOiPq3wRlu5x3",
         api_secret="YY2GIlQI47scbDAGTccByGEbW8Oiio4msXj8",
         sandbox=True,
     ),
-    #ClientCreate(
+    # ClientCreate(
     #    exchange=BinanceSpot.exchange,
     #    api_key="i4aHpzsGhRWFNyxf4JNrPm4AJEMrKYFMw0vhs9rk2AsIbIrAad2JwasIYkQA5krd",
     #    api_secret="FmD8pLQl3bsdc5xmYldUAKJWarr0wPxyARtY4sjpod3tSKBoycH3lvhNNw98E22S",
     #    sandbox=True
-    #)
+    # )
 ]
 
 
@@ -66,7 +66,7 @@ MAINNET_CLIENTS = [
         exchange=BinanceFutures.exchange,
         api_key="icMsTCEaI3hsB0CdtASDFiECGcndcSfBMqqVVfS2R9wawFHYW4qmTAF8HdAUCCEs",
         api_secret="hAuAsig9FJOKlCnwDhsxCnjUDq2a1JhQheuC4i2du7hRf6ol4clBOF9RPUkn4iEh",
-        sandbox=False
+        sandbox=False,
     )
 ]
 
@@ -88,5 +88,5 @@ __all__ = [
     "okx",
     "EXCHANGES",
     "EXCHANGE_TICKERS",
-    "SANDBOX_CLIENTS"
+    "SANDBOX_CLIENTS",
 ]

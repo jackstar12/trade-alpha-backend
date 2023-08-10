@@ -1,6 +1,5 @@
 import asyncio
 import random
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Iterator, Optional
@@ -38,15 +37,17 @@ class RawExec(BaseModel):
     def to_exec(self, client: Client):
         global _next_exec_time
         _next_exec_time += timedelta(hours=1)
-        return Execution(**self.dict(),
-                         settle=client.currency,
-                         time=_next_exec_time,
-                         commission=Decimal(random.randint(50, 100) * .01),
-                         type=ExecType.TRADE)
+        return Execution(
+            **self.dict(),
+            settle=client.currency,
+            time=_next_exec_time,
+            commission=Decimal(random.randint(50, 100) * 0.01),
+            type=ExecType.TRADE
+        )
 
 
 class MockTicker(ExchangeTicker):
-    NAME = 'mock'
+    NAME = "mock"
 
     async def _unsubscribe(self, sub: Subscription):
         pass
@@ -58,52 +59,45 @@ class MockTicker(ExchangeTicker):
         while True:
             await self._callbacks[sub].notify(
                 Ticker(
-                    symbol=sub.kwargs['symbol'],
-                    src=ExchangeInfo(name='mock', sandbox=True),
-                    price=Decimal(10000 + random.randint(-100, 100))
+                    symbol=sub.kwargs["symbol"],
+                    src=ExchangeInfo(name="mock", sandbox=True),
+                    price=Decimal(10000 + random.randint(-100, 100)),
                 )
             )
             await asyncio.sleep(0.1)
 
     async def _subscribe(self, sub: Subscription):
         if sub.channel == Channel.TICKER:
-            asyncio.create_task(
-                self.generate_ticker(sub)
-            )
+            asyncio.create_task(self.generate_ticker(sub))
 
     async def connect(self):
         pass
 
 
 class MockCreate(ClientCreate):
-    name = 'Mock Client'
-    exchange = 'mock'
-    api_key = 'super'
-    api_secret = 'secret'
+    name = "Mock Client"
+    exchange = "mock"
+    api_key = "super"
+    api_secret = "secret"
     sandbox = True
     type = ClientType.FULL
-    #execs: list[RawExec] = []
-    #transfers: list[RawTransfer] = []
-    #positions: list[Position] = []
+    # execs: list[RawExec] = []
+    # transfers: list[RawTransfer] = []
+    # positions: list[Position] = []
 
-    def get(self, user: User = None) -> Client:
+    def get(self, user: Optional[User] = None) -> Client:
         client = super().get(user)
 
-        #MockExchange.execs = self.execs
-        #MockExchange.transfers = self.transfers
-        #MockExchange.positions = self.positions
+        # MockExchange.execs = self.execs
+        # MockExchange.transfers = self.transfers
+        # MockExchange.positions = self.positions
 
         return client
 
 
-
-
-
-
-
 class MockExchange(Exchange):
     supports_extended_data = True
-    exchange = 'mock'
+    exchange = "mock"
     exec_start = datetime(year=2022, month=1, day=1, tzinfo=pytz.UTC)
 
     queue = asyncio.Queue()
@@ -114,10 +108,10 @@ class MockExchange(Exchange):
     @classmethod
     def create(cls):
         return ClientCreate(
-            name='Mock Client',
+            name="Mock Client",
             exchange=cls.exchange,
-            api_key='super',
-            api_secret='secret',
+            api_key="super",
+            api_secret="secret",
             sandbox=True,
             type=ClientType.FULL,
         )
@@ -141,7 +135,7 @@ class MockExchange(Exchange):
 
     async def wait_queue(self):
         while True:
-            self._logger.info('Mock listening for execs')
+            self._logger.info("Mock listening for execs")
             new = await self.__class__.queue.get()
             execution = new.to_exec(self.client)
             await self._on_execution(execution)
@@ -156,11 +150,19 @@ class MockExchange(Exchange):
     async def clean_ws(self):
         self._queue_waiter.cancel()
 
-    def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):
+    def _sign_request(
+        self, method: str, path: str, headers=None, params=None, data=None, **kwargs
+    ):
         pass
 
-    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
-                        limit: int = None) -> list[OHLC]:
+    async def get_ohlc(
+        self,
+        symbol: str,
+        since: Optional[datetime] = None,
+        to: Optional[datetime] = None,
+        resolution_s: Optional[int] = None,
+        limit: Optional[int] = None,
+    ) -> list[OHLC]:
         ohlc_data = []
         since = since or self.exec_start
         to = to or utc_now()
@@ -172,17 +174,24 @@ class MockExchange(Exchange):
             val = Decimal(random.randint(15000, 25000))
             ohlc_data.append(
                 OHLC(
-                    open=val, high=val, low=val, close=val,
+                    open=val,
+                    high=val,
+                    low=val,
+                    close=val,
                     volume=Decimal(0),
-                    time=since
+                    time=since,
                 )
             )
         return ohlc_data
 
-    async def _get_transfers(self, since: datetime = None, to: datetime = None) -> list[RawTransfer]:
+    async def _get_transfers(
+        self, since: Optional[datetime] = None, to: Optional[datetime] = None
+    ) -> list[RawTransfer]:
         return self.transfers
 
-    async def _get_executions(self, since: datetime, init=False) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
+    async def _get_executions(
+        self, since: datetime, init=False
+    ) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
         return [raw.to_exec(self.client) for raw in self.execs], []
         data = [
             dict(qty=1, price=10000, side=Side.SELL),
@@ -193,19 +202,18 @@ class MockExchange(Exchange):
             dict(qty=1, price=20000, side=Side.BUY),
         ]
         return [
-                   Execution(**attrs, time=self.exec_start + timedelta(days=index), type=ExecType.TRADE,
-                             symbol='BTCUSDT')
-                   for index, attrs in enumerate(data)
-               ], []
+            Execution(
+                **attrs,
+                time=self.exec_start + timedelta(days=index),
+                type=ExecType.TRADE,
+                symbol="BTCUSDT"
+            )
+            for index, attrs in enumerate(data)
+        ], []
 
     # https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
     async def _get_balance(self, time: datetime, upnl=True):
-        return Balance(
-            realized=100,
-            unrealized=0,
-            time=utc_now(),
-            extra_currencies=[]
-        )
+        return Balance(realized=100, unrealized=0, time=utc_now(), extra_currencies=[])
 
     @classmethod
     def get_symbol(cls, market: Market) -> str:

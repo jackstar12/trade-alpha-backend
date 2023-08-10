@@ -1,6 +1,5 @@
 import uuid
-from datetime import datetime
-from typing import Optional, List
+from typing import Optional
 
 from fastapi_users import schemas
 

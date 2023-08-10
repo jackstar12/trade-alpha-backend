@@ -10,7 +10,7 @@ from database.models.execution import Execution
 from database.models.pnldata import PnlData
 from database.enums import Side, Status, TradeSession
 from database.models import OrmBaseModel, BaseModel, InputID
-from database.models.balance import Balance, AmountBase
+from database.models.balance import AmountBase
 from database.models.document import DocumentModel
 
 
@@ -42,14 +42,14 @@ class Trade(BasicTrade):
     account_size: Optional[Decimal]
     init_amount: Optional[AmountBase]
 
-    @validator('duration', pre=True)
+    @validator("duration", pre=True)
     def duration_parse(cls, v: Any):
         if isinstance(v, str):
             return get_timedelta(v)
         return v
 
-    #initial: Execution
-    #initial_execution_id: int
+    # initial: Execution
+    # initial_execution_id: int
 
 
 class DetailledTrade(Trade):
@@ -89,4 +89,3 @@ class UpdateTrade(BaseModel):
 class UpdateTradeResponse(BaseModel):
     label_ids: Optional[list[str]]
     notes: Optional[DocumentModel]
-

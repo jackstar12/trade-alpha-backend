@@ -32,4 +32,3 @@ class TemplateDetailed(TemplateInfo):
 
     class Config:
         orm_mode = True
-

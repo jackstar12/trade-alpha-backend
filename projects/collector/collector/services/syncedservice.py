@@ -11,19 +11,20 @@ from common.messenger import Category
 from common.messenger import Messenger, NameSpace
 from core.utils import CoroOrCallable
 
-TTable = TypeVar('TTable', bound=Base)
+TTable = TypeVar("TTable", bound=Base)
 
 
 class SyncedService(Generic[TTable]):
-
-    def __init__(self,
-                 messenger: Messenger,
-                 namespace: NameSpace,
-                 db: AsyncSession,
-                 base_stmt: Select,
-                 get_stmt: CoroOrCallable,
-                 update: CoroOrCallable,
-                 cleanup: CoroOrCallable):
+    def __init__(
+        self,
+        messenger: Messenger,
+        namespace: NameSpace,
+        db: AsyncSession,
+        base_stmt: Select,
+        get_stmt: CoroOrCallable,
+        update: CoroOrCallable,
+        cleanup: CoroOrCallable,
+    ):
         self._identity_map: dict[Any, TTable] = {}
         self._messenger = messenger
         self._namespace = namespace
@@ -50,6 +51,7 @@ class SyncedService(Generic[TTable]):
                     return await coro_or_callback(*args, **kwargs)
                 else:
                     return coro_or_callback(*args, **kwargs)
+
         return wrapper
 
     async def sub(self):
@@ -58,8 +60,8 @@ class SyncedService(Generic[TTable]):
             {
                 Category.NEW: self.uses_identity(self._on_add),
                 Category.DELETE: self.uses_identity(self._on_delete),
-                Category.UPDATE: self.uses_identity(self._on_update)
-            }
+                Category.UPDATE: self.uses_identity(self._on_update),
+            },
         )
 
     async def get_ident(self, identity: Any) -> Optional[TTable]:
@@ -75,18 +77,17 @@ class SyncedService(Generic[TTable]):
             yield ident.values()
 
     async def _on_delete(self, data: Dict):
-        instance = self._identity_map.pop(data['id'])
+        instance = self._identity_map.pop(data["id"])
         await self._cleanup(instance)
 
     async def _on_add(self, data: Dict):
         instance = await db_unique(
-            self._base_stmt.filter_by(id=data['id']),
-            session=self._db
+            self._base_stmt.filter_by(id=data["id"]), session=self._db
         )
         if instance:
-            self._identity_map[data['id']] = instance
+            self._identity_map[data["id"]] = instance
 
     async def _on_update(self, data: dict):
-        existing = self._identity_map.get(data['id'])
+        existing = self._identity_map.get(data["id"])
         if existing:
-            self._identity_map[data['id']] = await self._update(existing)
+            self._identity_map[data["id"]] = await self._update(existing)

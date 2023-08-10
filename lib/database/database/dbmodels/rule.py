@@ -26,6 +26,7 @@ class Expression:
 # Example goal:
 # Winrate > 50% && Kelly Optimization = True
 
+
 class Rule(Base, Serializer, BaseMixin):
     id: int = Column(Integer, primary_key=True)
     creation_date: datetime = Column(DateTime(timezone=True))

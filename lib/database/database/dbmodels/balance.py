@@ -1,9 +1,9 @@
 from __future__ import annotations
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 import sqlalchemy as sa
-from sqlalchemy import Column, Integer, ForeignKey, Numeric, DateTime, orm
+from sqlalchemy import Column, Integer, Numeric, DateTime, orm
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship, object_session, Session
 
@@ -13,7 +13,6 @@ from database.dbmodels.mixins.serializer import Serializer
 from database.dbsync import Base, BaseMixin, FKey
 from database.models.balance import Balance as BalanceModel
 from core.utils import round_ccy
-from database.models.market import Market
 
 if TYPE_CHECKING:
     from database.dbmodels import Client
@@ -29,15 +28,15 @@ class _Common:
 
 
 class Amount(Base, ClientQueryMixin, Serializer, BaseMixin, _Common):
-    __tablename__ = 'amount'
+    __tablename__ = "amount"
 
-    balance_id = Column(FKey('balance.id', ondelete="CASCADE"), primary_key=True)
-    balance = relationship('Balance', lazy='raise')
+    balance_id = Column(FKey("balance.id", ondelete="CASCADE"), primary_key=True)
+    balance = relationship("Balance", lazy="raise")
     currency: str = Column(sa.String, primary_key=True)
     rate = Column(Numeric, nullable=True)
 
     def __repr__(self):
-        return f'{self.total}{self.currency}'
+        return f"{self.total}{self.currency}"
 
 
 class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
@@ -50,16 +49,19 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
 
     If the balance consists of multiple currencies, these are stored in detail in the Amount table (
     """
-    __tablename__ = 'balance'
-    #__model__ = BalanceModel
-    __serializer_forbidden__ = ['id', 'error', 'client']
+
+    __tablename__ = "balance"
+    # __model__ = BalanceModel
+    __serializer_forbidden__ = ["id", "error", "client"]
 
     id = Column(Integer, primary_key=True)
-    client_id = Column(Integer, FKey('client.id', ondelete="CASCADE"), nullable=True)
+    client_id = Column(Integer, FKey("client.id", ondelete="CASCADE"), nullable=True)
     time = Column(DateTime(timezone=True), nullable=False, index=True)
 
-    client: 'Client' = relationship('Client', lazy='noload', foreign_keys=client_id)
-    extra_currencies: list[Amount] = relationship('Amount', lazy='joined', back_populates='balance')
+    client: "Client" = relationship("Client", lazy="noload", foreign_keys=client_id)
+    extra_currencies: list[Amount] = relationship(
+        "Amount", lazy="joined", back_populates="balance"
+    )
 
     @hybrid_property
     def client_save(self):
@@ -84,7 +86,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
     #    d['client_id'] = self.client_id
     #    return d
 
-    def get_amount(self, ccy: str = None):
+    def get_amount(self, ccy: Optional[str] = None):
         for amount in self.extra_currencies:
             if amount.currency == ccy:
                 return amount
@@ -108,7 +110,7 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                 self.realized += amount.realized * amount.rate
                 self.unrealized += amount.unrealized * amount.rate
 
-    def get_currency(self, ccy: str = None) -> BalanceModel:
+    def get_currency(self, ccy: Optional[str] = None) -> BalanceModel:
         if ccy and ccy != self.currency:
             for amount in self.extra_currencies:
                 if amount.currency == ccy:
@@ -118,19 +120,19 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                         currency=ccy,
                         time=self.time,
                         extra_currencies=[],
-                        rate=amount.rate
+                        rate=amount.rate,
                     )
             return BalanceModel(
                 realized=0,
                 unrealized=0,
                 currency=ccy,
                 time=self.time,
-                extra_currencies=[]
+                extra_currencies=[],
             )
         else:
             return BalanceModel.from_orm(self)
 
-    def get_realized(self, ccy: str = None) -> Decimal:
+    def get_realized(self, ccy: Optional[str] = None) -> Decimal:
         amount = self.get_currency(ccy)
         return amount.realized
 
@@ -140,7 +142,11 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
 
     def __eq__(self, other):
         if isinstance(other, Balance):
-            return self.realized == other.realized and self.unrealized == other.unrealized and self.currency == other.currency
+            return (
+                self.realized == other.realized
+                and self.unrealized == other.unrealized
+                and self.currency == other.currency
+            )
         return False
 
     def __init__(self, error=None, *args, **kwargs):
@@ -153,14 +159,13 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
 
     def to_string(self, display_extras=False):
         ccy = self.client_save.currency
-        string = f'{round_ccy(self.total, ccy)}{ccy}'
+        string = f"{round_ccy(self.total, ccy)}{ccy}"
 
         if self.extra_currencies and display_extras:
             currencies = " / ".join(
-                f'{amount.total}{amount.currency}'
-                for amount in self.extra_currencies
+                f"{amount.total}{amount.currency}" for amount in self.extra_currencies
             )
-            string += f'({currencies})'
+            string += f"({currencies})"
 
         return string
 
@@ -180,11 +185,11 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
                 Amount(
                     currency=amount.currency,
                     realized=amount.realized,
-                    unrealized=Decimal(0)
+                    unrealized=Decimal(0),
                 )
                 for amount in self.extra_currencies
             ],
             time=self.time,
             client=self.client_save,
-            client_id=self.client_id
+            client_id=self.client_id,
         )

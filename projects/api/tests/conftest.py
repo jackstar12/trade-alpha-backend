@@ -3,7 +3,9 @@ import contextlib
 import pytest
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
-from common.test_utils.fixtures import *
+
+from common.exchanges.channel import Channel
+from common.test_utils.fixtures import Messages
 from database.models.client import ClientCreate
 from api.models.client import ClientInfo
 from api.app import app
@@ -11,12 +13,12 @@ from api.app import app
 pytestmark = pytest.mark.anyio
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def anyio_backend():
-    return 'asyncio'
+    return "asyncio"
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def api_client() -> TestClient:
     with TestClient(app) as c:
         yield c
@@ -29,15 +31,12 @@ def api_client_logged_in(api_client):
         json={
             "email": "testuser@gmail.com",
             "password": "strongpassword123",
-        }
+        },
     )
 
     resp = api_client.post(
         "/login",
-        data={
-            "username": "testuser@gmail.com",
-            "password": "strongpassword123"
-        }
+        data={"username": "testuser@gmail.com", "password": "strongpassword123"},
     )
     assert resp.ok, resp.json()
 
@@ -45,15 +44,14 @@ def api_client_logged_in(api_client):
 
     yield api_client
 
-    resp = api_client.delete('user')
+    resp = api_client.delete("user")
     assert resp.ok
 
 
 @pytest.fixture  #
 def create_client(api_client_logged_in):
     def _register(data: ClientCreate):
-        return api_client_logged_in.post("client",
-                                         json=jsonable_encoder(data))
+        return api_client_logged_in.post("client", json=jsonable_encoder(data))
 
     return _register
 
@@ -67,13 +65,10 @@ def confirm_clients(api_client, create_client, messenger):
         for data in clients:
             resp = create_client(data)
             assert resp.ok, resp.json()
-            async with Messages.create(
-                    Channel('client', 'new'),
-                    messenger=messenger
-            ) as messages:
-                resp = api_client.post('client/confirm', json={**resp.json()})
+            async with Messages.create(Channel("client", "new"), messenger=messenger):
+                resp = api_client.post("client/confirm", json={**resp.json()})
             assert resp.ok, resp.json()
-                #await messages.wait(.5)
+            # await messages.wait(.5)
 
             results.append(ClientInfo(**resp.json()))
 
@@ -81,12 +76,11 @@ def confirm_clients(api_client, create_client, messenger):
 
         for result in results:
             async with Messages.create(
-                    Channel('client', 'delete'),
-                    messenger=messenger
-            ) as messages:
-                resp = api_client.delete(f'client/{result.id}')
+                Channel("client", "delete"), messenger=messenger
+            ):
+                resp = api_client.delete(f"client/{result.id}")
                 assert resp.status_code == 200
-                #await messages.wait(.5)
+                # await messages.wait(.5)
 
     return _confirm_clients
 

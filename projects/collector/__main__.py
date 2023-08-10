@@ -11,13 +11,16 @@ from database.dbasync import redis, async_maker
 from collector.services.cointracker import CoinTracker
 from collector.services.alertservice import AlertService
 from collector.services.dataservice import DataService
-from collector.services.balanceservice import ExtendedBalanceService, BasicBalanceService
+from collector.services.balanceservice import (
+    ExtendedBalanceService,
+    BasicBalanceService,
+)
 from core.utils import setup_logger
 from collector.services.baseservice import BaseService
 from database.redis.rpc import Server
 from database.utils import run_migrations
 
-redis_server = Server('discord', redis)
+redis_server = Server("discord", redis)
 
 
 async def run_service(service: BaseService):
@@ -32,35 +35,33 @@ async def run_all():
 
         setup_logger(debug=True)
 
-        scheduler = AsyncIOScheduler(
-            executors={
-                'default': AsyncIOExecutor()
-            }
-        )
+        scheduler = AsyncIOScheduler(executors={"default": AsyncIOExecutor()})
 
         service_args = (session, redis, scheduler, async_maker)
 
         data_service = DataService(*service_args)
         alert_service = AlertService(*service_args, data_service=data_service)
-        coin_tracker = CoinTracker(*service_args, data_service=data_service)
-        pnl_service = ExtendedBalanceService(*service_args,
-                                             data_service=data_service)
-        balance_service = BasicBalanceService(*service_args,
-                                              data_service=data_service)
+        CoinTracker(*service_args, data_service=data_service)
+        pnl_service = ExtendedBalanceService(*service_args, data_service=data_service)
+        balance_service = BasicBalanceService(*service_args, data_service=data_service)
         action_service = ActionService(*service_args)
         event_service = EventService(*service_args)
-        services = (data_service, alert_service, pnl_service, event_service, action_service, balance_service)
-
-        scheduler.start()
-        await asyncio.gather(
-            *[run_service(service) for service in services]
+        services = (
+            data_service,
+            alert_service,
+            pnl_service,
+            event_service,
+            action_service,
+            balance_service,
         )
 
+        scheduler.start()
+        await asyncio.gather(*[run_service(service) for service in services])
 
 
 def run():
     asyncio.run(run_all())
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

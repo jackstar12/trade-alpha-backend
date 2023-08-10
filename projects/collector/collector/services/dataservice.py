@@ -1,5 +1,5 @@
 import asyncio
-from typing import Dict
+from typing import Optional, Dict
 
 from collector.errors import InvalidExchangeError
 from collector.services.baseservice import BaseService
@@ -24,14 +24,19 @@ class DataService(BaseService, Observer):
         self._exchanges: Dict[ExchangeInfo, ExchangeTicker] = {}
         self._tickers: Dict[tuple[ExchangeInfo, str], Ticker] = {}
 
-    #async def run_forever(self):
+    # async def run_forever(self):
     #    await self._update_redis()
 
     async def teardown(self):
         for exchange in self._exchanges.values():
             await exchange.disconnect()
 
-    async def subscribe(self, exchange: ExchangeInfo, sub: Subscription, observer: Observer = None):
+    async def subscribe(
+        self,
+        exchange: ExchangeInfo,
+        sub: Subscription,
+        observer: Optional[Observer] = None,
+    ):
         """
         Subscribes to the given ecxhange channel.
 
@@ -44,7 +49,7 @@ class DataService(BaseService, Observer):
         """
         ticker = self._exchanges.get(exchange)
         if not ticker:
-            self._logger.info(f'Creating ticker for {exchange}')
+            self._logger.info(f"Creating ticker for {exchange}")
             ticker_cls = EXCHANGE_TICKERS.get(exchange.name)
             if ticker_cls and issubclass(ticker_cls, ExchangeTicker):
                 ticker = ticker_cls(self._http_session, exchange.sandbox)
@@ -57,18 +62,26 @@ class DataService(BaseService, Observer):
         try:
             await ticker.subscribe(sub, observer)
         except Exception:
-            self._logger.exception('Could not subscribe')
+            self._logger.exception("Could not subscribe")
 
-    async def unsubscribe(self, exchange: ExchangeInfo, channel: Channel, observer: Observer = None, **kwargs):
-        self._logger.info(f'Unsubscribe: {exchange=} {channel=} {kwargs=}')
+    async def unsubscribe(
+        self,
+        exchange: ExchangeInfo,
+        channel: Channel,
+        observer: Optional[Observer] = None,
+        **kwargs,
+    ):
+        self._logger.info(f"Unsubscribe: {exchange=} {channel=} {kwargs=}")
 
         ticker = self._exchanges.get(exchange)
         if ticker:
             observer = observer or self
-            await ticker.unsubscribe(Subscription(channel=channel, kwargs=kwargs), observer)
+            await ticker.unsubscribe(
+                Subscription(channel=channel, kwargs=kwargs), observer
+            )
 
     async def update(self, ticker: Ticker):
-        #ticker: Ticker = new_state[0]
+        # ticker: Ticker = new_state[0]
         self._logger.debug(ticker)
         self._tickers[(ticker.src, ticker.symbol)] = ticker
 
@@ -78,9 +91,7 @@ class DataService(BaseService, Observer):
         if not ticker:
             try:
                 await self.subscribe(
-                    exchange,
-                    Subscription.get(Channel.TICKER, symbol=symbol),
-                    self
+                    exchange, Subscription.get(Channel.TICKER, symbol=symbol), self
                 )
             except asyncio.exceptions.TimeoutError:
                 pass
@@ -92,6 +103,6 @@ class DataService(BaseService, Observer):
             for ticker in self._tickers.values():
                 await self._redis.set(
                     core.join_args(TableNames.TICKER, ticker.src, ticker.symbol),
-                    str(ticker.price)
+                    str(ticker.price),
                 )
             await asyncio.sleep(1)

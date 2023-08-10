@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Type, TYPE_CHECKING, Any, TypeVar
+from typing import Optional, Type, TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy import TypeDecorator
@@ -18,7 +18,7 @@ class InputID(int):
 
     @classmethod
     def __modify_schema__(cls, field_schema):
-        field_schema.update(anyOf=[{'type': 'integer'}, {'type': 'string'}], type=None)
+        field_schema.update(anyOf=[{"type": "integer"}, {"type": "string"}], type=None)
 
     @classmethod
     def validate(cls, v):
@@ -27,11 +27,10 @@ class InputID(int):
 
 OutputID = str
 
-Model = TypeVar('Model', bound='BaseModel')
+Model = TypeVar("Model", bound="BaseModel")
 
 
 class BaseModel(PydanticBaseModel):
-
     @classmethod
     def deep_construct(cls, _fields_set=None, **values):
         m = cls.__new__(cls)
@@ -55,31 +54,36 @@ class BaseModel(PydanticBaseModel):
                             fields_values[name] = values[key]
                         elif field.shape == 2:
                             fields_values[name] = [
-                                e if isinstance(e, field.type_) else field.type_.construct(**e)
+                                e
+                                if isinstance(e, field.type_)
+                                else field.type_.construct(**e)
                                 for e in values[key]
                             ]
                         elif field.shape == 12:
                             fields_values[name] = {
-                                k: e if isinstance(e, field.type_) else field.type_.construct(**e)
+                                k: e
+                                if isinstance(e, field.type_)
+                                else field.type_.construct(**e)
                                 for k, e in values[key].items()
                             }
                         else:
-                            fields_values[name] = field.outer_type_.construct(**values[key])
+                            fields_values[name] = field.outer_type_.construct(
+                                **values[key]
+                            )
                     else:
                         fields_values[name] = values[key]
             elif not field.required:
                 fields_values[name] = field.get_default()
 
-        object.__setattr__(m, '__dict__', fields_values)
+        object.__setattr__(m, "__dict__", fields_values)
         if _fields_set is None:
             _fields_set = set(values.keys())
-        object.__setattr__(m, '__fields_set__', _fields_set)
+        object.__setattr__(m, "__fields_set__", _fields_set)
         m._init_private_attributes()
         return m
 
     @classmethod
     def get_sa_type(cls, validate=False, **dict_options) -> Type[TypeDecorator]:
-
         class SAType(TypeDecorator):
             impl = JSONB
             cache_ok = True
@@ -101,7 +105,9 @@ class BaseModel(PydanticBaseModel):
         return SAType
 
     @classmethod
-    def from_orm_with(cls: Type[Model], obj: Any, extra: dict = None) -> Model:
+    def from_orm_with(
+        cls: Type[Model], obj: Any, extra: Optional[dict] = None
+    ) -> Model:
         values = extra or {}
 
         for field in cls.__fields__.keys():
@@ -127,10 +133,4 @@ class OrmBaseModel(BaseModel):
         orm_mode = True
 
 
-__all__ = [
-    "OrmBaseModel",
-    "BaseModel",
-    "InputID",
-    "OutputID",
-    "CreateableModel"
-]
+__all__ = ["OrmBaseModel", "BaseModel", "InputID", "OutputID", "CreateableModel"]

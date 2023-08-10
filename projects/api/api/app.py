@@ -33,13 +33,13 @@ from database.utils import run_migrations
 
 VERSION = 1
 # PREFIX = f'/api/v{VERSION}'
-PREFIX = ''
+PREFIX = ""
 
 app = FastAPI(
-    docs_url=PREFIX + '/docs',
-    openapi_url=PREFIX + '/openapi.json',
+    docs_url=PREFIX + "/docs",
+    openapi_url=PREFIX + "/openapi.json",
     title="TradeAlpha",
-    description='Trade Analytics and Journaling platform',
+    description="Trade Analytics and Journaling platform",
     version=f"0.0.{VERSION}",
     terms_of_service="https://example.com/terms/",
     contact={
@@ -51,27 +51,35 @@ app = FastAPI(
         "name": "Apache 2.0",
         "url": "https://www.apache.org/licenses/LICENSE-2.0.html",
     },
-
 )
 
 # app.add_middleware(SessionMiddleware, secret_key='SECRET')
 # app.add_middleware(CSRFMiddleware, secret='SECRET', sensitive_cookies=[settings.session_cookie_name])
 # app.add_midleware(DbSessionMiddleware)
 
-app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_credentials=True, allow_methods=['*'],
-                   allow_headers=['*'])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(fastapi_users.get_verify_router(UserRead), prefix=PREFIX)
 app.include_router(fastapi_users.get_reset_password_router(), prefix=PREFIX)
-app.include_router(fastapi_users.get_register_router(UserRead, UserCreate), prefix=PREFIX)
+app.include_router(
+    fastapi_users.get_register_router(UserRead, UserCreate), prefix=PREFIX
+)
 app.include_router(fastapi_users.get_auth_router(backend=auth_backend), prefix=PREFIX)
 
 discord_oauth = DiscordOAuth2(
-    ENV.OAUTH2_CLIENT_ID, ENV.OAUTH2_CLIENT_SECRET.get_secret_value(), scopes=['identify', 'email', 'guilds']
+    ENV.OAUTH2_CLIENT_ID,
+    ENV.OAUTH2_CLIENT_SECRET.get_secret_value(),
+    scopes=["identify", "email", "guilds"],
 )
 
-OAUTH_PREFIX = '/oauth/discord'
-OAUTH2_REDIRECT_URI = ENV.FRONTEND_URL + '/api'
+OAUTH_PREFIX = "/oauth/discord"
+OAUTH2_REDIRECT_URI = ENV.FRONTEND_URL + "/api"
 
 app.include_router(
     fastapi_users.get_custom_oauth_router(
@@ -79,41 +87,41 @@ app.include_router(
         user_schema=UserRead,
         backend=auth_backend,
         state_secret="SECRET",
-        redirect_url=OAUTH2_REDIRECT_URI + OAUTH_PREFIX + '/callback'
+        redirect_url=OAUTH2_REDIRECT_URI + OAUTH_PREFIX + "/callback",
     ),
-    prefix=PREFIX + OAUTH_PREFIX
+    prefix=PREFIX + OAUTH_PREFIX,
 )
 
-ASSOC_PREFIX = OAUTH_PREFIX + '/associate'
+ASSOC_PREFIX = OAUTH_PREFIX + "/associate"
 
 app.include_router(
     fastapi_users.get_oauth_associate_router(
         discord_oauth,
         user_schema=UserRead,
         state_secret="SECRET",
-        redirect_url=OAUTH2_REDIRECT_URI + ASSOC_PREFIX + '/callback'
+        redirect_url=OAUTH2_REDIRECT_URI + ASSOC_PREFIX + "/callback",
     ),
-    prefix=PREFIX + ASSOC_PREFIX
+    prefix=PREFIX + ASSOC_PREFIX,
 )
 
 for module in (
-        # auth,
-        authgrant,
-        chapter,
-        discord,
-        labelgroup,
-        label,
-        analytics,
-        journal,
-        template,
-        user,
-        event,
-        test,
-        trade,
-        action,
-        client,
-        page,
-        preset
+    # auth,
+    authgrant,
+    chapter,
+    discord,
+    labelgroup,
+    label,
+    analytics,
+    journal,
+    template,
+    user,
+    event,
+    test,
+    trade,
+    action,
+    client,
+    page,
+    preset,
 ):
     app.include_router(module.router)
 
@@ -132,17 +140,17 @@ async def on_start():
 
 @app.on_event("shutdown")
 async def on_stop():
-    await (get_http_session().close())
+    await get_http_session().close()
 
 
-@app.get('/status')
+@app.get("/status")
 def status():
     return OK()
 
 
 def run():
-    uvicorn.run(app, host='localhost', port=5000)
+    uvicorn.run(app, host="localhost", port=5000)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run()

@@ -1,10 +1,9 @@
 import enum
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import NamedTuple, Optional
+from typing import Optional
 
-from sqlalchemy import Column, Integer, ForeignKey, String, BigInteger, Numeric
+from sqlalchemy import Column, Integer, ForeignKey, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.hybrid import hybrid_property
 
@@ -27,31 +26,31 @@ class RawTransfer(BaseModel):
 
 
 class Transfer(Base, BaseMixin):
-    __tablename__ = 'transfer'
+    __tablename__ = "transfer"
 
     id = Column(Integer, primary_key=True)
-    client_id = Column(
+    client_id = Column(Integer, FKey("client.id", ondelete="CASCADE"), nullable=False)
+    execution_id = Column(
         Integer,
-        FKey('client.id', ondelete="CASCADE"),
-        nullable=False
+        ForeignKey(
+            "execution.id",
+            ondelete="CASCADE",
+            name=fkey_name(__tablename__, "execution_id"),
+        ),
+        nullable=False,
     )
-    execution_id = Column(Integer,
-                          ForeignKey('execution.id',
-                                     ondelete="CASCADE",
-                                     name=fkey_name(__tablename__, 'execution_id')),
-                          nullable=False)
 
     note = Column(String, nullable=True)
     coin = Column(String, nullable=True)
 
-    client = relationship('Client')
+    client = relationship("Client")
     execution = relationship(
-        'Execution',
+        "Execution",
         foreign_keys=execution_id,
         uselist=False,
-        cascade='all, delete',
-        lazy='joined',
-        back_populates='transfer'
+        cascade="all, delete",
+        lazy="joined",
+        back_populates="transfer",
     )
 
     @hybrid_property
@@ -79,7 +78,11 @@ class Transfer(Base, BaseMixin):
 
     @hybrid_property
     def type(self) -> TransferType:
-        return TransferType.DEPOSIT if self.execution.side == Side.BUY else TransferType.WITHDRAW
+        return (
+            TransferType.DEPOSIT
+            if self.execution.side == Side.BUY
+            else TransferType.WITHDRAW
+        )
 
     def __repr__(self):
-        return f'{self.type.value} {self.amount}USD ({self.coin})'
+        return f"{self.type.value} {self.amount}USD ({self.coin})"

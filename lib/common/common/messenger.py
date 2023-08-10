@@ -13,7 +13,6 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel
 from sqlalchemy import event
 from sqlalchemy.exc import InvalidRequestError
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import object_session
 from sqlalchemy.orm.util import identity_key
 
@@ -33,31 +32,33 @@ from database.dbsync import BaseMixin
 from database.models import OrmBaseModel
 from database.redis import TableNames
 
-TTable = TypeVar('TTable', bound=BaseMixin)
+TTable = TypeVar("TTable", bound=BaseMixin)
 
 by_names = {}
 
 
 @dataclass
 class NameSpace(Generic[TTable]):
-    parent: 'Optional[NameSpace]'
-    name: 'str'
-    table: 'Type[TTable]'
+    parent: "Optional[NameSpace]"
+    name: "str"
+    table: "Type[TTable]"
     model: Type[OrmBaseModel]
     id: Optional[str]
 
     @classmethod
-    def from_table(cls,
-                   table: Type[TTable],
-                   parent: 'Optional[NameSpace]' = None,
-                   model: Optional[Type[OrmBaseModel]] = None,
-                   children: Optional[list[NameSpace]] = None):
+    def from_table(
+        cls,
+        table: Type[TTable],
+        parent: Optional["Optional[NameSpace]"] = None,
+        model: Optional[Type[OrmBaseModel]] = None,
+        children: Optional[list[NameSpace]] = None,
+    ):
         new = cls(
             parent=parent,
             name=table.__tablename__,
             table=table,
-            id=f'{table.__tablename__}_id',
-            model=model or table.__model__
+            id=f"{table.__tablename__}_id",
+            model=model or table.__model__,
         )
         by_names[new.name] = new
         if children:
@@ -81,7 +82,9 @@ class NameSpace(Generic[TTable]):
                 if not parent_instance:
                     session: sqlalchemy.orm.Session = object_session(instance)
                     if session:
-                        parent_instance = session.identity_map.get(identity_key(self.parent.table, parent_id))
+                        parent_instance = session.identity_map.get(
+                            identity_key(self.parent.table, parent_id)
+                        )
                 result |= self.parent.get_ids(parent_instance)
         return result
 
@@ -89,7 +92,7 @@ class NameSpace(Generic[TTable]):
         pattern = False
         for id in self.all_ids:
             if id not in ids:
-                ids[id] = '*'
+                ids[id] = "*"
                 pattern = True
         return self.fill(*add).format(**ids), pattern
 
@@ -106,7 +109,7 @@ class NameSpace(Generic[TTable]):
         return self.fill()
 
     def fill(self, *add):
-        return core.join_args(self.parent, self.name, *add, '{' + self.id + '}')
+        return core.join_args(self.parent, self.name, *add, "{" + self.id + "}")
 
 
 class TradeSpace(NameSpace):
@@ -115,10 +118,7 @@ class TradeSpace(NameSpace):
 
 class EventSpace(NameSpace[Event]):
     def get_ids(self, instance: Event):
-        return {
-            'user_id': instance.owner_id,
-            'event_id': instance.id
-        }
+        return {"user_id": instance.owner_id, "event_id": instance.id}
 
     START = "start"
     REGISTRATION_START = "registration-start"
@@ -138,32 +138,23 @@ NameSpace.from_table(
             Client,
             children=[
                 NameSpace.from_table(Balance),
-                TradeSpace.from_table(
-                    Trade,
-                    children=[NameSpace.from_table(PnlData)]
-                ),
+                TradeSpace.from_table(Trade, children=[NameSpace.from_table(PnlData)]),
                 NameSpace.from_table(Transfer),
-                NameSpace.from_table(Execution)
-            ]
+                NameSpace.from_table(Execution),
+            ],
         ),
         NameSpace.from_table(Alert),
-        EventSpace.from_table(
-            Event,
-            children=[NameSpace.from_table(EventEntry)]
-        ),
-        NameSpace.from_table(
-            Journal,
-            children=[ChapterSpace.from_table(Chapter)]
-        ),
+        EventSpace.from_table(Event, children=[NameSpace.from_table(EventEntry)]),
+        NameSpace.from_table(Journal, children=[ChapterSpace.from_table(Chapter)]),
         NameSpace.from_table(Action),
         NameSpace.from_table(
             AuthGrant,
             children=[
                 NameSpace.from_table(ChapterGrant),
-                NameSpace.from_table(TradeGrant)
-            ]
+                NameSpace.from_table(TradeGrant),
+            ],
         ),
-    ]
+    ],
 )
 
 
@@ -194,12 +185,11 @@ NameSpaceInput = NameSpace | TableNames | Type[BaseMixin] | Any
 
 
 class Messenger:
-
     def __init__(self, redis: Redis):
         self._redis = redis
         self._pubsub = self._redis.pubsub()
         self._listening = False
-        self._logger = logging.getLogger('Messenger')
+        self._logger = logging.getLogger("Messenger")
 
     def _wrap(self, coro, namespace: NameSpace, rcv_event=False):
         @wraps(coro)
@@ -207,26 +197,29 @@ class Messenger:
             if rcv_event:
                 data = event
             else:
-                data = customjson.loads(event['data'], parse_decimal=False)
+                data = customjson.loads(event["data"], parse_decimal=False)
             asyncio.create_task(
-                core.return_unknown_function(coro,
-                                             # namespace.model(**data) if namespace.model else data,
-                                             data,
-                                             *args, **kwargs)
+                core.return_unknown_function(
+                    coro,
+                    # namespace.model(**data) if namespace.model else data,
+                    data,
+                    *args,
+                    **kwargs,
+                )
             )
 
         return wrapper
 
     async def listen(self):
         self._listening = True
-        self._logger.info('Started Listening.')
+        self._logger.info("Started Listening.")
         async for msg in self._pubsub.listen():
             self._logger.debug(msg)
-        self._logger.info('Stopped Listening.')
+        self._logger.info("Stopped Listening.")
         self._listening = False
 
     async def sub(self, pattern=False, **kwargs):
-        self._logger.debug(f'Subscribing {pattern=} {kwargs=}')
+        self._logger.debug(f"Subscribing {pattern=} {kwargs=}")
         if pattern:
             await self._pubsub.psubscribe(**kwargs)
         else:
@@ -249,11 +242,13 @@ class Messenger:
             return name
         elif isinstance(name, Enum):
             return by_names.get(name.value)
-        elif hasattr(name, '__tablename__'):
+        elif hasattr(name, "__tablename__"):
             return by_names.get(name.__tablename__)
         return by_names.get(str(name))
 
-    def sub_channel(self, namespace: NameSpaceInput, topic: Any, callback: Callable, **ids):
+    def sub_channel(
+        self, namespace: NameSpaceInput, topic: Any, callback: Callable, **ids
+    ):
         return self.bulk_sub(self.get_namespace(namespace), {topic: callback}, **ids)
 
     def unsub_channel(self, namespace: NameSpaceInput, topic: Any, **ids):
@@ -264,9 +259,11 @@ class Messenger:
         ns = self.get_namespace(instance.__tablename__)
         return self.pub_channel(ns, topic, instance.serialize(), **ns.get_ids(instance))
 
-    async def pub_channel(self, namespace: NameSpaceInput, topic: Any, obj: object, **ids):
+    async def pub_channel(
+        self, namespace: NameSpaceInput, topic: Any, obj: object, **ids
+    ):
         channel, pattern = self.get_namespace(namespace).format(topic, **ids)
-        logging.debug(f'Pub: {channel=}')
+        logging.debug(f"Pub: {channel=}")
         ret = await self._redis.publish(channel, customjson.dumps(obj))
         return ret
 
@@ -278,7 +275,9 @@ class Messenger:
     # user:*:event:*:start
     # user:*:event:23:start
     # user:234f-345k:editing:23:chapter:new
-    async def bulk_sub(self, namespace: NameSpaceInput, topics: dict[Any, Callable], **ids):
+    async def bulk_sub(
+        self, namespace: NameSpaceInput, topics: dict[Any, Callable], **ids
+    ):
         subscription = {}
         pattern = False
         namespace = self.get_namespace(namespace)
@@ -287,12 +286,9 @@ class Messenger:
             subscription[channel] = self._wrap(callback, namespace)
         await self.sub(pattern=pattern, **subscription)
 
-    async def setup_waiter(self, channel: str, is_pattern=False, timeout=.25):
+    async def setup_waiter(self, channel: str, is_pattern=False, timeout=0.25):
         fut = asyncio.get_running_loop().create_future()
-        await self.sub(
-            pattern=is_pattern,
-            **{channel: fut.set_result}
-        )
+        await self.sub(pattern=is_pattern, **{channel: fut.set_result})
 
         async def wait():
             try:
@@ -304,37 +300,51 @@ class Messenger:
 
         return wait
 
-    def listen_class(self,
-                     target_cls: Type[Serializer],
-                     identifier: str,
-                     namespace: NameSpace[Type[Serializer]],
-                     sub: Category | str,
-                     condition: Callable[[Serializer], bool] = None):
+    def listen_class(
+        self,
+        target_cls: Type[Serializer],
+        identifier: str,
+        namespace: NameSpace[Type[Serializer]],
+        sub: Category | str,
+        condition: Optional[Callable[[Serializer], bool]] = None,
+    ):
         @event.listens_for(target_cls, identifier)
         def handler(_mapper, _connection, target: target_cls):
-            realtime = getattr(target, '__realtime__', None)
-            logging.debug(f'Listen: {sub=} {target=} {realtime=}')
+            realtime = getattr(target, "__realtime__", None)
+            logging.debug(f"Listen: {sub=} {target=} {realtime=}")
             if realtime is not False and (not condition or condition(target)):
                 asyncio.create_task(
                     self.pub_channel(
-                        namespace, sub,
+                        namespace,
+                        sub,
                         obj=jsonable_encoder(target.serialize(include_none=False)),
-                        **namespace.get_ids(target)
+                        **namespace.get_ids(target),
                     )
                 )
 
-    def listen_class_all(self, target_cls: Type[Serializer], namespace: NameSpace = None):
+    def listen_class_all(
+        self, target_cls: Type[Serializer], namespace: Optional[NameSpace] = None
+    ):
         if not namespace:
             namespace = self.get_namespace(target_cls.__tablename__)
 
         if target_cls is Trade:
+
             def is_finished(trade: Trade):
                 return not trade.is_open
 
-            self.listen_class(target_cls, "after_update", namespace, TradeSpace.FINISHED, condition=is_finished)
+            self.listen_class(
+                target_cls,
+                "after_update",
+                namespace,
+                TradeSpace.FINISHED,
+                condition=is_finished,
+            )
 
         if target_cls is Chapter:
-            self.listen_class(target_cls, "after_insert", namespace, ChapterSpace.PUBLISH)
+            self.listen_class(
+                target_cls, "after_insert", namespace, ChapterSpace.PUBLISH
+            )
             return
 
         self.listen_class(target_cls, "after_insert", namespace, Category.NEW)

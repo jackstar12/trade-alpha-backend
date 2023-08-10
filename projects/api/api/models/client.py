@@ -17,17 +17,15 @@ from database.models.eventinfo import EventBasicInfo
 from database.models.interval import Interval, FullInterval
 
 
-def get_query_params(client_id: set[InputID] = Query(default=[]),
-                     currency: str = Query(default=None),
-                     since: datetime = Query(default=None),
-                     to: datetime = Query(default=None),
-                     order: str = Query(default='asc')):
+def get_query_params(
+    client_id: set[InputID] = Query(default=[]),
+    currency: str = Query(default=None),
+    since: datetime = Query(default=None),
+    to: datetime = Query(default=None),
+    order: str = Query(default="asc"),
+):
     return qmxin.ClientQueryParams(
-        client_ids=client_id,
-        currency=currency,
-        since=since,
-        to=to,
-        order=order
+        client_ids=client_id, currency=currency, since=since, to=to, order=order
     )
 
 

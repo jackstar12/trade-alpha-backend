@@ -10,13 +10,12 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_event_messages(event_service, test_user, messenger, db):
-
     async with Messages.create(
         Channel(TableNames.EVENT, EventSpace.REGISTRATION_START),
         Channel(TableNames.EVENT, EventSpace.START),
         Channel(TableNames.EVENT, EventSpace.REGISTRATION_END),
         Channel(TableNames.EVENT, EventSpace.END),
-        messenger=messenger
+        messenger=messenger,
     ) as listener:
         event = event_mock(interval=timedelta(seconds=1)).get(test_user)
         db.add(event)

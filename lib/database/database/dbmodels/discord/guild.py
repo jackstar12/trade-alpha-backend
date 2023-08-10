@@ -8,26 +8,29 @@ from database.enums import Tier
 
 
 class Guild(Base, Serializer, BaseMixin):
-    __tablename__ = 'guild'
+    __tablename__ = "guild"
 
     id = Column(BigInteger, primary_key=True, nullable=False)
     name = Column(String, nullable=True)
     tier = Column(Enum(Tier), default=Tier.BASE, nullable=False)
     avatar = Column(String, nullable=True)
 
-    events = relationship('Event',
-                          lazy='raise',
-                          backref=backref('guild', lazy='raise'),
-                          viewonly=True,
-                          primaryjoin='Guild.id == foreign(Event.guild_id)')
+    events = relationship(
+        "Event",
+        lazy="raise",
+        backref=backref("guild", lazy="raise"),
+        viewonly=True,
+        primaryjoin="Guild.id == foreign(Event.guild_id)",
+    )
 
-    users = relationship('DiscordUser',
-                         secondary='guild_association',
-                         lazy='raise',
-                         backref=backref('guilds', lazy='raise'),
-                         viewonly=True)
+    users = relationship(
+        "DiscordUser",
+        secondary="guild_association",
+        lazy="raise",
+        backref=backref("guilds", lazy="raise"),
+        viewonly=True,
+    )
 
-    associations = relationship('GuildAssociation',
-                                lazy='raise',
-                                viewonly=True,
-                                back_populates='guild')
+    associations = relationship(
+        "GuildAssociation", lazy="raise", viewonly=True, back_populates="guild"
+    )

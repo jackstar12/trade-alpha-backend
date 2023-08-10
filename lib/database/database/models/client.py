@@ -1,7 +1,6 @@
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict, Optional
 
-import pydantic
 
 from database.models import BaseModel
 from database.dbmodels import Client
@@ -23,8 +22,8 @@ class ClientCreate(ClientApiInfo):
     type: ClientType = ClientType.FULL
     import_since: Optional[datetime]
 
-    def get(self, user: User = None) -> Client:
-        client = Client(user=user, **self.dict(exclude={'import_since'}))
+    def get(self, user: Optional[User] = None) -> Client:
+        client = Client(user=user, **self.dict(exclude={"import_since"}))
         if self.import_since:
             client.last_execution_sync = self.import_since
             client.last_transfer_sync = self.import_since

@@ -17,7 +17,6 @@ from database.models.ticker import Ticker
 
 
 class AlertService(BaseService, Observer):
-
     def __init__(self, *args, data_service: DataService, **kwargs):
         super().__init__(*args, **kwargs)
         self.data_service = data_service
@@ -31,14 +30,14 @@ class AlertService(BaseService, Observer):
             await self.data_service.subscribe(
                 ExchangeInfo(name=alert.src, sandbox=False),
                 Subscription.get(Channel.TICKER, symbol=alert.symbol),
-                self
+                self,
             )
             self.add_alert(alert)
 
-        await self._messenger.bulk_sub(TableNames.ALERT, {
-            Category.NEW: self._update,
-            Category.DELETE: self._delete
-        })
+        await self._messenger.bulk_sub(
+            TableNames.ALERT,
+            {Category.NEW: self._update, Category.DELETE: self._delete},
+        )
 
     def add_alert(self, alert: Alert):
         symbol = (alert.symbol, alert.exchange)
@@ -52,14 +51,14 @@ class AlertService(BaseService, Observer):
             alerts.remove(alert)
 
     async def _update(self, data: Dict):
-        new: Alert = await self._db.get(Alert, data['id'])
+        new: Alert = await self._db.get(Alert, data["id"])
         symbol = (new.symbol, new.exchange)
         ticker = self._tickers.get(symbol)
         if not ticker:
             await self.data_service.subscribe(
                 ExchangeInfo(name=new.exchange, sandbox=False),
                 Subscription.get(Channel.TICKER, symbol=new.symbol),
-                self
+                self,
             )
             while ticker is None:
                 await asyncio.sleep(0.1)
@@ -72,7 +71,7 @@ class AlertService(BaseService, Observer):
         self.add_alert(new)
 
     async def _delete(self, data: Dict):
-        alert = await self._db.get(Alert, data['id'])
+        alert = await self._db.get(Alert, data["id"])
         self._remove_alert(alert)
 
     async def update(self, *new_state):

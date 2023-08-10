@@ -8,7 +8,7 @@ from starlette.responses import JSONResponse
 from core import json as customjson
 from database.models import BaseModel
 
-ResultT = TypeVar('ResultT', bound=BaseModel)
+ResultT = TypeVar("ResultT", bound=BaseModel)
 
 
 class ResponseModel(BaseModel, Generic[ResultT]):
@@ -17,32 +17,40 @@ class ResponseModel(BaseModel, Generic[ResultT]):
     result: Optional[ResultT]
 
 
-def BadRequest(detail: str = None, code: int = None, **kwargs):
-    return HTTPException(detail=detail or 'Bad Request', status_code=HTTPStatus.BAD_REQUEST)
+def BadRequest(detail: Optional[str] = None, code: Optional[int] = None, **kwargs):
+    return HTTPException(
+        detail=detail or "Bad Request", status_code=HTTPStatus.BAD_REQUEST
+    )
 
 
-def NotFound(detail: str = None, code: int = None, **kwargs):
-    return HTTPException(detail=detail or 'Not Found', status_code=HTTPStatus.NOT_FOUND)
-    #return Response(detail or 'Not Found', code, HTTPStatus.NOT_FOUND, **kwargs)
+def NotFound(detail: Optional[str] = None, code: Optional[int] = None, **kwargs):
+    return HTTPException(detail=detail or "Not Found", status_code=HTTPStatus.NOT_FOUND)
+    # return Response(detail or 'Not Found', code, HTTPStatus.NOT_FOUND, **kwargs)
 
 
-def Unauthorized(detail: str = None):
-    return HTTPException(detail=detail or 'Unauthorized', status_code=HTTPStatus.UNAUTHORIZED)
+def Unauthorized(detail: Optional[str] = None):
+    return HTTPException(
+        detail=detail or "Unauthorized", status_code=HTTPStatus.UNAUTHORIZED
+    )
 
 
-def InternalError(detail: str = None, code: int = None, **kwargs):
-    return HTTPException(detail=detail or 'Internal Error', status_code=HTTPStatus.INTERNAL_SERVER_ERROR)
+def InternalError(detail: Optional[str] = None, code: Optional[int] = None, **kwargs):
+    return HTTPException(
+        detail=detail or "Internal Error", status_code=HTTPStatus.INTERNAL_SERVER_ERROR
+    )
 
 
-def OK(detail: str = None, code: int = None, **kwargs):
-    return Response(detail or 'OK', code, HTTPStatus.OK, **kwargs)
+def OK(detail: Optional[str] = None, code: Optional[int] = None, **kwargs):
+    return Response(detail or "OK", code, HTTPStatus.OK, **kwargs)
 
 
-def Response(detail: str, code: int, status: int, result: Any = None, **kwargs):
+def Response(
+    detail: str, code: int, status: int, result: Optional[Any] = None, **kwargs
+):
     return CustomJSONResponse(jsonable_encoder(result, **kwargs), status_code=status)
     return CustomJSONResponse(
-        {'detail': detail, 'code': code, 'result': jsonable_encoder(result), **kwargs},
-        status_code=status
+        {"detail": detail, "code": code, "result": jsonable_encoder(result), **kwargs},
+        status_code=status,
     )
 
 

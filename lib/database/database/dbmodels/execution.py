@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -6,7 +5,17 @@ from sqlalchemy.orm import relationship
 
 from database.dbmodels.mixins.filtermixin import FilterMixin, FilterParam
 from database.dbsync import Base, BaseMixin, FKey
-from sqlalchemy import Column, Integer, String, DateTime, Numeric, Enum, UniqueConstraint, Boolean, case
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Numeric,
+    Enum,
+    UniqueConstraint,
+    Boolean,
+    case,
+)
 from database.dbmodels.mixins.serializer import Serializer
 from database.enums import ExecType, Side, MarketType
 from database.dbmodels.symbol import CurrencyMixin
@@ -14,11 +23,11 @@ import database.dbmodels as dbmodels
 
 
 class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
-    __tablename__ = 'execution'
+    __tablename__ = "execution"
 
     id = Column(Integer, primary_key=True)
-    trade_id = Column(FKey('trade.id', ondelete='CASCADE'))
-    transfer_id = Column(FKey('transfer.id', ondelete='CASCADE'))
+    trade_id = Column(FKey("trade.id", ondelete="CASCADE"))
+    transfer_id = Column(FKey("transfer.id", ondelete="CASCADE"))
 
     symbol = Column(String, nullable=False)
     time = Column(DateTime(timezone=True), nullable=False)
@@ -31,15 +40,15 @@ class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
     commission: Decimal = Column(Numeric, nullable=True)
 
     # If true, the execution will first lower the size of the current trade, otherwise open a new one
-    reduce: bool = Column(Boolean, server_default='True')
-    market_type = Column(Enum(MarketType), nullable=False, server_default='DERIVATIVES')
+    reduce: bool = Column(Boolean, server_default="True")
+    market_type = Column(Enum(MarketType), nullable=False, server_default="DERIVATIVES")
 
-    trade = relationship('Trade', lazy='noload', foreign_keys=trade_id)
-    transfer = relationship('Transfer', lazy='noload', post_update=True, foreign_keys=transfer_id)
-
-    __table_args__ = (
-        UniqueConstraint(trade_id, transfer_id),
+    trade = relationship("Trade", lazy="noload", foreign_keys=trade_id)
+    transfer = relationship(
+        "Transfer", lazy="noload", post_update=True, foreign_keys=transfer_id
     )
+
+    __table_args__ = (UniqueConstraint(trade_id, transfer_id),)
 
     @hybrid_property
     def net_pnl(self):
@@ -67,4 +76,4 @@ class Execution(Base, Serializer, BaseMixin, FilterMixin, CurrencyMixin):
         return dbmodels.Trade.apply(param, stmt)
 
     def __repr__(self):
-        return f'<{self.__class__.__name__} {self.side} {self.symbol}@{self.price} {self.qty}'
+        return f"<{self.__class__.__name__} {self.side} {self.symbol}@{self.price} {self.qty}"

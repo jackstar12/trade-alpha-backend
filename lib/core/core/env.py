@@ -1,9 +1,6 @@
-from typing import Optional
-
 import dotenv
-import os
 
-from pydantic import BaseSettings, SecretStr, HttpUrl, AnyHttpUrl
+from pydantic import BaseSettings, AnyHttpUrl
 
 dotenv.load_dotenv(".env")
 

@@ -6,7 +6,7 @@ from typing import Optional
 
 from database.enums import IntervalType
 from database.models import BaseModel
-from database.models.balance import Balance, Balance
+from database.models.balance import Balance
 from database.models.gain import Gain
 
 
@@ -29,21 +29,27 @@ class Interval(BaseModel):
         orm_mode = True
 
     @classmethod
-    def create(cls, prev: Balance, current: Balance, offset: Decimal, length: IntervalType = None) -> Interval:
+    def create(
+        cls,
+        prev: Balance,
+        current: Balance,
+        offset: Decimal,
+        length: Optional[IntervalType] = None,
+    ) -> Interval:
         return cls(
             start=current.time.date(),
             gain=current.gain_since(prev, offset),
             start_balance=prev,
             end_balance=current,
             offset=offset,
-            length=length
+            length=length,
         )
 
     def __add__(self, other):
         return self.create(
             self.start_balance + other.start_balance,
             self.end_balance + other.end_balance,
-            offset=self.offset + other.offset
+            offset=self.offset + other.offset,
         )
 
 

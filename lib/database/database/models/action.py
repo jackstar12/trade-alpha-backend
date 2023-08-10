@@ -1,6 +1,6 @@
 from typing import Literal, TypedDict, Union, Optional
 
-from pydantic import HttpUrl, Field
+from pydantic import HttpUrl
 
 from database.dbmodels.action import Action, ActionTrigger, ActionType
 from database.models import OrmBaseModel, CreateableModel, OutputID
@@ -12,7 +12,7 @@ class WebhookData(TypedDict):
 
 
 class WebhookPlatform(PlatformModel):
-    name: Literal['webhook']
+    name: Literal["webhook"]
     data: WebhookData
 
 
@@ -30,5 +30,3 @@ class ActionCreate(CreateableModel):
 
 class ActionInfo(OrmBaseModel, ActionCreate):
     id: OutputID
-
-

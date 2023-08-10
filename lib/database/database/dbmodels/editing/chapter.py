@@ -20,15 +20,25 @@ if TYPE_CHECKING:
     from database.dbmodels.client import ClientQueryParams
 
 balance_association = sa.Table(
-    'balance_association', Base.metadata,
-    sa.Column('balance_id', sa.ForeignKey('balance.id', ondelete="CASCADE"), primary_key=True),
-    sa.Column('chapter_id', sa.ForeignKey('chapter.id', ondelete="CASCADE"), primary_key=True)
+    "balance_association",
+    Base.metadata,
+    sa.Column(
+        "balance_id", sa.ForeignKey("balance.id", ondelete="CASCADE"), primary_key=True
+    ),
+    sa.Column(
+        "chapter_id", sa.ForeignKey("chapter.id", ondelete="CASCADE"), primary_key=True
+    ),
 )
 
 chapter_trade_association = sa.Table(
-    'chapter_trade_association', Base.metadata,
-    sa.Column('trade_id', sa.ForeignKey('trade.id', ondelete="CASCADE"), primary_key=True),
-    sa.Column('chapter_id', sa.ForeignKey('chapter.id', ondelete="CASCADE"), primary_key=True)
+    "chapter_trade_association",
+    Base.metadata,
+    sa.Column(
+        "trade_id", sa.ForeignKey("trade.id", ondelete="CASCADE"), primary_key=True
+    ),
+    sa.Column(
+        "chapter_id", sa.ForeignKey("chapter.id", ondelete="CASCADE"), primary_key=True
+    ),
 )
 
 
@@ -41,15 +51,21 @@ class ChapterData(BaseModel):
 
 
 class Chapter(Base, Serializer, BaseMixin, PageMixin):
-    __tablename__ = 'chapter'
+    __tablename__ = "chapter"
 
     # Identifiers
-    journal_id = sa.Column(sa.ForeignKey('journal.id', ondelete="CASCADE"), nullable=False)
-    template_id = sa.Column(sa.ForeignKey('template.id', ondelete="SET NULL"), nullable=True)
-    data: Optional[ChapterData] = sa.Column(ChapterData.get_sa_type(validate=True), nullable=True)
+    journal_id = sa.Column(
+        sa.ForeignKey("journal.id", ondelete="CASCADE"), nullable=False
+    )
+    template_id = sa.Column(
+        sa.ForeignKey("template.id", ondelete="SET NULL"), nullable=True
+    )
+    data: Optional[ChapterData] = sa.Column(
+        ChapterData.get_sa_type(validate=True), nullable=True
+    )
 
-    journal = orm.relationship('Journal', lazy='noload')
-    template = orm.relationship('Template', lazy='noload')
+    journal = orm.relationship("Journal", lazy="noload")
+    template = orm.relationship("Template", lazy="noload")
 
     @hybrid_property
     def start_date(self):
@@ -64,10 +80,8 @@ class Chapter(Base, Serializer, BaseMixin, PageMixin):
         results = []
 
         def recursive(current: DocumentModel):
-            if current.attrs and 'data' in current.attrs:
-                results.append(
-                    TradeData(**current.attrs['data'])
-                )
+            if current.attrs and "data" in current.attrs:
+                results.append(TradeData(**current.attrs["data"]))
 
             if current.content:
                 for node in current.content:
@@ -78,58 +92,61 @@ class Chapter(Base, Serializer, BaseMixin, PageMixin):
         return results
 
     @classmethod
-    def query_nodes(cls,
-                    root_id: int = None,
-                    node_type: str = None,
-                    query_params: ClientQueryParams = None,
-                    journal_id: int = None,
-                    trade_ids: list[int] = None):
-
-        included = select(
-            cls.id, cls.doc
-        ).filter(
-            or_(
-                opt_eq(cls.id, root_id),
-                opt_eq(cls.parent_id, root_id),
-            ),
-            opt_eq(cls.journal_id, journal_id)
-        ).cte(name="included", recursive=True)
+    def query_nodes(
+        cls,
+        root_id: Optional[int] = None,
+        node_type: Optional[str] = None,
+        query_params: Optional[ClientQueryParams] = None,
+        journal_id: Optional[int] = None,
+        trade_ids: Optional[list[int]] = None,
+    ):
+        included = (
+            select(cls.id, cls.doc)
+            .filter(
+                or_(
+                    opt_eq(cls.id, root_id),
+                    opt_eq(cls.parent_id, root_id),
+                ),
+                opt_eq(cls.journal_id, journal_id),
+            )
+            .cte(name="included", recursive=True)
+        )
 
         included_alias = aliased(included, name="parent")
         chapter_alias = aliased(cls, name="child")
 
         included = included.union_all(
-            select(
-                chapter_alias.id, chapter_alias.doc
-            ).filter(
+            select(chapter_alias.id, chapter_alias.doc).filter(
                 chapter_alias.parent_id == included_alias.c.id
             )
         )
 
         tree = select(
-            func.jsonb_array_elements(included.c.doc['content']).cast(JSONB).label('node')
+            func.jsonb_array_elements(included.c.doc["content"])
+            .cast(JSONB)
+            .label("node")
         ).cte(name="nodes", recursive=True)
 
-        attrs = tree.c.node['attrs']
+        attrs = tree.c.node["attrs"]
 
         tree = tree.union(
-            select(
-                func.jsonb_array_elements(tree.c.node['content']).cast(JSONB)
-            ).where(
-                func.jsonb_exists(attrs, 'data'),
-                opt_eq(tree.c.node['type'].astext, node_type)
+            select(func.jsonb_array_elements(tree.c.node["content"]).cast(JSONB)).where(
+                func.jsonb_exists(attrs, "data"),
+                opt_eq(tree.c.node["type"].astext, node_type),
             )
         )
-        data = tree.c.node['attrs']['data']
+        data = tree.c.node["attrs"]["data"]
 
         if query_params:
             whereas = (
-                cmp_dates(data['dates']['to'], query_params.to),
-                cmp_dates(data['dates']['since'], query_params.since),
+                cmp_dates(data["dates"]["to"], query_params.to),
+                cmp_dates(data["dates"]["since"], query_params.since),
                 or_(
-                    data['clientIds'] == JSONB.NULL,
+                    data["clientIds"] == JSONB.NULL,
                     # data['clientIds'].contains(list(map(str, query_params.client_ids)))
-                    data['clientIds'].contains([str(id) for id in query_params.client_ids])
+                    data["clientIds"].contains(
+                        [str(id) for id in query_params.client_ids]
+                    ),
                 ),
                 # or_(
                 #    data['tradeIds'] == JSONB.NULL,
@@ -168,34 +185,29 @@ class Chapter(Base, Serializer, BaseMixin, PageMixin):
         # https://stackoverflow.com/questions/30132568/collect-recursive-json-keys-in-postgres
         # http://tatiyants.com/how-to-navigate-json-trees-in-postgres-using-recursive-ctes/
 
-        cte = select(
-            literal('NULL').label('key'),
-            Chapter.doc.label('doc')
-        ).cte(recursive=True)
+        cte = select(literal("NULL").label("key"), Chapter.doc.label("doc")).cte(
+            recursive=True
+        )
         cte_alias = cte.alias()
 
         typed_values = select(
-            func.jsonb_typeof(cte_alias.c.doc).label('typeof'),
-            cte_alias.c.doc.label('value')
-        ).cte(name='typed_values')
+            func.jsonb_typeof(cte_alias.c.doc).label("typeof"),
+            cte_alias.c.doc.label("value"),
+        ).cte(name="typed_values")
 
-        each = select(
-            func.jsonb_each(typed_values.c.value).label('v')
-        ).subquery().lateral()
-
-        array_elemenets = select(
-            literal('NULL').label('key'),
-            func.jsonb_array_elements(typed_values.c.value).label('element')
-        ).subquery().lateral()
+        array_elemenets = (
+            select(
+                literal("NULL").label("key"),
+                func.jsonb_array_elements(typed_values.c.value).label("element"),
+            )
+            .subquery()
+            .lateral()
+        )
 
         result = typed_values.union_all(
-            # select(each.c.v.key, each.c.v.value).where(
-            #    typed_values.c.typeof == 'object'
-            # ),
-            select(array_elemenets.c.key, array_elemenets.c.element).select_from(
-            ).where(
-                typed_values.c.typeof == 'array'
-            )
+            select(array_elemenets.c.key, array_elemenets.c.element)
+            .select_from()
+            .where(typed_values.c.typeof == "array")
         )
 
         return select(result).scalar_subquery()

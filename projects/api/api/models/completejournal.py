@@ -7,9 +7,9 @@ from database.models import BaseModel, OutputID, InputID
 from api.models.template import TemplateInfo, TemplateDetailed
 from database.dbmodels.editing.journal import IntervalType, JournalType
 from database.models.document import DocumentModel
-from pydantic import NoneStr
 
 MISSING = object()
+
 
 class Gain(NamedTuple):
     relative: Decimal
@@ -22,10 +22,10 @@ class ChapterInfo(BaseModel):
     parent_id: Optional[OutputID]
     data: Optional[dict[str, Any]]
     created_at: datetime
-    #balances: List[Balance]
-    #performance: Optional[Gain]
-    #start_balance: FullBalance
-    #end_balance: FullBalance
+    # balances: List[Balance]
+    # performance: Optional[Gain]
+    # start_balance: FullBalance
+    # end_balance: FullBalance
 
     class Config:
         orm_mode = True
@@ -72,7 +72,7 @@ class JournalCreate(BaseModel):
 
 
 class DetailedChapter(ChapterInfo):
-    #trades: List[Trade]
+    # trades: List[Trade]
     data: Optional[dict]
     doc: Optional[DocumentModel]
     grants: Optional[list[AuthGrantInfo]]
@@ -83,7 +83,7 @@ class ChapterUpdate(BaseModel):
     doc: Optional[DocumentModel]
     data: Optional[dict]
     parent_id: Optional[InputID]
-    #trades: Optional[Set[str]]
+    # trades: Optional[Set[str]]
 
 
 class ChapterCreate(BaseModel):

@@ -1,6 +1,6 @@
 import typing
 from dataclasses import dataclass, field
-from typing import Type, Callable, Optional
+from typing import Optional, Type, Callable
 
 from fastapi import APIRouter, Depends
 from fastapi_users.types import DependencyCallable
@@ -12,9 +12,9 @@ from sqlalchemy.sql import Select, Update, Delete
 from api.dependencies import get_db
 from api.users import CurrentUser
 from api.utils.responses import OK, NotFound, BadRequest
-from database.dbasync import db_all, db_unique, TEager, db_select
+from database.dbasync import db_all, TEager, db_select
 from database.dbmodels.user import User
-from database.dbsync import Base, BaseMixin
+from database.dbsync import BaseMixin
 from database.models import BaseModel, OrmBaseModel, CreateableModel, InputID
 
 TStmt = Select | Update | Delete
@@ -28,20 +28,20 @@ class Route:
     dependencies: list[Depends] = field(default_factory=lambda: [])
 
 
-TTable = typing.TypeVar('TTable', bound=BaseMixin)
+TTable = typing.TypeVar("TTable", bound=BaseMixin)
 
 
-def add_crud_routes(router: APIRouter,
-                    table: Type[TTable],
-                    read_schema: Type[OrmBaseModel],
-                    create_schema: Type[CreateableModel],
-                    update_schema: Type[BaseModel] = None,
-                    default_route: Route = None,
-                    **routes: dict[str, Route]):
+def add_crud_routes(
+    router: APIRouter,
+    table: Type[TTable],
+    read_schema: Type[OrmBaseModel],
+    create_schema: Type[CreateableModel],
+    update_schema: Optional[Type[BaseModel]] = None,
+    default_route: Optional[Route] = None,
+    **routes: dict[str, Route]
+):
     def default_filter(stmt: TStmt, user: User) -> Select:
-        return stmt.where(
-            table.user_id == user.id
-        )
+        return stmt.where(table.user_id == user.id)
 
     if not default_route:
         default_route = Route()
@@ -51,14 +51,19 @@ def add_crud_routes(router: APIRouter,
 
     update_schema = update_schema or create_schema
 
-    create_route = routes.get('create', default_route)
+    create_route = routes.get("create", default_route)
     if create_route != Undefined:
-        @router.post('', response_model=read_schema, dependencies=create_route.dependencies)
-        async def create(body: create_schema,
-                         user: User = Depends(create_route.user_dependency),
-                         db: AsyncSession = Depends(get_db)):
+
+        @router.post(
+            "", response_model=read_schema, dependencies=create_route.dependencies
+        )
+        async def create(
+            body: create_schema,
+            user: User = Depends(create_route.user_dependency),
+            db: AsyncSession = Depends(get_db),
+        ):
             instance = body.get(user)
-            if hasattr(instance, 'user'):
+            if hasattr(instance, "user"):
                 instance.user = user
             try:
                 await instance.validate()
@@ -68,7 +73,7 @@ def add_crud_routes(router: APIRouter,
             await db.commit()
             return read_schema.from_orm(instance)
 
-    get_one_route = routes.get('get_one', default_route)
+    get_one_route = routes.get("get_one", default_route)
 
     async def read_one(entity_id: InputID, user: User, db: AsyncSession, **kwargs):
         result = await db_select(
@@ -76,34 +81,44 @@ def add_crud_routes(router: APIRouter,
             table.id == entity_id,
             apply=lambda s: get_one_route.add_filters(s, user, **kwargs),
             eager=get_one_route.eager_loads,
-            session=db
+            session=db,
         )
         if not result:
-            raise NotFound('Invalid id')
+            raise NotFound("Invalid id")
         return result
 
     if get_one_route != Undefined:
-        @router.get('/{entity_id}', response_model=read_schema, dependencies=get_one_route.dependencies)
-        async def get_one(entity_id: InputID,
-                          user: User = Depends(get_one_route.user_dependency),
-                          db: AsyncSession = Depends(get_db)):
+
+        @router.get(
+            "/{entity_id}",
+            response_model=read_schema,
+            dependencies=get_one_route.dependencies,
+        )
+        async def get_one(
+            entity_id: InputID,
+            user: User = Depends(get_one_route.user_dependency),
+            db: AsyncSession = Depends(get_db),
+        ):
             entity = await read_one(entity_id, user, db)
 
             return read_schema.from_orm(entity)
 
-    delete_one_route = routes.get('delete_one', default_route)
+    delete_one_route = routes.get("delete_one", default_route)
 
     if delete_one_route != Undefined:
-        @router.delete('/{entity_id}', dependencies=delete_one_route.dependencies)
-        async def delete_one(entity_id: InputID,
-                             user: User = Depends(delete_one_route.user_dependency),
-                             db: AsyncSession = Depends(get_db)):
+
+        @router.delete("/{entity_id}", dependencies=delete_one_route.dependencies)
+        async def delete_one(
+            entity_id: InputID,
+            user: User = Depends(delete_one_route.user_dependency),
+            db: AsyncSession = Depends(get_db),
+        ):
             entity = await read_one(entity_id, user, db)
             await db.delete(entity)
             await db.commit()
-            return OK('Deleted')
+            return OK("Deleted")
 
-    all_route = routes.get('get_all', default_route)
+    all_route = routes.get("get_all", default_route)
 
     def read_all(user: User, db: AsyncSession, **kwargs):
         return db_all(
@@ -113,26 +128,34 @@ def add_crud_routes(router: APIRouter,
         )
 
     if all_route != Undefined:
-        @router.get('', response_model=list[read_schema], dependencies=all_route.dependencies)
-        async def get_all(user: User = Depends(all_route.user_dependency),
-                          db: AsyncSession = Depends(get_db)):
+
+        @router.get(
+            "", response_model=list[read_schema], dependencies=all_route.dependencies
+        )
+        async def get_all(
+            user: User = Depends(all_route.user_dependency),
+            db: AsyncSession = Depends(get_db),
+        ):
             results = await read_all(user, db)
 
             return OK(
-                detail='OK',
-                result=[
-                    read_schema.from_orm(entity)
-                    for entity in results
-                ]
+                detail="OK", result=[read_schema.from_orm(entity) for entity in results]
             )
 
-    update_one_route = routes.get('update_one', default_route)
+    update_one_route = routes.get("update_one", default_route)
     if update_one_route != Undefined:
-        @router.patch('/{entity_id}', response_model=read_schema, dependencies=update_one_route.dependencies)
-        async def update_one(entity_id: InputID,
-                             body: update_schema,
-                             user: User = Depends(update_one_route.user_dependency),
-                             db: AsyncSession = Depends(get_db)):
+
+        @router.patch(
+            "/{entity_id}",
+            response_model=read_schema,
+            dependencies=update_one_route.dependencies,
+        )
+        async def update_one(
+            entity_id: InputID,
+            body: update_schema,
+            user: User = Depends(update_one_route.user_dependency),
+            db: AsyncSession = Depends(get_db),
+        ):
             entity = await read_one(entity_id, user, db)
 
             for key, value in body.dict(exclude_none=True).items():
@@ -147,5 +170,3 @@ def add_crud_routes(router: APIRouter,
             return read_schema.from_orm(entity)
 
     return router
-
-

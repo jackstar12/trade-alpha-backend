@@ -12,11 +12,10 @@ class Calculation(Enum):
     WINRATE = "winrate"
 
 
-
 class Performance(NamedTuple):
     relative: Decimal
     absolute: Decimal
-    #filter_values: Dict[Filter, Any]
+    # filter_values: Dict[Filter, Any]
     filter_values: List[Any]
 
 

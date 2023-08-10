@@ -17,7 +17,9 @@ class Gain(BaseModel):
     since: Optional[datetime]
 
     def to_string(self, ccy: str):
-        return f'{round_ccy(self.relative, "%")}% ({round_ccy(self.absolute, ccy)}{ccy})'
+        return (
+            f'{round_ccy(self.relative, "%")}% ({round_ccy(self.absolute, ccy)}{ccy})'
+        )
 
 
 class ClientGain(NamedTuple):

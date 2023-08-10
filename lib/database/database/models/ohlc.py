@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import NamedTuple, Optional
+from typing import Optional
 
 from database.models import BaseModel
 

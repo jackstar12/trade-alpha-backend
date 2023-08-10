@@ -14,7 +14,6 @@ class Balance(typing.Protocol):
     def total_transfers_corrected(self):
         return self.unrealized
 
-
     @property
     def total(self):
         return self.realized + self.unrealized

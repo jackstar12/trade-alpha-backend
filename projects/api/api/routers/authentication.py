@@ -16,8 +16,8 @@ router = APIRouter(
     dependencies=[],
     responses={
         401: {"msg": "Wrong Email or Password"},
-        400: {"msg": "Email is already used"}
-    }
+        400: {"msg": "Email is already used"},
+    },
 )
 
 
@@ -26,8 +26,8 @@ class AuthenticationBody(BaseModel):
     password: str
 
 
-#@router.post('/register')
-#async def register(body: AuthenticationBody, authenticator: Authenticator = Depends(get_authenticator)):
+# @router.post('/register')
+# async def register(body: AuthenticationBody, authenticator: Authenticator = Depends(get_authenticator)):
 #    user = await db_select(User, email=body.email)
 #    if not user:
 #        new_user = User(
@@ -47,26 +47,28 @@ class AuthenticationBody(BaseModel):
 #        raise HTTPException(status_code=400)
 
 
-@router.post('/login')
-async def login(body: AuthenticationBody,
-                authenticator: Authenticator = Depends(get_authenticator),
-                db: AsyncSession = Depends(get_db)):
+@router.post("/login")
+async def login(
+    body: AuthenticationBody,
+    authenticator: Authenticator = Depends(get_authenticator),
+    db: AsyncSession = Depends(get_db),
+):
     user = await db_select(User, email=body.email, session=db)
     if user:
-        if bcrypt.checkpw(body.password.encode('utf-8'), user.hashed_password.encode('utf-8')):
-            response = CustomJSONResponse(
-                jsonable_encoder(UserRead.from_orm(user))
-            )
+        if bcrypt.checkpw(
+            body.password.encode("utf-8"), user.hashed_password.encode("utf-8")
+        ):
+            response = CustomJSONResponse(jsonable_encoder(UserRead.from_orm(user)))
 
             await authenticator.set_session_cookie(response, user)
 
             return response
 
-    raise HTTPException(status_code=401, detail='Wrong email or password')
+    raise HTTPException(status_code=401, detail="Wrong email or password")
 
 
-#@router.post('/refresh')
-#def refresh(Authorize: AuthJWT = Depends()):
+# @router.post('/refresh')
+# def refresh(Authorize: AuthJWT = Depends()):
 #    Authorize.jwt_refresh_token_required()
 #
 #    new_access_token = Authorize.create_access_token(subject=Authorize.get_jwt_subject(), fresh=False)
@@ -75,8 +77,10 @@ async def login(body: AuthenticationBody,
 #    return OK("The token has been refreshed")
 
 
-@router.post('/logout')
-async def logout(request: Request, authenticator: Authenticator = Depends(get_authenticator)):
+@router.post("/logout")
+async def logout(
+    request: Request, authenticator: Authenticator = Depends(get_authenticator)
+):
     await authenticator.invalidate_session(request)
     # Authorize.jwt_required()
     # Authorize.unset_jwt_cookies()

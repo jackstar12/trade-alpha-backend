@@ -1,5 +1,5 @@
 from database.dbmodels import User
-from database.dbmodels.label import Label, Group, LabelGroup
+from database.dbmodels.label import Label, LabelGroup
 from database.models import BaseModel, OutputID, InputID, CreateableModel
 from database.models import OrmBaseModel
 

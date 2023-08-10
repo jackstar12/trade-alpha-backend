@@ -1,4 +1,3 @@
-import os
 import uuid
 from operator import and_, or_
 from typing import Optional, Generic, Type
@@ -8,7 +7,9 @@ from fastapi.security import APIKeyQuery
 from fastapi_users import FastAPIUsers, schemas, BaseUserManager, models, exceptions
 from fastapi_users.authentication import (
     CookieTransport,
-    AuthenticationBackend, Transport, Strategy
+    AuthenticationBackend,
+    Transport,
+    Strategy,
 )
 from fastapi_users.jwt import SecretType
 from fastapi_users.models import ID, UOAP, OAP
@@ -25,8 +26,8 @@ from api.oauth import get_oauth_router
 from api.settings import settings
 from api.usermanager import UserManager
 from api.utils.responses import Unauthorized
-from core import utc_now, get_multiple, get_multiple_dict
-from database.dbasync import redis, db_eager, db_unique, opt_op, TEager
+from core import utc_now, get_multiple_dict
+from database.dbasync import redis, db_eager, db_unique, TEager
 from database.dbmodels.authgrant import AuthGrant, GrantAssociaton
 from database.dbmodels.user import User, OAuthAccount
 
@@ -39,10 +40,7 @@ class UserDatabase(Generic[ID, OAP], SQLAlchemyUserDatabase[User, ID]):
     async def get_by_token(self, token: str):
         return await self._get_user(
             self.base_stmt.join(
-                AuthGrant, and_(
-                    AuthGrant.user_id == User.id,
-                    AuthGrant.token == token
-                )
+                AuthGrant, and_(AuthGrant.user_id == User.id, AuthGrant.token == token)
             )
         )
 
@@ -58,23 +56,27 @@ class UserDatabase(Generic[ID, OAP], SQLAlchemyUserDatabase[User, ID]):
 
 
 class UserDatabaseDep:
-
     def __init__(self, *eager):
         self.base_stmt = db_eager(select(User), *eager)
         self._eager_loads = eager
 
     async def __call__(self, db: AsyncSession = Depends(get_db)):
-        yield UserDatabase(base_stmt=self.base_stmt, session=db, user_table=User, oauth_account_table=OAuthAccount)
+        yield UserDatabase(
+            base_stmt=self.base_stmt,
+            session=db,
+            user_table=User,
+            oauth_account_table=OAuthAccount,
+        )
 
 
 class CustomFastAPIUsers(FastAPIUsers[User, uuid.UUID]):
     def get_custom_oauth_router(
-            self,
-            oauth_client: BaseOAuth2,
-            backend: AuthenticationBackend,
-            user_schema: schemas.BaseOAuthAccount,
-            state_secret: SecretType,
-            redirect_url: str = None,
+        self,
+        oauth_client: BaseOAuth2,
+        backend: AuthenticationBackend,
+        user_schema: schemas.BaseOAuthAccount,
+        state_secret: SecretType,
+        redirect_url: Optional[str] = None,
     ) -> APIRouter:
         """
         Return an OAuth router for a given OAuth client and authentication backend.
@@ -108,7 +110,6 @@ def get_redis_strategy():
     return RedisStrategy(redis=redis, lifetime_seconds=48 * 60 * 60)
 
 
-
 # class CustomTransport(CookieTransport):
 #     def get_login_response(self, token: str, response: Response) -> Any:
 #         resp = RedirectResponse(url=)
@@ -121,29 +122,22 @@ class TokenTransport(Transport):
     scheme: APIKeyQuery
 
     def __init__(self):
-        self.scheme = APIKeyQuery(
-            name="token",
-            auto_error=False
-        )
+        self.scheme = APIKeyQuery(name="token", auto_error=False)
 
 
 class UserTransport(Transport):
     scheme: APIKeyQuery
 
     def __init__(self):
-        self.scheme = APIKeyQuery(
-            name="user",
-            auto_error=False
-        )
+        self.scheme = APIKeyQuery(name="user", auto_error=False)
 
 
 class TokenStrategy(Strategy[User, uuid.UUID]):
-    def __init__(self,
-                 grant: AuthGrant):
+    def __init__(self, grant: AuthGrant):
         self.grant = grant
 
     async def read_token(
-            self, token: Optional[str], user_manager: BaseUserManager[User, models.ID]
+        self, token: Optional[str], user_manager: BaseUserManager[User, models.ID]
     ) -> Optional[User]:
         if self.grant is None:
             return None
@@ -161,39 +155,36 @@ auth_backend = AuthenticationBackend(
     transport=CookieTransport(
         settings.session_cookie_name,
         cookie_secure=False,
-        cookie_max_age=settings.session_cookie_max_age
+        cookie_max_age=settings.session_cookie_max_age,
     ),
-    get_strategy=get_redis_strategy
+    get_strategy=get_redis_strategy,
 )
 
-fastapi_users = CustomFastAPIUsers(
-    get_user_manager,
-    auth_backends=[auth_backend]
-)
+fastapi_users = CustomFastAPIUsers(get_user_manager, auth_backends=[auth_backend])
 
 CurrentUser = fastapi_users.current_user(optional=False, active=True)
 OptionalUser = fastapi_users.current_user(optional=True, active=True)
 
 
-def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
-                              eager: list[TEager] = None,
-                              require_user=False):
-    async def get_auth_grant(request: Request,
-                             db: AsyncSession = Depends(get_db),
-                             user: Optional[User] = Depends(CurrentUser if require_user else OptionalUser),
-                             token: str = Query(default=None),
-                             public_id: uuid.UUID = Query(default=None)):
-
-        if request.method != 'GET' and not user:
-            raise Unauthorized(detail='Authentication Grants only work on GET Requests')
+def get_auth_grant_dependency(
+    *association_tables: Type[GrantAssociaton],
+    eager: Optional[list[TEager]] = None,
+    require_user=False
+):
+    async def get_auth_grant(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        user: Optional[User] = Depends(CurrentUser if require_user else OptionalUser),
+        token: str = Query(default=None),
+        public_id: uuid.UUID = Query(default=None),
+    ):
+        if request.method != "GET" and not user:
+            raise Unauthorized(detail="Authentication Grants only work on GET Requests")
 
         now = utc_now()
 
         base = select(AuthGrant).where(
-            or_(
-                AuthGrant.expires < now,
-                AuthGrant.expires == None
-            )
+            or_(AuthGrant.expires < now, AuthGrant.expires is None)
         )
 
         if token:
@@ -201,9 +192,7 @@ def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
                 AuthGrant.token == token,
             )
         else:
-            base = base.where(
-                AuthGrant.public
-            )
+            base = base.where(AuthGrant.public)
             if public_id:
                 base = base.where(
                     AuthGrant.user_id == public_id,
@@ -216,14 +205,16 @@ def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
         if association_tables:
             for association_table in association_tables:
                 ident_name = association_table.identity.property.key
-                val = get_multiple_dict(ident_name, request.path_params, request.query_params)
+                val = get_multiple_dict(
+                    ident_name, request.path_params, request.query_params
+                )
                 if val:
                     base = base.join(
                         association_table,
                         and_(
                             association_table.grant_id == AuthGrant.id,
-                            association_table.identity == int(val)
-                        )
+                            association_table.identity == int(val),
+                        ),
                     )
 
         grant: AuthGrant = await db_unique(
@@ -239,40 +230,41 @@ def get_auth_grant_dependency(*association_tables: Type[GrantAssociaton],
             elif user:
                 return AuthGrant(user=user, user_id=user.id, root=True)
             else:
-                raise HTTPException(status_code=401, detail='Unauthorized')
+                raise HTTPException(status_code=401, detail="Unauthorized")
         except AssertionError:
-            raise HTTPException(status_code=401, detail='Unauthorized')
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
     return get_auth_grant
 
 
-def get_table_auth_dependency(*eager: list[TEager],
-                              association_table: Type[GrantAssociaton]):
-    async def get_auth_grant(request: Request,
-                             db: AsyncSession = Depends(get_db),
-                             user: Optional[User] = Depends(OptionalUser),
-                             token: str = Query(default=None),
-                             public_id: uuid.UUID = Query(default=None, alias='public-id')):
+def get_table_auth_dependency(
+    *eager: list[TEager], association_table: Type[GrantAssociaton]
+):
+    async def get_auth_grant(
+        request: Request,
+        db: AsyncSession = Depends(get_db),
+        user: Optional[User] = Depends(OptionalUser),
+        token: str = Query(default=None),
+        public_id: uuid.UUID = Query(default=None, alias="public-id"),
+    ):
         now = utc_now()
         ident = association_table.identity.property.key
 
-        base = select(association_table).where(
-            association_table.identity == int(request.path_params[ident]),
-            or_(
-                AuthGrant.expires < now,
-                AuthGrant.expires == None
+        base = (
+            select(association_table)
+            .where(
+                association_table.identity == int(request.path_params[ident]),
+                or_(AuthGrant.expires < now, AuthGrant.expires is None),
             )
-        ).join(association_table.grant)
+            .join(association_table.grant)
+        )
 
         if token:
             base = base.where(
                 AuthGrant.token == token,
             )
         elif public_id:
-            base = base.where(
-                AuthGrant.user_id == public_id,
-                AuthGrant.public
-            )
+            base = base.where(AuthGrant.user_id == public_id, AuthGrant.public)
 
         assoc: GrantAssociaton = await db_unique(
             base,
@@ -290,31 +282,35 @@ def get_table_auth_dependency(*eager: list[TEager],
                 assoc.grant = AuthGrant(user=user, user_id=user.id, root=True)
                 return assoc
             else:
-                raise HTTPException(status_code=401, detail='Unauthorized')
+                raise HTTPException(status_code=401, detail="Unauthorized")
         except AssertionError:
-            raise HTTPException(status_code=401, detail='Unauthorized')
+            raise HTTPException(status_code=401, detail="Unauthorized")
 
     return get_auth_grant
 
 
 def get_token_backend(association_table: Type[GrantAssociaton]):
-    def get_token_strategy(grant: AuthGrant = Depends(get_auth_grant_dependency(association_table))):
+    def get_token_strategy(
+        grant: AuthGrant = Depends(get_auth_grant_dependency(association_table)),
+    ):
         return TokenStrategy(grant=grant)
 
     return AuthenticationBackend(
         name=association_table.__tablename__,
         transport=token_transport,
-        get_strategy=get_token_strategy
+        get_strategy=get_token_strategy,
     )
 
     return AuthenticationBackend(
         name=association_table.__tablename__,
         transport=token_transport,
-        get_strategy=get_token_strategy
+        get_strategy=get_token_strategy,
     )
 
 
-def get_current_user(*eager, auth_backends: list[AuthenticationBackend] = None, optional=False):
+def get_current_user(
+    *eager, auth_backends: Optional[list[AuthenticationBackend]] = None, optional=False
+):
     _get_user_db = UserDatabaseDep(*eager)
 
     def _get_user_manager(user_db: SQLAlchemyUserDatabase = Depends(_get_user_db)):
@@ -322,7 +318,9 @@ def get_current_user(*eager, auth_backends: list[AuthenticationBackend] = None, 
 
     users = FastAPIUsers[User, uuid.UUID](
         _get_user_manager,
-        auth_backends=[*auth_backends, auth_backend] if auth_backends else [auth_backend]
+        auth_backends=[*auth_backends, auth_backend]
+        if auth_backends
+        else [auth_backend],
     )
 
     return users.authenticator.current_user(optional=optional)

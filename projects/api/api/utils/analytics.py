@@ -1,12 +1,16 @@
 import itertools
-import itertools
 import logging
 from decimal import Decimal
 from typing import Tuple
 
 from pydantic import ValidationError
 
-from api.models.analytics import ClientAnalytics, FilteredPerformance, Performance, Calculation
+from api.models.analytics import (
+    ClientAnalytics,
+    FilteredPerformance,
+    Performance,
+    Calculation,
+)
 from database.models.trade import DetailledTrade
 from api.models.websocket import ClientConfig
 from database.dbmodels.client import Client
@@ -19,15 +23,19 @@ async def get_cached_data(config):
     return
 
 
-async def get_chached_filters(config: ClientConfig, filters: Tuple[Filter, ...], filter_calculation: Calculation):
+async def get_chached_filters(
+    config: ClientConfig, filters: Tuple[Filter, ...], filter_calculation: Calculation
+):
     return
 
 
-async def create_cilent_analytics(client: Client,
-                                  config: ClientConfig,
-                                  filters: Tuple[Filter, ...],
-                                  filter_calculation: Calculation):
-    cached = await get_cached_data(config)
+async def create_cilent_analytics(
+    client: Client,
+    config: ClientConfig,
+    filters: Tuple[Filter, ...],
+    filter_calculation: Calculation,
+):
+    await get_cached_data(config)
 
     performance_by_filter = {}
     trade_analytics = []
@@ -35,35 +43,29 @@ async def create_cilent_analytics(client: Client,
         all_filter_values = []
         for cur_filter in filters:
             if cur_filter == Filter.WEEKDAY:
-                all_filter_values.append(
-                    ((cur_filter, trade.initial.time.weekday()),)
-                )
+                all_filter_values.append(((cur_filter, trade.initial.time.weekday()),))
             elif cur_filter == Filter.LABEL:
                 # TODO: What if trade has no labels?
                 all_filter_values.append(
                     ((cur_filter, label.channel_id) for label in trade.labels)
                 )
             elif cur_filter == Filter.SESSION:
-                filter_values = None  # TODO
+                pass  # TODO
             else:
-                logger.warning(f'Invalid filter provided: {cur_filter}')
+                logger.warning(f"Invalid filter provided: {cur_filter}")
                 continue
 
         for filter_value in itertools.product(*all_filter_values):
             if filter_value not in performance_by_filter:
                 performance_by_filter[filter_value] = Performance(
-                    Decimal(0),
-                    Decimal(0),
-                    filter_value
+                    Decimal(0), Decimal(0), filter_value
                 )
             if filter_calculation == Calculation.PNL:
                 performance_by_filter[filter_value].absolute += trade.realized_pnl
         try:
-            trade_analytics.append(
-                DetailledTrade.from_orm(trade)
-            )
-        except ValidationError as e:
-            logging.exception('Validation Error')
+            trade_analytics.append(DetailledTrade.from_orm(trade))
+        except ValidationError:
+            logging.exception("Validation Error")
 
     return ClientAnalytics.construct(
         id=client.id,
@@ -72,5 +74,5 @@ async def create_cilent_analytics(client: Client,
             performances=[]
             # performances=list(performance_by_filter.values())
         ),
-        trades=trade_analytics
+        trades=trade_analytics,
     )

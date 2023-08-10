@@ -26,11 +26,10 @@ class Expression:
 # Example goal:
 # Winrate > 50% && Kelly Optimization = True
 
+
 class Goal(Base, Serializer, BaseMixin):
     id: int = Column(Integer, primary_key=True)
     creation_date: datetime = Column(DateTime(timezone=True))
     finish_date: datetime = Column(DateTime(timezone=True))
 
     expressions: list[Expression]
-
-

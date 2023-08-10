@@ -16,7 +16,7 @@ from database.dbmodels.action import Action, ActionTrigger
 from database.dbmodels.authgrant import ChapterGrant, TradeGrant
 from database.dbmodels.balance import Balance
 from database.dbmodels.discord.discorduser import DiscordUser
-from database.dbmodels.trade import Trade, InternalTradeModel
+from database.dbmodels.trade import Trade
 from database.models.discord.guild import MessageRequest
 from database.redis import rpc
 
@@ -28,11 +28,8 @@ class FutureCallback:
 
 
 class ActionService(BaseService):
-
     def get_action(self, data: dict):
-        return db_select(
-            Action, Action.id == data['id']
-        )
+        return db_select(Action, Action.id == data["id"])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -51,14 +48,12 @@ class ActionService(BaseService):
             action.type,
             action.topic,
             lambda data: self.execute(action, data),
-            **action.all_ids
+            **action.all_ids,
         )
 
     def remove(self, action: Action):
         return self._messenger.unsub_channel(
-            action.type,
-            action.topic,
-            **action.all_ids
+            action.type, action.topic, **action.all_ids
         )
 
     async def on_action(self, action: Action, data: Any):
@@ -66,24 +61,22 @@ class ActionService(BaseService):
             self._scheduler.add_job(
                 func=self.execute,
                 trigger=DateTrigger(utc_now() + action.delay),
-                args=(action, data)
+                args=(action, data),
             )
         else:
             await self.execute(action, data)
 
     async def execute(self, action: Action, data: Any):
         ns = self._messenger.get_namespace(action.type)
-        self._logger.info(f'Executing action {action.id}')
-        if action.platform.name == 'webhook':
-            url = action.platform.data['url']
+        self._logger.info(f"Executing action {action.id}")
+        if action.platform.name == "webhook":
+            action.platform.data["url"]
             # TODO
-        elif action.platform.name == 'discord':
-            dc = rpc.Client('discord', self._redis)
+        elif action.platform.name == "discord":
+            dc = rpc.Client("discord", self._redis)
 
             discord_user = await db_select(
-                DiscordUser,
-                DiscordUser.user_id == action.user_id,
-                session=self._db
+                DiscordUser, DiscordUser.user_id == action.user_id, session=self._db
             )
 
             if ns.table.__model__:
@@ -99,39 +92,39 @@ class ActionService(BaseService):
             elif ns.table == ChapterGrant:
                 info = await db_unique(
                     select(Chapter.id, Chapter.journal_id, Chapter.title).where(
-                        Chapter.id == data['chapter_id'],
-                        opt_eq(Chapter.journal_id, action.trigger_ids.get('journal_id'))
+                        Chapter.id == data["chapter_id"],
+                        opt_eq(
+                            Chapter.journal_id, action.trigger_ids.get("journal_id")
+                        ),
                     ),
-                    session=self._db
+                    session=self._db,
                 )
                 embed = discord_user.get_embed(
                     title=info.title,
                     description=action.message,
-                    url=ENV.FRONTEND_URL + f'/app/profile/journal/{info.journal_id}/chapter/{info.id}'
+                    url=ENV.FRONTEND_URL
+                    + f"/app/profile/journal/{info.journal_id}/chapter/{info.id}",
                 )
             elif ns.table == TradeGrant:
-                trade = await self._db.get(Trade, data['trade_id'])
+                trade = await self._db.get(Trade, data["trade_id"])
                 embed = discord_user.get_trade_embed(trade)
                 embed.description = action.message
-                embed.url = ENV.FRONTEND_URL + f'/app/profile/trade/{trade.id}'
+                embed.url = ENV.FRONTEND_URL + f"/app/profile/trade/{trade.id}"
             else:
-                embed = discord_user.get_embed(
-                    title=ns.table.__name__,
-                    fields=data
-                )
+                embed = discord_user.get_embed(title=ns.table.__name__, fields=data)
 
             try:
                 await dc.call(
-                    'send',
+                    "send",
                     MessageRequest(
                         **action.platform.data,
                         embed={
-                            'raw': embed.to_dict(),
+                            "raw": embed.to_dict(),
                         },
-                    )
+                    ),
                 )
             except Exception as e:
-                self._logger.error(f'Error sending discord message: {e}')
+                self._logger.error(f"Error sending discord message: {e}")
 
         if action.trigger_type == ActionTrigger.ONCE:
             await self.remove(action)
@@ -148,7 +141,7 @@ class ActionService(BaseService):
             {
                 Category.NEW: wrap(self.add),
                 Category.UPDATE: wrap(self.update),
-                Category.DELETE: wrap(self.remove)
-            }
+                Category.DELETE: wrap(self.remove),
+            },
         )
         # await self.action_sync.sub()

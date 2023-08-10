@@ -10,20 +10,14 @@ from sqlalchemy import select, and_, or_
 
 from common.exchanges import EXCHANGES
 from collector.services.baseservice import BaseService
-from collector.services.dataservice import DataService, Channel, ExchangeInfo
-from common.exchanges.exchange import Exchange
-from common.exchanges.exchangeticker import Subscription
-from core import utc_now
-from database.dbasync import db_all, db_unique, db_eager
+from collector.services.dataservice import DataService
+from database.dbasync import db_all, db_unique
 from database.dbmodels import Balance
 from database.dbmodels.client import Client, ClientState, ClientType
 from database.dbmodels.trade import Trade
-from database.enums import MarketType
 from database.errors import InvalidClientError
 from common.exchanges.worker import Worker
-from common.messenger import TradeSpace
 from common.messenger import TableNames, Category
-from database.models.market import Market
 
 
 class ExchangeJob(NamedTuple):
@@ -43,10 +37,7 @@ class Lock:
 class _BalanceServiceBase(BaseService):
     client_type: ClientType
 
-    def __init__(self,
-                 *args,
-                 data_service: DataService,
-                 **kwargs):
+    def __init__(self, *args, data_service: DataService, **kwargs):
         super().__init__(*args, **kwargs)
 
         # Public parameters
@@ -62,11 +53,7 @@ class _BalanceServiceBase(BaseService):
         )
 
         self._active_client_stmt = self._all_client_stmt.join(
-            Trade,
-            and_(
-                Client.id == Trade.client_id,
-                Trade.open_qty > 0
-            )
+            Trade, and_(Client.id == Trade.client_id, Trade.open_qty > 0)
         )
 
     @classmethod
@@ -77,23 +64,26 @@ class _BalanceServiceBase(BaseService):
             return True
 
     async def _on_client_delete(self, data: dict):
-        self._logger.debug(f'Client deleted: {data}')
-        worker = self.get_worker(data['id'])
+        self._logger.debug(f"Client deleted: {data}")
+        worker = self.get_worker(data["id"])
         if worker:
             await self.remove_worker(worker)
 
     async def _on_client_update(self, data: dict):
-        worker = self.get_worker(data['id'])
-        state = data['state']
+        worker = self.get_worker(data["id"])
+        state = data["state"]
         if worker:
-            if state in ('archived', 'invalid') or data['type'] != self.client_type.value:
+            if (
+                state in ("archived", "invalid")
+                or data["type"] != self.client_type.value
+            ):
                 await self.remove_worker(worker)
-        elif state != 'synchronizing' and data['type'] == self.client_type.value:
-            await self.add_client_by_id(data['id'])
+        elif state != "synchronizing" and data["type"] == self.client_type.value:
+            await self.add_client_by_id(data["id"])
 
     def _on_client_add(self, data: dict):
-        if data['type'] == self.client_type.value:
-            return self.add_client_by_id(data['id'])
+        if data["type"] == self.client_type.value:
+            return self.add_client_by_id(data["id"])
 
     async def _sub_client(self):
         await self._messenger.bulk_sub(
@@ -102,7 +92,7 @@ class _BalanceServiceBase(BaseService):
                 Category.NEW: self._on_client_add,
                 Category.UPDATE: self._on_client_update,
                 Category.DELETE: self._on_client_delete,
-            }
+            },
         )
 
     def get_worker(self, client_id: int):
@@ -111,13 +101,12 @@ class _BalanceServiceBase(BaseService):
     async def add_client_by_id(self, client_id: int):
         async with self._db_lock:
             client = await db_unique(
-                self._all_client_stmt.filter_by(id=client_id),
-                session=self._db
+                self._all_client_stmt.filter_by(id=client_id), session=self._db
             )
         if client:
             return await self.add_client(client)
         else:
-            raise ValueError(f'Invalid {client_id=} passed in')
+            raise ValueError(f"Invalid {client_id=} passed in")
 
     async def add_client(self, client: Client) -> Optional[Worker]:
         if client:
@@ -126,7 +115,7 @@ class _BalanceServiceBase(BaseService):
                 http_session=self._http_session,
                 db_maker=self._db_maker,
                 data_service=self.data_service,
-                messenger=self._messenger
+                messenger=self._messenger,
             )
 
             if self.is_valid(worker, self.client_type):
@@ -159,16 +148,16 @@ class _BalanceServiceBase(BaseService):
 class BasicBalanceService(_BalanceServiceBase):
     client_type = ClientType.BASIC
 
-    def __init__(self,
-                 *args,
-                 **kwargs):
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._exchange_jobs: Dict[str, ExchangeJob] = {}
         self._balance_queue = Queue()
 
     @staticmethod
     def reschedule(exchange_job: ExchangeJob):
-        trigger = IntervalTrigger(seconds=15 // (len(exchange_job.deque) or 1), jitter=2)
+        trigger = IntervalTrigger(
+            seconds=15 // (len(exchange_job.deque) or 1), jitter=2
+        )
         exchange_job.job.reschedule(trigger)
 
     async def _init_worker(self, worker: Worker):
@@ -193,7 +182,6 @@ class BasicBalanceService(_BalanceServiceBase):
                 await self.remove_worker(worker)
 
     async def init(self):
-
         await self._sub_client()
 
         for exchange in self._exchanges:
@@ -201,20 +189,23 @@ class BasicBalanceService(_BalanceServiceBase):
             job = self._scheduler.add_job(
                 self.update_worker_queue,
                 IntervalTrigger(seconds=3600),
-                args=(exchange_queue,)
+                args=(exchange_queue,),
             )
             self._exchange_jobs[exchange] = ExchangeJob(exchange, job, exchange_queue)
         clients = await db_all(
             self._all_client_stmt.filter(
                 or_(
                     Client.type == ClientType.BASIC,
-                    Client.exchange.in_([
-                        ExchangeCls.exchange for ExchangeCls in self._exchanges.values()
-                        if not ExchangeCls.supports_extended_data
-                    ])
+                    Client.exchange.in_(
+                        [
+                            ExchangeCls.exchange
+                            for ExchangeCls in self._exchanges.values()
+                            if not ExchangeCls.supports_extended_data
+                        ]
+                    ),
                 )
             ),
-            session=self._db
+            session=self._db,
         )
         for client in clients:
             try:
@@ -250,26 +241,25 @@ class ExtendedBalanceService(_BalanceServiceBase):
         clients = await db_all(
             self._all_client_stmt.where(
                 Client.type == ClientType.FULL,
-                Client.exchange.in_([
-                    ExchangeCls.exchange for ExchangeCls in self._exchanges.values()
-                    if ExchangeCls.supports_extended_data
-                ])
+                Client.exchange.in_(
+                    [
+                        ExchangeCls.exchange
+                        for ExchangeCls in self._exchanges.values()
+                        if ExchangeCls.supports_extended_data
+                    ]
+                ),
             ),
-            session=self._db
+            session=self._db,
         )
         for client in clients:
             try:
                 await self.add_client(client)
-            except Exception as e:
-                self._logger.error('Could not add client')
+            except Exception:
+                self._logger.error("Could not add client")
         #
         return
         await asyncio.gather(
-            *[
-                self.add_client(client)
-                for client in clients
-            ],
-            return_exceptions=True
+            *[self.add_client(client) for client in clients], return_exceptions=True
         )
         pass
 
@@ -279,8 +269,8 @@ class ExtendedBalanceService(_BalanceServiceBase):
             await worker.startup()
             return worker
         except InvalidClientError:
-            self._logger.exception(f'Error while adding {worker.client_id=}')
+            self._logger.exception(f"Error while adding {worker.client_id=}")
             return None
         except Exception:
-            self._logger.exception(f'Error while adding {worker.client_id=}')
+            self._logger.exception(f"Error while adding {worker.client_id=}")
             raise

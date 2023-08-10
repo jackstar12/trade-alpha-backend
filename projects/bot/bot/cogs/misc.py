@@ -10,37 +10,29 @@ from common.exchanges import EXCHANGES
 
 
 class MiscCog(CogBase):
-
-    @cog_ext.cog_slash(
-        name="exchanges",
-        description="Shows available exchanges"
-    )
+    @cog_ext.cog_slash(name="exchanges", description="Shows available exchanges")
     async def exchanges(self, ctx):
-        logging.info(f'New Interaction: Listing available exchanges for user {utils.de_emojify(ctx.author.display_name)}')
-        exchange_list = '\n'.join(EXCHANGES.keys())
+        logging.info(
+            f"New Interaction: Listing available exchanges for user {utils.de_emojify(ctx.author.display_name)}"
+        )
+        exchange_list = "\n".join(EXCHANGES.keys())
         embed = discord.Embed(title="Available exchanges", description=exchange_list)
         await ctx.send(embed=embed)
 
-    @cog_ext.cog_slash(
-        name="donate",
-        description="Support dev?"
-    )
+    @cog_ext.cog_slash(name="donate", description="Support dev?")
     async def donate(self, ctx: SlashContext):
         embed = discord.Embed(
             description="**Do you like this test_bot?**\n"
-                        "If so, maybe consider helping out a poor student :cry:\n\n"
-                        "**BTC**: 1NQuRagfTziZ1k4ijc38cuCmCncWQFthSQ\n"
-                        "**ZBD**: jackstar12@zbd.gg\n"
-                        "**USDT (TRX)**: TPf47q7143stBkWicj4SidJ1DDeYSvtWBf\n"
-                        "**USDT (BSC)**: 0x694cf86962f84d281d322887569b16935b48d9dd\n\n"
-                        "@jacksn#9149."
+            "If so, maybe consider helping out a poor student :cry:\n\n"
+            "**BTC**: 1NQuRagfTziZ1k4ijc38cuCmCncWQFthSQ\n"
+            "**ZBD**: jackstar12@zbd.gg\n"
+            "**USDT (TRX)**: TPf47q7143stBkWicj4SidJ1DDeYSvtWBf\n"
+            "**USDT (BSC)**: 0x694cf86962f84d281d322887569b16935b48d9dd\n\n"
+            "@jacksn#9149."
         )
         await ctx.send(embed=embed)
 
-    @cog_ext.cog_slash(
-        name="ping",
-        description="Ping"
-    )
+    @cog_ext.cog_slash(name="ping", description="Ping")
     @utils.log_and_catch_errors()
     async def ping(self, ctx: SlashContext):
         """Get the test_bot's current websocket and api latency."""
@@ -49,30 +41,24 @@ class MiscCog(CogBase):
         msg = await ctx.send(embed=message)
         end_time = time.time()
         message2 = discord.Embed(
-            title=f":ping_pong:\nExternal: {round(self.bot.latency * 1000, ndigits=3)}ms\nInternal: {round((end_time - start_time), ndigits=3)}s")
+            title=f":ping_pong:\nExternal: {round(self.bot.latency * 1000, ndigits=3)}ms\nInternal: {round((end_time - start_time), ndigits=3)}s"
+        )
         await msg.edit(embed=message2)
 
-    @cog_ext.cog_slash(
-        name="help",
-        description="Help!"
-    )
+    @cog_ext.cog_slash(name="help", description="Help!")
     async def help(self, ctx: SlashContext):
-        embed = discord.Embed(
-            title="**Usage**"
-        )
+        embed = discord.Embed(title="**Usage**")
         embed.add_field(
             name="How do I register?",
             value="https://github.com/jackstar12/balance-bot/blob/master/examples/register.md",
-            inline=False
+            inline=False,
         )
         embed.add_field(
             name="Which information do I have to give the test_bot?",
             value="The test_bot only requires an **read only** api access",
-            inline=False
+            inline=False,
         )
         # embed.add_field(
         #     name=""
         # )
         await ctx.send(embed=embed)
-
-

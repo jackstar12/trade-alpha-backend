@@ -7,17 +7,23 @@ from discord.ext.commands.cog import Cog
 from discord_slash import SlashCommand
 
 from common.messenger import Messenger
+from typing import Optional
 
 
 class CogBase(Cog):
-
     @classmethod
     def setup(cls, bot: Bot, *args, **kwargs):
         instance = cls(bot, *args, **kwargs)
         bot.add_cog(instance)
         return instance
 
-    def __init__(self, bot: Bot, redis: Redis, messenger: Messenger, slash_cmd_handler: SlashCommand):
+    def __init__(
+        self,
+        bot: Bot,
+        redis: Redis,
+        messenger: Messenger,
+        slash_cmd_handler: SlashCommand,
+    ):
         self.bot = bot
         self.redis = redis
         self.messenger = messenger
@@ -26,10 +32,12 @@ class CogBase(Cog):
     async def on_ready(self):
         pass
 
-    async def send_dm(self, user_id: int, message: str, embed: discord.Embed = None):
+    async def send_dm(
+        self, user_id: int, message: str, embed: Optional[discord.Embed] = None
+    ):
         user: discord.User = self.bot.get_user(user_id)
         if user:
             try:
                 await user.send(content=message, embed=embed)
-            except discord.Forbidden as e:
-                logging.exception(f'Not allowed to send messages to {user}')
+            except discord.Forbidden:
+                logging.exception(f"Not allowed to send messages to {user}")

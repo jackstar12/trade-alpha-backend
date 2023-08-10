@@ -39,20 +39,20 @@ class _Common(BaseModel):
     # public: Optional[bool]
     location: Union[DiscordPlatform, WebPlatform]
     max_registrations: int
-    currency: Optional[str] = Field(default='USD')
+    currency: Optional[str] = Field(default="USD")
     rekt_threshold: condecimal(gt=Decimal(-100), lt=Decimal(0)) = -99
 
 
 class EventCreate(_Common, CreateableModel):
     actions: Optional[list[ActionCreate]]
 
-    @validator('actions', each_item=True)
+    @validator("actions", each_item=True)
     def validate_actions(cls, value: ActionCreate):
-        assert value['type'] == ActionType.EVENT.value
+        assert value["type"] == ActionType.EVENT.value
         return value
 
     def get(self, user: User) -> dbmodels.Event:
-        values = {key: val for key, val in self.__dict__.items() if key != 'actions'}
+        values = {key: val for key, val in self.__dict__.items() if key != "actions"}
         event = dbmodels.Event(**values, owner=user)
         if self.actions:
             event.actions = [action.get(user) for action in self.actions]

@@ -14,7 +14,7 @@ class DiscordData(TypedDict):
 
 
 class DiscordPlatform(PlatformModel):
-    name: Literal['discord']
+    name: Literal["discord"]
     data: DiscordData
 
 
@@ -23,5 +23,5 @@ class WebData(TypedDict):
 
 
 class WebPlatform(PlatformModel):
-    name: Literal['web']
+    name: Literal["web"]
     data: WebData

@@ -1,7 +1,9 @@
+# ruff: noqa: F401
+
 from operator import and_
 
-from sqlalchemy import desc, select, func, Date, join, or_, asc
-from sqlalchemy.orm import relationship, aliased, foreign
+from sqlalchemy import desc, select, func
+from sqlalchemy.orm import relationship, aliased
 
 import database.dbmodels.alert
 import database.dbmodels.balance
@@ -46,50 +48,45 @@ GuildAssociation = ga.GuildAssociation
 
 partioned_balance = select(
     BalanceDB,
-    func.row_number().over(
-        order_by=desc(BalanceDB.time), partition_by=BalanceDB.client_id
-    ).label('index')
+    func.row_number()
+    .over(order_by=desc(BalanceDB.time), partition_by=BalanceDB.client_id)
+    .label("index"),
 ).alias()
 
 partioned_history = aliased(BalanceDB, partioned_balance)
 
 client.Client.recent_history = relationship(
     partioned_history,
-    lazy='noload',
-    primaryjoin=and_(client.Client.id == partioned_history.client_id, partioned_balance.c.index <= 3)
+    lazy="noload",
+    primaryjoin=and_(
+        client.Client.id == partioned_history.client_id, partioned_balance.c.index <= 3
+    ),
 )
 
-#ChildChapter = aliased(Chapter)
-#child_ids = select(ChildChapter.id)
+# ChildChapter = aliased(Chapter)
+# child_ids = select(ChildChapter.id)
 #
-#query = aliased(Chapter, child_ids)
+# query = aliased(Chapter, child_ids)
 #
-#Chapter.child_ids = relationship(
+# Chapter.child_ids = relationship(
 #    query,
 #    lazy='noload',
 #    primaryjoin=ChildChapter.parent_id == Chapter.id,
 #    viewonly=True,
 #    uselist=True
-#)
+# )
 
 
-current = select(
-    EventScore
-).order_by(
-    desc(EventScore.time)
-).limit(1).alias()
+current = select(EventScore).order_by(desc(EventScore.time)).limit(1).alias()
 
 latest = aliased(EventScore, current)
 
 
-#EventScore.current_rank = relationship(EventRank,
+# EventScore.current_rank = relationship(EventRank,
 #                                       lazy='joined',
 #                                       uselist=False
 #                                       )
-#EventScore.current_rank = relationship(latest, lazy='noload', uselist=False)
-
-
-
+# EventScore.current_rank = relationship(latest, lazy='noload', uselist=False)
 
 
 __all__ = [
@@ -104,5 +101,5 @@ __all__ = [
     "Client",
     "Execution",
     "TradeDB",
-    "GuildAssociation"
+    "GuildAssociation",
 ]

@@ -17,6 +17,4 @@ class TableNames(Enum):
     EXECUTION = "execution"
 
 
-__all__ = [
-    "TableNames"
-]
+__all__ = ["TableNames"]

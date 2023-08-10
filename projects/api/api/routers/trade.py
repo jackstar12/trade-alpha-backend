@@ -1,5 +1,4 @@
 import itertools
-import itertools
 import time
 from datetime import datetime
 from decimal import Decimal
@@ -15,13 +14,24 @@ from starlette.background import BackgroundTasks
 
 import api.utils.client as client_utils
 import core
-from api.dependencies import get_messenger, get_db, \
-    FilterQueryParamsDep
+from api.dependencies import get_messenger, get_db, FilterQueryParamsDep
 from database.models.execution import Execution
-from database.models.trade import Trade, BasicTrade, DetailledTrade, UpdateTrade, UpdateTradeResponse
+from database.models.trade import (
+    Trade,
+    BasicTrade,
+    DetailledTrade,
+    UpdateTrade,
+    UpdateTradeResponse,
+)
 from api.routers.template import query_templates
 from api.users import CurrentUser, get_auth_grant_dependency
-from api.utils.responses import BadRequest, OK, CustomJSONResponse, ResponseModel, Unauthorized
+from api.utils.responses import (
+    BadRequest,
+    OK,
+    CustomJSONResponse,
+    ResponseModel,
+    Unauthorized,
+)
 from database.dbasync import db_first, db_all
 from database.dbmodels import TradeDB as TradeDB, Chapter, Execution as ExecutionDB
 from database.dbmodels.authgrant import AuthGrant, AssociationType, ChapterGrant
@@ -41,9 +51,9 @@ router = APIRouter(
     tags=["trade"],
     dependencies=[Depends(get_messenger)],
     responses={
-        401: {'detail': 'Wrong Email or Password'},
-        400: {'detail': "Email is already used"}
-    }
+        401: {"detail": "Wrong Email or Password"},
+        400: {"detail": "Email is already used"},
+    },
 )
 
 
@@ -52,23 +62,25 @@ def add_trade_filters(stmt, user_id: UUID, trade_id: int):
         stmt.filter(
             TradeDB.id == trade_id,
         ).join(TradeDB.client),
-        user_id
+        user_id,
     )
 
 
-@router.patch('/trade/{trade_id}', response_model=UpdateTradeResponse)
-async def update_trade(trade_id: InputID,
-                       body: UpdateTrade,
-                       user: User = Depends(CurrentUser),
-                       db: AsyncSession = Depends(get_db)):
+@router.patch("/trade/{trade_id}", response_model=UpdateTradeResponse)
+async def update_trade(
+    trade_id: InputID,
+    body: UpdateTrade,
+    user: User = Depends(CurrentUser),
+    db: AsyncSession = Depends(get_db),
+):
     trade = await db_first(
         add_trade_filters(select(TradeDB), user.id, trade_id),
         TradeDB.labels,
-        session=db
+        session=db,
     )
 
     if not trade:
-        raise BadRequest('Invalid Trade ID')
+        raise BadRequest("Invalid Trade ID")
 
     if body.notes:
         trade.notes = body.notes
@@ -77,10 +89,7 @@ async def update_trade(trade_id: InputID,
         added = body.labels.label_ids - set(trade.label_ids)
         for label_id in added:
             await db.execute(
-                insert(trade_association).values(
-                    trade_id=trade_id,
-                    label_id=label_id
-                ),
+                insert(trade_association).values(trade_id=trade_id, label_id=label_id),
             )
 
         if body.labels.group_ids:
@@ -97,16 +106,15 @@ async def update_trade(trade_id: InputID,
             )
 
     if body.template_id:
-        template = await query_templates([body.template_id], user_id=user.id, session=db)
-        trade.notes = DocumentModel(
-            content=template.body,
-            type='doc'
+        template = await query_templates(
+            [body.template_id], user_id=user.id, session=db
         )
+        trade.notes = DocumentModel(content=template.body, type="doc")
 
     await db.commit()
     return UpdateTradeResponse(
         label_ids=body.labels and trade.label_ids,
-        notes=body.template_id and trade.notes
+        notes=body.template_id and trade.notes,
     )
 
 
@@ -118,18 +126,22 @@ class TradeQueryParams(ClientQueryParams):
     from_chapter: Optional[InputID]
     from_journal: Optional[InputID]
 
-    def within(self, other: 'TradeQueryParams'):
-        return other and super().within(other) and self.trade_ids.issubset(other.trade_ids)
+    def within(self, other: "TradeQueryParams"):
+        return (
+            other and super().within(other) and self.trade_ids.issubset(other.trade_ids)
+        )
 
 
-def get_trade_params(client_id: set[InputID] = Query(default=[]),
-                     trade_id: set[InputID] = Query(default=[]),
-                     currency: str = Query(default=None),
-                     since: datetime = Query(default=None),
-                     to: datetime = Query(default=None),
-                     from_chapter: Optional[InputID] = Query(default=None),
-                     from_journal: Optional[InputID] = Query(default=None),
-                     order: Literal['asc', 'desc'] = Query(default='asc')):
+def get_trade_params(
+    client_id: set[InputID] = Query(default=[]),
+    trade_id: set[InputID] = Query(default=[]),
+    currency: str = Query(default=None),
+    since: datetime = Query(default=None),
+    to: datetime = Query(default=None),
+    from_chapter: Optional[InputID] = Query(default=None),
+    from_journal: Optional[InputID] = Query(default=None),
+    order: Literal["asc", "desc"] = Query(default="asc"),
+):
     return TradeQueryParams(
         client_ids=client_id,
         trade_ids=trade_id,
@@ -138,54 +150,60 @@ def get_trade_params(client_id: set[InputID] = Query(default=[]),
         from_chapter=from_chapter,
         from_journal=from_journal,
         to=to,
-        order=order
+        order=order,
     )
 
 
-def create_trade_endpoint(path: str,
-                          model: Type[BasicTrade],
-                          *eager,
-                          **kwargs):
+def create_trade_endpoint(path: str, model: Type[BasicTrade], *eager, **kwargs):
     class Trades(BaseModel):
         data: list[model]
 
     TradeCache = client_utils.ClientCacheDependency(
-        core.join_args(ClientCacheKeys.TRADE, path),
-        Trades,
-        auth,
-        get_trade_params
+        core.join_args(ClientCacheKeys.TRADE, path), Trades, auth, get_trade_params
     )
 
     FilterQueryParams = FilterQueryParamsDep(TradeDB, model)
 
-    @router.get(f'/{path}', response_model=list[model], **kwargs)
-    async def get_trades(background_tasks: BackgroundTasks,
-                         chapter_id: InputID = Query(default=None),
-                         cache: client_utils.ClientCache = Depends(TradeCache),
-                         query_params: TradeQueryParams = Depends(get_trade_params),
-                         filters: list[FilterParam] = Depends(FilterQueryParams),
-                         grant: AuthGrant = Depends(auth),
-                         db: AsyncSession = Depends(get_db)):
-        ts1 = time.perf_counter()
+    @router.get(f"/{path}", response_model=list[model], **kwargs)
+    async def get_trades(
+        background_tasks: BackgroundTasks,
+        chapter_id: InputID = Query(default=None),
+        cache: client_utils.ClientCache = Depends(TradeCache),
+        query_params: TradeQueryParams = Depends(get_trade_params),
+        filters: list[FilterParam] = Depends(FilterQueryParams),
+        grant: AuthGrant = Depends(auth),
+        db: AsyncSession = Depends(get_db),
+    ):
+        time.perf_counter()
 
         if not grant.is_root_for(AssociationType.TRADE):
             if chapter_id:
-                data = await db_first(Chapter.query_nodes(chapter_id, query_params=query_params), session=db)
+                data = await db_first(
+                    Chapter.query_nodes(chapter_id, query_params=query_params),
+                    session=db,
+                )
                 if not data:
                     raise Unauthorized()
             else:
-                trade_id = await grant.check_ids(AssociationType.TRADE, query_params.trade_ids)
+                trade_id = await grant.check_ids(
+                    AssociationType.TRADE, query_params.trade_ids
+                )
                 if not trade_id:
                     return OK(result=[])
         if query_params.from_chapter or query_params.from_journal:
             data = await db.execute(
                 Chapter.query_nodes(
                     root_id=query_params.from_chapter,
-                    journal_id=query_params.from_journal
+                    journal_id=query_params.from_journal,
                 ),
             )
             query_params.trade_ids = set(
-                map(int, itertools.chain.from_iterable(child['tradeIds'] for child in data if 'tradeIds' in child))
+                map(
+                    int,
+                    itertools.chain.from_iterable(
+                        child["tradeIds"] for child in data if "tradeIds" in child
+                    ),
+                )
             )
 
         trades_db = await client_utils.query_trades(
@@ -194,7 +212,7 @@ def create_trade_endpoint(path: str,
             query_params=query_params,
             trade_ids=query_params.trade_ids,
             filters=filters,
-            db=db
+            db=db,
         )
         results = []
         for trade in trades_db:
@@ -215,7 +233,7 @@ def create_trade_endpoint(path: str,
                 user_id=grant.author_id,
                 query_params=query_params,
                 trade_ids=query_params.trade_ids,
-                db=db
+                db=db,
             )
 
             trades_by_client = {}
@@ -227,33 +245,31 @@ def create_trade_endpoint(path: str,
                 )
             for client_id, trades in trades_by_client.items():
                 hits.append(trades)
-                background_tasks.add_task(
-                    cache.write,
-                    client_id,
-                    trades
-                )
+                background_tasks.add_task(cache.write, client_id, trades)
 
-        ts4 = time.perf_counter()
+        time.perf_counter()
         return OK(
             result=[
-                trade for trades in hits for trade in trades.data
+                trade
+                for trades in hits
+                for trade in trades.data
                 if all(f.check(trade) for f in filters)
             ]
         )
 
 
 create_trade_endpoint(
-    'trade-overview',
+    "trade-overview",
     BasicTrade,
 )
 create_trade_endpoint(
-    'trade',
+    "trade",
     Trade,
     TradeDB.init_amount,
     TradeDB.labels,
 )
 create_trade_endpoint(
-    'trade-detailled',
+    "trade-detailled",
     DetailledTrade,
     TradeDB.executions,
     TradeDB.pnl_data,
@@ -261,24 +277,24 @@ create_trade_endpoint(
     TradeDB.max_pnl,
     TradeDB.min_pnl,
     TradeDB.labels,
-    TradeDB.init_amount
+    TradeDB.init_amount,
 )
 
 
 class PnlDataResponse(BaseModel):
     # Named Tuples are not supported (workaround with conlist)
     by_trade: dict[
-        OutputID,
-        list[conlist(Union[int, Decimal], min_items=3, max_items=3)]
+        OutputID, list[conlist(Union[int, Decimal], min_items=3, max_items=3)]
     ]
 
 
-@router.get('/trade-detailled/pnl-data',
-            response_model=ResponseModel[PnlDataResponse])
-async def get_pnl_data(trade_id: list[InputID] = Query(default=[]),
-                       chapter_id: InputID = Query(default=None),
-                       grant: AuthGrant = Depends(auth),
-                       db: AsyncSession = Depends(get_db)):
+@router.get("/trade-detailled/pnl-data", response_model=ResponseModel[PnlDataResponse])
+async def get_pnl_data(
+    trade_id: list[InputID] = Query(default=[]),
+    chapter_id: InputID = Query(default=None),
+    grant: AuthGrant = Depends(auth),
+    db: AsyncSession = Depends(get_db),
+):
     if not grant.is_root_for(AssociationType.TRADE):
         if chapter_id:
             node = await db_first(Chapter.query_nodes(chapter_id), session=db)
@@ -296,27 +312,29 @@ async def get_pnl_data(trade_id: list[InputID] = Query(default=[]),
             .join(PnlData.trade)
             .join(TradeDB.client)
             .order_by(PnlData.time),
-            user_id=grant.user_id
+            user_id=grant.user_id,
         ),
-        session=db
+        session=db,
     )
 
     result = {}
     for pnl_data in data:
         result.setdefault(str(pnl_data.trade_id), []).append(pnl_data.compact)
 
-    return CustomJSONResponse(content={'by_trade': jsonable_encoder(result)})
+    return CustomJSONResponse(content={"by_trade": jsonable_encoder(result)})
 
 
 ExecFilters = FilterQueryParamsDep(TradeDB, BasicTrade)
 
 
-@router.get('/trades/executions', response_model=list[Execution])
-async def get_executions(trade_id: list[InputID] = Query(default=None),
-                         query_params: TradeQueryParams = Depends(get_trade_params),
-                         filters: list[FilterParam] = Depends(ExecFilters),
-                         grant: AuthGrant = Depends(auth),
-                         db: AsyncSession = Depends(get_db)):
+@router.get("/trades/executions", response_model=list[Execution])
+async def get_executions(
+    trade_id: list[InputID] = Query(default=None),
+    query_params: TradeQueryParams = Depends(get_trade_params),
+    filters: list[FilterParam] = Depends(ExecFilters),
+    grant: AuthGrant = Depends(auth),
+    db: AsyncSession = Depends(get_db),
+):
     if not grant.is_root_for(AssociationType.TRADE):
         trade_id = await grant.check_ids(AssociationType.TRADE, trade_id)
         if not trade_id:
@@ -325,9 +343,7 @@ async def get_executions(trade_id: list[InputID] = Query(default=None),
     stmt = select(ExecutionDB).join(ExecutionDB.trade)
 
     if query_params.currency:
-        filters.append(
-            FilterParam(field='settle', values=[query_params.currency])
-        )
+        filters.append(FilterParam(field="settle", values=[query_params.currency]))
 
     for f in filters:
         stmt = f.apply(stmt, TradeDB)
@@ -341,6 +357,4 @@ async def get_executions(trade_id: list[InputID] = Query(default=None),
         client_col=TradeDB.client,
     )
 
-    return CustomJSONResponse(
-        content=[Execution.from_orm(raw) for raw in data]
-    )
+    return CustomJSONResponse(content=[Execution.from_orm(raw) for raw in data])
