@@ -32,7 +32,7 @@ from database.dbmodels.pnldata import PnlData
 from database.dbmodels.trade import Trade
 from database.dbmodels.transfer import Transfer
 from database.enums import ExecType, MarketType
-from database.errors import ClientDeletedError
+from database.errors import ClientDeletedError, ResponseError
 from database.models.market import Market
 from database.models.observer import Observer
 from database.models.ohlc import OHLC
@@ -311,55 +311,35 @@ class Worker(Observer):
                         else:
                             break
 
-                    exec_iter = iter(executions)
-                    to_exec = next(exec_iter, None)
+                    all_trades = set()
+                    for item in executions:
+                        print(item, item.reduce)
+                        current_trade = await self._add_executions(
+                            db, [item], realtime=False
+                        )
+                        all_trades.add(current_trade)
 
-                    # In order to avoid unnecesary OHLC data between trades being fetched
-                    # we preflight the executions in a way where the executions which
-                    # form a trade can be extracted.
-
-                    while to_exec:
-                        current_executions = [to_exec]
-
-                        while open_qty != 0 and to_exec:
-                            to_exec = next(exec_iter, None)
-                            if to_exec:
-                                current_executions.append(to_exec)
-                                if to_exec.type == ExecType.TRADE:
-                                    open_qty += to_exec.effective_qty
-
-                        if open_qty:
-                            # If the open_qty is not 0 there is an active trade going on
-                            # -> needs to be published (unlike others which are historical)
-                            pass
-
-                        all_trades = set()
-                        for item in executions:
-                            current_trade = await self._add_executions(
-                                db, [item], realtime=False
-                            )
-                            all_trades.add(current_trade)
-
-                        for trade in all_trades:
-                            dummy = Trade.from_execution(
-                                trade.initial, trade.client_id, trade.init_balance
-                            )
+                    for trade in all_trades:
+                        try:
                             ohlc_data = await self.exchange.get_ohlc(
                                 symbol, since=trade.open_time, to=trade.close_time
                             )
-                            for item in combine_time_series(
-                                ohlc_data, trade.executions[1:-1]
-                            ):
-                                if isinstance(item, Execution):
-                                    dummy.add_execution(item)
-                                    all_trades.add(current_trade)
-                                elif isinstance(item, OHLC):
-                                    trade.update_pnl(
-                                        dummy.calc_upnl(item.open),
-                                        now=item.time,
-                                        extra_currencies={client.currency: item.open},
-                                    )
-                        to_exec = next(exec_iter, None)
+                        except ResponseError:
+                            continue
+                        dummy = Trade.from_execution(
+                            trade.initial, trade.client_id, trade.init_balance
+                        )
+                        for item in combine_time_series(
+                            ohlc_data, trade.executions[1:-1]
+                        ):
+                            if isinstance(item, Execution):
+                                dummy.add_execution(item)
+                            elif isinstance(item, OHLC):
+                                trade.update_pnl(
+                                    dummy.calc_upnl(item.open),
+                                    now=item.time,
+                                    extra_currencies={client.currency: item.open},
+                                )
 
             # Start Balance:
             # 11.4. 100
@@ -393,10 +373,6 @@ class Worker(Observer):
             for prev_exec, execution, next_exec in core.prev_now_next(
                 reversed(all_executions)
             ):
-                execution: Execution
-                prev_exec: Execution
-                next_exec: Execution
-
                 current_balance = prev_balance.clone()
                 current_balance.time = execution.time
                 current_balance.__realtime__ = False
@@ -574,6 +550,8 @@ class Worker(Observer):
                     Trade.min_pnl,
                     session=db,
                 )
+
+                print(trades)
 
                 if len(trades) > 1:
                     for trade in trades:

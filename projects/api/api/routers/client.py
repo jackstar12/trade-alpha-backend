@@ -84,9 +84,9 @@ async def new_client(
 
             try:
                 exchange = exchange_cls(
-                        client, http_session, commit=False, db_maker=async_maker
-                    )
-                    init_balance = await exchange.get_balance()
+                    client, http_session, commit=False, db_maker=async_maker
+                )
+                init_balance = await exchange.get_balance()
             except InvalidClientError:
                 raise BadRequest("Invalid API credentials")
             except ResponseError:
