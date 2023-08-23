@@ -42,33 +42,34 @@ class Type(Enum):
 class _BinanceBaseClient(Exchange, ABC):
     supports_extended_data = True
 
-    _ENDPOINT = 'https://api.binance.com'
-    _SANDBOX_ENDPOINT = 'https://testnet.binance.vision'
+    _ENDPOINT = "https://api.binance.com"
+    _SANDBOX_ENDPOINT = "https://testnet.binance.vision"
 
-    _response_error = 'msg'
+    _response_error = "msg"
 
-    def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs) -> None:
+    def _sign_request(
+        self, method: str, path: str, headers=None, params=None, data=None, **kwargs
+    ) -> None:
         ts = int(time.time() * 1000)
-        headers['X-MBX-APIKEY'] = self.client.api_key
-        params['timestamp'] = ts
+        headers["X-MBX-APIKEY"] = self.client.api_key
+        params["timestamp"] = ts
         query_string = urllib.parse.urlencode(params, True)
-        signature = hmac.new(self.client.api_secret.encode(), query_string.encode(), 'sha256').hexdigest()
-        params['signature'] = signature
+        signature = hmac.new(
+            self.client.api_secret.encode(), query_string.encode(), "sha256"
+        ).hexdigest()
+        params["signature"] = signature
 
     # https://binance-docs.github.io/apidocs/spot/en/#get-future-account-transaction-history-list-user_data
-    async def _get_internal_transfers(self,
-                                      type: Type,
-                                      since: datetime,
-                                      to: datetime = None) -> List[RawTransfer]:
+    async def _get_internal_transfers(
+        self, type: Type, since: datetime, to: datetime = None
+    ) -> List[RawTransfer]:
         since = since or utc_now() - timedelta(days=180)
         if self.client.sandbox:
             return []
         response = await self.get(
-            '/sapi/v1/futures/transfer',
-            params={
-                'startTime': self._parse_datetime(since)
-            },
-            endpoint=_BinanceBaseClient._ENDPOINT
+            "/sapi/v1/futures/transfer",
+            params={"startTime": self._parse_datetime(since)},
+            endpoint=_BinanceBaseClient._ENDPOINT,
         )
 
         """
@@ -94,20 +95,20 @@ class _BinanceBaseClient(Exchange, ABC):
         elif type == Type.SPOT:
             deposit, withdraw = (2, 4), (1, 3)
         else:
-            self._logger.error(f'Received invalid internal type: {type}')
+            self._logger.error(f"Received invalid internal type: {type}")
             return
 
         results = []
-        if 'rows' in response:
-            for row in response['rows']:
+        if "rows" in response:
+            for row in response["rows"]:
                 if row["status"] == "CONFIRMED":
                     if row["type"] in deposit:
-                        amount = Decimal(row['amount'])
+                        amount = Decimal(row["amount"])
                     elif row["type"] in withdraw:
-                        amount = -Decimal(row['amount'])
+                        amount = -Decimal(row["amount"])
                     else:
                         continue
-                    date = self.parse_ms_dt(row['timestamp'])
+                    date = self.parse_ms_dt(row["timestamp"])
                     results.append(
                         RawTransfer(amount=amount, time=date, coin=row["asset"])
                     )
@@ -119,47 +120,41 @@ class _BinanceBaseClient(Exchange, ABC):
 
 
 def tf_helper(tf: str, factor_seconds: int, ns: List[int]):
-    return {
-        factor_seconds * n: f'{n}{tf}' for n in ns
-    }
+    return {factor_seconds * n: f"{n}{tf}" for n in ns}
 
 
 _interval_map = {
-    **tf_helper('m', core.MINUTE, [1, 3, 5, 15, 30]),
-    **tf_helper('h', core.HOUR, [1, 2, 4, 6, 8, 12]),
-    **tf_helper('d', core.DAY, [1, 3]),
-    **tf_helper('w', core.WEEK, [1])
+    **tf_helper("m", core.MINUTE, [1, 3, 5, 15, 30]),
+    **tf_helper("h", core.HOUR, [1, 2, 4, 6, 8, 12]),
+    **tf_helper("d", core.DAY, [1, 3]),
+    **tf_helper("w", core.WEEK, [1]),
 }
 
 
 class BinanceFutures(_BinanceBaseClient):
-    _ENDPOINT = 'https://fapi.binance.com'
-    _SANDBOX_ENDPOINT = 'https://testnet.binancefuture.com'
-    exchange = 'binance-futures'
+    _ENDPOINT = "https://fapi.binance.com"
+    _SANDBOX_ENDPOINT = "https://testnet.binancefuture.com"
+    exchange = "binance-futures"
 
-    _limits = [
-        create_limit(interval_seconds=60, max_amount=1200, default_weight=20)
-    ]
+    _limits = [create_limit(interval_seconds=60, max_amount=1200, default_weight=20)]
 
-    _response_error = 'msg'
+    _response_error = "msg"
     _response_result = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._ws = FuturesWebsocketClient(self, session=self._http, on_message=self._on_message)
-        self._ccxt = ccxt.binanceusdm({
-            'apiKey': self.client.api_key,
-            'secret': self.client.api_secret
-        })
+        self._ws = FuturesWebsocketClient(
+            self, session=self._http, on_message=self._on_message
+        )
+        self._ccxt = ccxt.binanceusdm(
+            {"apiKey": self.client.api_key, "secret": self.client.api_secret}
+        )
         self._ccxt.set_sandbox_mode(True)
 
     @classmethod
     def get_market(cls, raw: str) -> Optional[Market]:
-        if raw.endswith('USDT'):
-            return Market(
-                base=raw[:-4],
-                quote='USDT'
-            )
+        if raw.endswith("USDT"):
+            return Market(base=raw[:-4], quote="USDT")
 
     @classmethod
     def get_symbol(cls, market: Market) -> str:
@@ -167,49 +162,56 @@ class BinanceFutures(_BinanceBaseClient):
 
     @classmethod
     def exclude_from_trade(cls, execution: Execution):
-        return execution.symbol in ('BUSDUSDT', 'BUSDUSD', 'USDTUSD', 'USDTUSDT')
+        return execution.symbol in ("BUSDUSDT", "BUSDUSD", "USDTUSD", "USDTUSDT")
 
     @classmethod
     def set_weights(cls, weight: int, response: ClientResponse):
         limit = cls._limits[0]
-        used = response.headers.get('X-MBX-USED-WEIGHT-1M')
-        logger.info(f'Weight used: {used}')
+        used = response.headers.get("X-MBX-USED-WEIGHT-1M")
+        logger.info(f"Weight used: {used}")
         if used:
             limit.amount = limit.max_amount - int(used)
         else:
             limit.amount -= weight or limit.default_weight
 
-    async def _get_transfers(self, since: datetime = None, to: datetime = None) -> List[RawTransfer]:
+    async def _get_transfers(
+        self, since: datetime = None, to: datetime = None
+    ) -> List[RawTransfer]:
         return await self._get_internal_transfers(Type.USDM, since, to)
 
-    async def get_ohlc(self, symbol: str, since: datetime = None, to: datetime = None, resolution_s: int = None,
-                       limit: int = None) -> List[OHLC]:
+    async def get_ohlc(
+        self,
+        symbol: str,
+        since: datetime = None,
+        to: datetime = None,
+        resolution_s: int = None,
+        limit: int = None,
+    ) -> List[OHLC]:
         # https://binance-docs.github.io/apidocs/futures/en/#mark-price-kline-candlestick-data
 
         limit = limit or 499
         resolution_s = resolution_s or 60
 
-        limit, resolution_s = self._calc_resolution(limit,
-                                                    resolutions_s=list(_interval_map.keys()),
-                                                    since=since,
-                                                    to=to)
+        limit, resolution_s = self._calc_resolution(
+            limit, resolutions_s=list(_interval_map.keys()), since=since, to=to
+        )
 
         params = {
-            'symbol': symbol,
-            'interval': _interval_map.get(resolution_s),
-            'startTime': self._parse_datetime(since),
-            'endTime': self._parse_datetime(to),
-            'limit': limit
+            "symbol": symbol,
+            "interval": _interval_map.get(resolution_s),
+            "startTime": self._parse_datetime(since),
+            "endTime": self._parse_datetime(to),
+            "limit": limit,
         }
 
         data = await self.get(
-            '/fapi/v1/markPriceKlines',
+            "/fapi/v1/markPriceKlines",
             params={
-                'symbol': symbol,
-                'interval': _interval_map.get(resolution_s),
-                'startTime': self._parse_datetime(since),
-                'endTime': self._parse_datetime(to)
-            }
+                "symbol": symbol,
+                "interval": _interval_map.get(resolution_s),
+                "startTime": self._parse_datetime(since),
+                "endTime": self._parse_datetime(to),
+            },
         )
         return [
             OHLC(
@@ -225,10 +227,9 @@ class BinanceFutures(_BinanceBaseClient):
     async def _fetch_execs(self, symbol: str, fromId: int, minTS: int):
         # https://binance-docs.github.io/apidocs/futures/en/#account-trade-list-user_data
 
-        trades = await self.get('/fapi/v1/userTrades', params={
-            'symbol': symbol,
-            'fromId': fromId
-        })
+        trades = await self.get(
+            "/fapi/v1/userTrades", params={"symbol": symbol, "fromId": fromId}
+        )
         """
         [
           {
@@ -252,27 +253,28 @@ class BinanceFutures(_BinanceBaseClient):
         return (
             Execution(
                 symbol=symbol,
-                qty=Decimal(trade['qty']),
-                price=Decimal(trade['price']),
-                side=Side.BUY if trade['side'] == 'BUY' else Side.SELL,
-                time=self.parse_ms_dt(trade['time']),
-                realized_pnl=Decimal(trade['realizedPnl']),
-                commission=Decimal(trade['commission']),
-                type=ExecType.TRADE
+                qty=Decimal(trade["qty"]),
+                price=Decimal(trade["price"]),
+                side=Side.BUY if trade["side"] == "BUY" else Side.SELL,
+                time=self.parse_ms_dt(trade["time"]),
+                realized_pnl=Decimal(trade["realizedPnl"]),
+                commission=Decimal(trade["commission"]),
+                settle="USDT",
+                type=ExecType.TRADE,
             )
-            for trade in trades if trade['time'] >= minTS
+            for trade in trades
+            if trade["time"] >= minTS
         )
 
-    async def _get_executions(self, since: datetime, init=False) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
-
-        since_ts = self._parse_datetime(since or datetime.now(pytz.utc) - timedelta(days=180))
+    async def _get_executions(
+        self, since: datetime, init=False
+    ) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
+        since_ts = self._parse_datetime(
+            since or datetime.now(pytz.utc) - timedelta(days=180)
+        )
         # https://binance-docs.github.io/apidocs/futures/en/#get-income-history-user_data
         incomes = await self.get(
-            '/fapi/v1/income',
-            params={
-                'startTime': since_ts,
-                'limit': 1000
-            }
+            "/fapi/v1/income", params={"startTime": since_ts, "limit": 1000}
         )
         symbols_done = set()
         current_commission = {}
@@ -285,79 +287,75 @@ class BinanceFutures(_BinanceBaseClient):
         misc = []
 
         for income in incomes:
-            symbol = income.get('symbol')
+            symbol = income.get("symbol")
             trade_id = income["tradeId"]
             income_type = income["incomeType"]
             if symbol not in symbols_done:
-
                 if income_type == "COMMISSION":
-
                     if current_commission.get(symbol) or since:
                         symbols_done.add(symbol)
 
                         results.extend(
                             await self._fetch_execs(
                                 symbol,
-                                trade_id if since else get_safe(symbol, 'tradeId'),
-                                income['time'] if since else get_safe(symbol, 'time')
+                                trade_id if since else get_safe(symbol, "tradeId"),
+                                income["time"] if since else get_safe(symbol, "time"),
                             )
                         )
                     current_commission[symbol] = income
                 elif income_type == "REALIZED_PNL":
-                    if get_safe(symbol, 'tradeId') == trade_id:
+                    if get_safe(symbol, "tradeId") == trade_id:
                         current_commission[symbol] = None
             if income_type == "INSURANCE_CLEAR" or income_type == "FUNDING_FEE":
-                type = ExecType.FUNDING if income_type == "FUNDING_FEE" else ExecType.LIQUIDATION
-                amount = Decimal(income['income'])
+                type = (
+                    ExecType.FUNDING
+                    if income_type == "FUNDING_FEE"
+                    else ExecType.LIQUIDATION
+                )
+                amount = Decimal(income["income"])
                 results.append(
                     Execution(
                         symbol=symbol,
                         realized_pnl=amount if type == ExecType.LIQUIDATION else 0,
                         commission=amount if type == ExecType.FUNDING else 0,
-                        #realized_pnl=amount,
-                        time=self.parse_ms_dt(income['time']),
-                        type=type
+                        # realized_pnl=amount,
+                        settle="USDT",
+                        time=self.parse_ms_dt(income["time"]),
+                        type=type,
                     )
                 )
-            elif income_type not in ('COMMISSION', 'TRANSFER', 'REALIZED_PNL'):
+            elif income_type not in ("COMMISSION", "TRANSFER", "REALIZED_PNL"):
                 misc.append(
                     MiscIncome(
-                        amount=Decimal(income['income']),
-                        time=self.parse_ms_dt(income['time'])
+                        amount=Decimal(income["income"]),
+                        time=self.parse_ms_dt(income["time"]),
                     )
                 )
 
         for symbol, income in current_commission.items():
             if symbol not in symbols_done:
                 results.extend(
-                    await self._fetch_execs(
-                        symbol,
-                        income['tradeId'],
-                        income['time']
-                    )
+                    await self._fetch_execs(symbol, income["tradeId"], income["time"])
                 )
 
         return results, misc
 
     # https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
     async def _get_balance(self, time: datetime, upnl=True):
-        response = await self.get('/fapi/v2/account')
+        response = await self.get("/fapi/v2/account")
 
         usd_assets = [
             asset for asset in response["assets"] if asset["asset"] in ("USDT", "BUSD")
         ]
 
         return balance.Balance(
-            realized=sum(
-                Decimal(asset['walletBalance'])
-                for asset in usd_assets
-            ),
+            realized=sum(Decimal(asset["walletBalance"]) for asset in usd_assets),
             unrealized=sum(
-                Decimal(asset['marginBalance']) - Decimal(asset['walletBalance'])
+                Decimal(asset["marginBalance"]) - Decimal(asset["walletBalance"])
                 for asset in usd_assets
             ),
             time=time if time else datetime.now(pytz.utc),
-            extra_currencies=[]
+            extra_currencies=[],
         )
 
     async def start_ws(self):
@@ -367,7 +365,7 @@ class BinanceFutures(_BinanceBaseClient):
         await self._ws.stop()
 
     async def _on_message(self, ws, message):
-        event = message['e']
+        event = message["e"]
         json.dump(message, fp=sys.stdout, indent=3)
 
         """
@@ -416,64 +414,61 @@ class BinanceFutures(_BinanceBaseClient):
           }
         }        
         """
-        if event == 'ORDER_TRADE_UPDATE':
-            data = message.get('o')
-            if data['X'] == 'FILLED':
-                x = data['x']
-                o = data['o']
+        if event == "ORDER_TRADE_UPDATE":
+            data = message.get("o")
+            if data["X"] == "FILLED":
+                x = data["x"]
+                o = data["o"]
 
-                if o in ('MARKET', 'LIMIT'):
+                if o in ("MARKET", "LIMIT"):
                     execType = ExecType.TRADE
-                elif x == 'LIQUIDATION':
+                elif x == "LIQUIDATION":
                     execType = ExecType.LIQUIDATION
-                elif o == 'STOP':
+                elif o == "STOP":
                     execType = ExecType.STOP
-                elif o == 'TAKE_PROFIT':
+                elif o == "TAKE_PROFIT":
                     execType = ExecType.TP
                 else:
                     return
 
                 trade = Execution(
-                    symbol=data['s'],
-                    price=Decimal(data['ap']) or Decimal(data['p']),
-                    qty=Decimal(data['q']),
-                    side=Side.BUY if data['S'] == 'BUY' else Side.SELL,
-                    time=self.parse_ms_dt(message['E']),
+                    symbol=data["s"],
+                    price=Decimal(data["ap"]) or Decimal(data["p"]),
+                    qty=Decimal(data["q"]),
+                    side=Side.BUY if data["S"] == "BUY" else Side.SELL,
+                    time=self.parse_ms_dt(message["E"]),
                     type=execType,
-                    realized_pnl=Decimal(data['rp']),
-                    commission=Decimal(data['n']),
-                    settle='USDT'
+                    realized_pnl=Decimal(data["rp"]),
+                    commission=Decimal(data["n"]),
+                    settle="USDT",
                 )
                 await self._on_execution(trade)
 
         # https://binance-docs.github.io/apidocs/futures/en/#event-balance-and-position-update
-        if event == 'ACCOUNT_UPDATE':
-            data = message.get('a')
+        if event == "ACCOUNT_UPDATE":
+            data = message.get("a")
             if data and data["m"] == "FUNDING_FEE":
                 asset = data["B"][0]
                 await self._on_execution(
                     Execution(
                         symbol=asset["a"],
-                        time=self.parse_ms_dt(message['E']),
+                        time=self.parse_ms_dt(message["E"]),
                         type=ExecType.FUNDING,
-                        commission=Decimal(asset['bc'])
+                        commission=Decimal(asset["bc"]),
                     )
                 )
 
 
 class BinanceSpot(_BinanceBaseClient):
-    _ENDPOINT = 'https://api.binance.com'
-    _SANDBOX_ENDPOINT = 'https://testnet.binance.vision'
-    exchange = 'binance-spot'
+    _ENDPOINT = "https://api.binance.com"
+    _SANDBOX_ENDPOINT = "https://testnet.binance.vision"
+    exchange = "binance-spot"
     supports_extended_data = False
 
     @classmethod
     def get_market(cls, raw: str) -> Optional[Market]:
-        split = raw.split('/')
-        return Market(
-            base=split[0],
-            quote=split[1]
-        )
+        split = raw.split("/")
+        return Market(base=split[0], quote=split[1])
 
     @classmethod
     def exclude_from_trade(cls, execution: Execution):
@@ -482,10 +477,9 @@ class BinanceSpot(_BinanceBaseClient):
 
     # https://binance-docs.github.io/apidocs/spot/en/#account-information-user_data
     async def _get_balance(self, time: datetime, upnl=True):
-
         results = await asyncio.gather(
-            self.get('/api/v3/account'),
-            self.get('/api/v3/ticker/price', sign=False, cache=True)
+            self.get("/api/v3/account"),
+            self.get("/api/v3/ticker/price", sign=False, cache=True),
         )
 
         if isinstance(results[0], dict):
@@ -498,17 +492,24 @@ class BinanceSpot(_BinanceBaseClient):
         total_balance = Decimal(0)
         extra_currencies: list[balance.Amount] = []
 
-        ticker_prices = {
-            ticker['symbol']: ticker['price'] for ticker in tickers
-        }
-        data = response['balances']
+        ticker_prices = {ticker["symbol"]: ticker["price"] for ticker in tickers}
+        data = response["balances"]
         for cur_balance in data:
-            currency = cur_balance['asset']
-            amount = Decimal(cur_balance['free']) + Decimal(cur_balance['locked'])
-            if amount > 0 and currency != 'LDUSDT' and currency != 'LDSRM':
-                price = 1 if self.usd_like(currency) else Decimal(ticker_prices.get(f'{currency}USDT', 0.0))
+            currency = cur_balance["asset"]
+            amount = Decimal(cur_balance["free"]) + Decimal(cur_balance["locked"])
+            if amount > 0 and currency != "LDUSDT" and currency != "LDSRM":
+                price = (
+                    1
+                    if self.usd_like(currency)
+                    else Decimal(ticker_prices.get(f"{currency}USDT", 0.0))
+                )
                 extra_currencies.append(
-                    balance.Amount(currency=currency, realized=amount, unrealized=Decimal(0), rate=price)
+                    balance.Amount(
+                        currency=currency,
+                        realized=amount,
+                        unrealized=Decimal(0),
+                        rate=price,
+                    )
                 )
                 total_balance += amount * price
 
@@ -516,7 +517,7 @@ class BinanceSpot(_BinanceBaseClient):
             realized=total_balance,
             unrealized=Decimal(0),
             time=time,
-            extra_currencies=extra_currencies
+            extra_currencies=extra_currencies,
         )
 
     # async def _get_executions(self,
@@ -524,5 +525,7 @@ class BinanceSpot(_BinanceBaseClient):
     #                           init=False) -> tuple[List[Execution], List[MiscIncome]]:
     #     result = await self.get('/api/v3/myTrades', )
 
-    async def _get_transfers(self, since: datetime = None, to: datetime = None) -> List[RawTransfer]:
+    async def _get_transfers(
+        self, since: datetime = None, to: datetime = None
+    ) -> List[RawTransfer]:
         return await self._get_internal_transfers(Type.SPOT, since, to)
