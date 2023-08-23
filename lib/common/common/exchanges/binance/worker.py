@@ -14,6 +14,7 @@ from enum import Enum
 from typing import List, Iterator, Optional
 
 import ccxt.async_support as ccxt
+from database.dbmodels.client import MarketType
 import pytz
 from aiohttp import ClientResponse
 
@@ -206,8 +207,8 @@ class BinanceFutures(_BinanceBaseClient):
             params={
                 "symbol": symbol,
                 "interval": _interval_map.get(resolution_s),
-                "startTime": self._parse_datetime(since),
-                "endTime": self._parse_datetime(to),
+                "startTime": self._parse_datetime(since) if since else 0,
+                "endTime": self._parse_datetime(to or utc_now()),
             },
         )
         return [
@@ -257,7 +258,9 @@ class BinanceFutures(_BinanceBaseClient):
                 realized_pnl=Decimal(trade["realizedPnl"]),
                 commission=Decimal(trade["commission"]),
                 settle="USDT",
+                reduce=True,
                 type=ExecType.TRADE,
+                market_type=MarketType.DERIVATIVES,
             )
             for trade in trades
             if trade["time"] >= minTS
