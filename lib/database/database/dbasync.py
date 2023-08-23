@@ -14,8 +14,18 @@ import aioredis
 import dotenv
 from pydantic import ValidationError
 from sqlalchemy import delete, select, Column
-from sqlalchemy.ext.asyncio import async_scoped_session, AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker, joinedload, selectinload, InstrumentedAttribute, RelationshipProperty
+from sqlalchemy.ext.asyncio import (
+    async_scoped_session,
+    AsyncSession,
+    create_async_engine,
+)
+from sqlalchemy.orm import (
+    sessionmaker,
+    joinedload,
+    selectinload,
+    InstrumentedAttribute,
+    RelationshipProperty,
+)
 from sqlalchemy.sql import Select
 from sqlalchemy.util import symbol, greenlet_spawn
 
@@ -25,15 +35,18 @@ from database.env import ENV
 from database.models import BaseModel
 
 engine = create_async_engine(
-    f'postgresql+asyncpg://{ENV.PG_URL}',
+    f"postgresql+asyncpg://{ENV.PG_URL}",
     json_serializer=customjson.dumps_no_bytes,
     json_deserializer=customjson.loads,
     pool_size=20,
     future=True,
-    echo=True
 )
-async_maker = sessionmaker(bind=engine, class_=AsyncSession, expire_on_commit=False, future=True)
-async_session: AsyncSession = async_scoped_session(async_maker, scopefunc=asyncio.current_task)
+async_maker = sessionmaker(
+    bind=engine, class_=AsyncSession, expire_on_commit=False, future=True
+)
+async_session: AsyncSession = async_scoped_session(
+    async_maker, scopefunc=asyncio.current_task
+)
 
 redis = aioredis.from_url(ENV.REDIS_URL)
 
@@ -50,29 +63,37 @@ async def db_exec(stmt: Any, session: AsyncSession = None) -> Any:
     return await (session or async_session).execute(stmt)
 
 
-Table = TypeVar('Table', bound=Base)
+Table = TypeVar("Table", bound=Base)
 StmtCallable = Callable[[Select], Any]
 
 
-async def db_select(cls: Type[Table],
-                    *where,
-                    eager=None,
-                    session: AsyncSession = None,
-                    apply: StmtCallable = None,
-                    **filters) -> Optional[Table]:
+async def db_select(
+    cls: Type[Table],
+    *where,
+    eager=None,
+    session: AsyncSession = None,
+    apply: StmtCallable = None,
+    **filters,
+) -> Optional[Table]:
     stmt = select(cls).where(*where).filter_by(**filters)
     if eager:
         stmt = db_eager(stmt, *eager)
     return await db_first(apply(stmt) if apply else stmt, session=session)
 
 
-async def db_select_all(cls: Type[Table],
-                        *where,
-                        eager=None,
-                        session: AsyncSession = None,
-                        apply: StmtCallable = None,
-                        **filters) -> list[Table]:
-    stmt = db_eager(select(cls).where(*where).filter_by(**filters), *eager) if eager else select(cls)
+async def db_select_all(
+    cls: Type[Table],
+    *where,
+    eager=None,
+    session: AsyncSession = None,
+    apply: StmtCallable = None,
+    **filters,
+) -> list[Table]:
+    stmt = (
+        db_eager(select(cls).where(*where).filter_by(**filters), *eager)
+        if eager
+        else select(cls)
+    )
     return await db_all(apply(stmt) if apply else stmt, session=session)
 
 
@@ -129,7 +150,9 @@ def apply_option(stmt: Select, col: Union[Column, str], root=None, joined=False)
     return stmt
 
 
-TEager = Union[Column, Tuple[Column, Union[Tuple, InstrumentedAttribute, List, str]], None]
+TEager = Union[
+    Column, Tuple[Column, Union[Tuple, InstrumentedAttribute, List, str]], None
+]
 
 
 def db_eager(stmt: Select, *eager: TEager, root=None, joined=False):
@@ -142,10 +165,12 @@ def db_eager(stmt: Select, *eager: TEager, root=None, joined=False):
                     path = root.selectinload(col[0])
                 if isinstance(col[1], list):
                     stmt = db_eager(stmt, *col[1], root=path, joined=joined)
-                elif isinstance(col[1], InstrumentedAttribute) or isinstance(col[1], Tuple):
+                elif isinstance(col[1], InstrumentedAttribute) or isinstance(
+                    col[1], Tuple
+                ):
                     stmt = db_eager(stmt, col[1], root=path, joined=joined)
-                elif col[1] == '*':
-                    stmt = apply_option(stmt, '*', root=path, joined=joined)
+                elif col[1] == "*":
+                    stmt = apply_option(stmt, "*", root=path, joined=joined)
             else:
                 stmt = apply_option(stmt, col, root=root, joined=joined)
     return stmt
@@ -157,11 +182,13 @@ class RedisKey:
     model: Optional[Type[BaseModel]]
     parse: Optional[Callable[[bytes], Any]]
 
-    def __init__(self,
-                 *keys,
-                 model: Optional[Type[BaseModel]] = None,
-                 parse: Optional[Callable] = None,
-                 denominator=':'):
+    def __init__(
+        self,
+        *keys,
+        model: Optional[Type[BaseModel]] = None,
+        parse: Optional[Callable] = None,
+        denominator=":",
+    ):
         self.key = denominator.join(
             [str(key.value if isinstance(key, Enum) else key) for key in keys if key]
         )
@@ -214,5 +241,5 @@ async def redis_bulk(hash_keys: dict[str, list[RedisKey]], redis_instance=None):
         return result
 
 
-if __name__ == '__main__':
-    print(asyncio.run(redis.get('test')))
+if __name__ == "__main__":
+    print(asyncio.run(redis.get("test")))
