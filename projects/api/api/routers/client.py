@@ -41,7 +41,6 @@ from api.utils.responses import (
     Unauthorized,
 )
 from common.exchanges import EXCHANGES
-from common.exchanges.worker import Worker
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 from database.calc import create_intervals
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq

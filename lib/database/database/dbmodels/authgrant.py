@@ -73,7 +73,7 @@ class AuthGrant(Base, BaseMixin, Serializer):
 
     @hybrid_property
     def public(self):
-        return self.token is None
+        return self.token == None  # noqa
 
     @public.setter
     def public(self, value: bool):
