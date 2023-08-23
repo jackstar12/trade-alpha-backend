@@ -171,7 +171,7 @@ class Exchange(Observer):
         client: Client,
         http_session: aiohttp.ClientSession,
         db_maker: sessionmaker,
-        on_execution,
+        on_execution=None,
         commit=True,
     ):
         self.client_id = client.id if commit else None
@@ -184,7 +184,10 @@ class Exchange(Observer):
 
         self._pending_execs: deque[Execution] = deque()
 
-        self._on_execution = on_execution
+        async def _on_execution(e):
+            logger.warning(f"Got exeuction {e}, but no handler:")
+
+        self._on_execution = on_execution or _on_execution
 
         cls = self.__class__
 
@@ -564,6 +567,30 @@ class Exchange(Observer):
         if self.usd_like(coin):
             return amount
         # return await self._convert()
+
+    @classmethod
+    def _calc_resolution(
+        cls, n: int, resolutions_s: List[int], since: datetime, to: datetime = None
+    ) -> Optional[Tuple[int, int]]:
+        """
+        Small helper for finding out which resolution [s] suits a given amount of data points requested best.
+
+        Used in order to avoid unreasonable amounts (or too little in general)
+        of data being fetched, look which timeframe suits the given limit best
+
+        :param n: n data points
+        :param resolutions_s: Possibilities (have to be sorted!)
+        :param since: used to calculate seconds passed
+        :param now: [optional] can be passed to replace datetime.now()
+        :return: Fitting resolution or  None
+        """
+        if to:
+            for res in resolutions_s:
+                current_n = (to - since).total_seconds() // res
+                if current_n <= n:
+                    return int(current_n), res
+        else:
+            return n, resolutions_s[0]
 
     @classmethod
     def usd_like(cls, coin: str):

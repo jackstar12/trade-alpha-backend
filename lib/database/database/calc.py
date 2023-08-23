@@ -9,7 +9,6 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from api.models.transfer import Transfer
 from database.dbasync import db_all
 from database.dbmodels import BalanceDB, TransferDB
 from database.enums import IntervalType
@@ -124,7 +123,7 @@ TOffset = Decimal
 
 
 def transfer_gen(
-    transfers: list[Transfer], ccy: Optional[str] = None, reset=False
+    transfers: list[TransferDB], ccy: Optional[str] = None, reset=False
 ) -> Generator[Decimal, typing.Optional[datetime], None]:
     offsets: TOffset = Decimal(0)
 

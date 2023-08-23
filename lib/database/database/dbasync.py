@@ -37,7 +37,9 @@ engine = create_async_engine(
     json_deserializer=customjson.loads,
     pool_size=20,
     future=True,
-    echo=True,
+)
+async_maker = sessionmaker(
+    bind=engine, class_=AsyncSession, expire_on_commit=False, future=True,
 )
 async_maker = sessionmaker(
     bind=engine, class_=AsyncSession, expire_on_commit=False, future=True

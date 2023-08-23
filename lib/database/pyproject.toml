@@ -12,6 +12,7 @@ asyncpg = "0.25.0"
 sqlalchemy_utils = "0.38.2"
 psycopg2-binary = "2.9.3"
 fastapi_users_db_sqlalchemy = "4.0.3"
+fastapi-users = { extras = ["sqlalchemy"], version = "10.1.5"}
 alembic = "1.7.6"
 discord-py = "1.7.1"
 aioredis = "2.0.1"

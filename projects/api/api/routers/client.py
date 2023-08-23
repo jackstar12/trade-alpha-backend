@@ -41,7 +41,7 @@ from api.utils.responses import (
     Unauthorized,
 )
 from common.exchanges import EXCHANGES
-from common.exchanges.exchangeworker import Worker
+from common.exchanges.worker import Worker
 from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
 from database.calc import create_intervals
 from database.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq
@@ -78,55 +78,51 @@ async def new_client(
 ):
     try:
         exchange_cls = EXCHANGES[body.exchange]
-        if issubclass(exchange_cls, Worker):
-            # Check if required keyword args are given
-            if validate_kwargs(body.extra or {}, exchange_cls.required_extra_args):
-                client = body.get()
+        # Check if required keyword args are given
+        if validate_kwargs(body.extra or {}, exchange_cls.required_extra_args):
+            client = body.get()
 
-                try:
-                    worker = exchange_cls(
+            try:
+                exchange = exchange_cls(
                         client, http_session, commit=False, db_maker=async_maker
                     )
-                    init_balance = await worker.get_balance()
-                except InvalidClientError:
-                    raise BadRequest("Invalid API credentials")
-                except ResponseError:
-                    raise InternalError()
-                await worker.cleanup()
+                    init_balance = await exchange.get_balance()
+            except InvalidClientError:
+                raise BadRequest("Invalid API credentials")
+            except ResponseError:
+                raise InternalError()
 
-                if init_balance.error is None:
-                    if init_balance.realized.is_zero():
-                        raise BadRequest(
-                            "You do not have any balance in your account. Please fund your account before registering."
-                        )
-                    else:
-                        payload = jsonable_encoder(body)
-                        payload["api_secret"] = client.api_secret
-                        payload["exp"] = init_balance.time + timedelta(minutes=5)
-
-                        return ClientCreateResponse(
-                            token=jwt.encode(
-                                payload, settings.JWT_SECRET, algorithm="HS256"
-                            ),
-                            balance=Balance.from_orm(init_balance),
-                        )
-                else:
+            if init_balance.error is None:
+                if init_balance.realized.is_zero():
                     raise BadRequest(
-                        f"An error occured while getting your balance: {init_balance.error}."
+                        "You do not have any balance in your account. Please fund your account before registering."
+                    )
+                else:
+                    payload = jsonable_encoder(body)
+                    payload["api_secret"] = client.api_secret
+                    payload["exp"] = init_balance.time + timedelta(minutes=5)
+
+                    return ClientCreateResponse(
+                        token=jwt.encode(
+                            payload, settings.JWT_SECRET, algorithm="HS256"
+                        ),
+                        balance=Balance.from_orm(init_balance),
                     )
             else:
-                logging.error(
-                    f"Not enough kwargs for exchange {exchange_cls.exchange} were given."
-                    f"\nGot: {body.extra}\nRequired: {exchange_cls.required_extra_args}"
-                )
-                args_readable = "\n".join(exchange_cls.required_extra_args)
                 raise BadRequest(
-                    detail=f"Need more keyword arguments for exchange {exchange_cls.exchange}."
-                    f"\nRequirements:\n {args_readable}",
-                    code=40100,
+                    f"An error occured while getting your balance: {init_balance.error}."
                 )
         else:
-            logging.error(f"Class {exchange_cls} is no subclass of ClientWorker!")
+            logging.error(
+                f"Not enough kwargs for exchange {exchange_cls.exchange} were given."
+                f"\nGot: {body.extra}\nRequired: {exchange_cls.required_extra_args}"
+            )
+            args_readable = "\n".join(exchange_cls.required_extra_args)
+            raise BadRequest(
+                detail=f"Need more keyword arguments for exchange {exchange_cls.exchange}."
+                f"\nRequirements:\n {args_readable}",
+                code=40100,
+            )
     except KeyError:
         raise BadRequest(f"Exchange {body.exchange} unknown")
 
@@ -546,15 +542,15 @@ async def update_client(
             client.state = ClientState.OK
 
             exchange_cls = EXCHANGES[client.exchange]
-            async with exchange_cls(
+            exchange = exchange_cls(
                 client, http_session, db_maker=async_maker, commit=False
-            ) as worker:
-                try:
-                    await worker.get_balance()
-                except InvalidClientError:
-                    raise BadRequest("Invalid API credentials")
-                except ResponseError:
-                    raise InternalError()
+            )
+            try:
+                await exchange.get_balance()
+            except InvalidClientError:
+                raise BadRequest("Invalid API credentials")
+            except ResponseError:
+                raise InternalError()
 
         client.validate()
     else:
