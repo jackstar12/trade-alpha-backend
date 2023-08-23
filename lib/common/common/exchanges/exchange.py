@@ -26,12 +26,18 @@ from sqlalchemy.orm import sessionmaker
 from core import json as customjson, json
 from core.utils import utc_now
 from database.dbmodels.client import Client, ClientState
+
 # from database.dbmodels.ohlc import OHLC
 from database.dbmodels.execution import Execution
 from database.dbmodels.transfer import Transfer, RawTransfer
 from database.enums import Priority, ExecType, Side, MarketType
-from database.errors import RateLimitExceeded, ExchangeUnavailable, ExchangeMaintenance, ResponseError, \
-    InvalidClientError
+from database.errors import (
+    RateLimitExceeded,
+    ExchangeUnavailable,
+    ExchangeMaintenance,
+    ResponseError,
+    InvalidClientError,
+)
 from database.models.market import Market
 from database.models.miscincome import MiscIncome
 from database.models.observer import Observer
@@ -95,7 +101,7 @@ def create_limit(interval_seconds: int, max_amount: int, default_weight: int):
         max_amount,
         max_amount,
         default_weight,
-        interval_seconds / max_amount
+        interval_seconds / max_amount,
     )
 
 
@@ -114,7 +120,7 @@ class Limit:
     def refill(self, ts: float):
         self.amount = min(
             self.amount + (ts - self.last_ts) * self.refill_rate_seconds,
-            self.max_amount
+            self.max_amount,
         )
         self.last_ts = ts
 
@@ -133,7 +139,7 @@ class ExchangeWS(abc.ABC):
 class Exchange(Observer):
     supports_extended_data = False
     state = State.OK
-    exchange: str = ''
+    exchange: str = ""
     required_extra_args: Set[str] = set()
 
     _ENDPOINT: str
@@ -141,23 +147,23 @@ class Exchange(Observer):
     _cache: Dict[Request, Cached] = {}
 
     # Networking
-    _response_result = ''
+    _response_result = ""
     _request_queue: PriorityQueue[RequestItem] = PriorityQueue()
-    _response_error = ''
+    _response_error = ""
     _request_task: Task = None
     _http: aiohttp.ClientSession = None
 
     # Rate Limiting
-    _limits = [
-        create_limit(interval_seconds=60, max_amount=60, default_weight=1)
-    ]
+    _limits = [create_limit(interval_seconds=60, max_amount=60, default_weight=1)]
 
-    def __init__(self,
-                 client: Client,
-                 http_session: aiohttp.ClientSession,
-                 db_maker: sessionmaker,
-                 on_execution,
-                 commit=True):
+    def __init__(
+        self,
+        client: Client,
+        http_session: aiohttp.ClientSession,
+        db_maker: sessionmaker,
+        on_execution=None,
+        commit=True,
+    ):
         self.client_id = client.id if commit else None
         self.exchange = client.exchange
         self.client: Optional[Client] = client
@@ -168,7 +174,10 @@ class Exchange(Observer):
 
         self._pending_execs: deque[Execution] = deque()
 
-        self._on_execution = on_execution
+        async def _on_execution(e):
+            logger.warning(f"Got exeuction {e}, but no handler:")
+
+        self._on_execution = on_execution or _on_execution
 
         cls = self.__class__
 
@@ -178,14 +187,18 @@ class Exchange(Observer):
         if cls._request_task is None:
             cls._request_task = asyncio.create_task(cls._request_handler())
 
-        self._logger = logging.getLogger(__name__ + f' {self.exchange} id={self.client_id}')
+        self._logger = logging.getLogger(
+            __name__ + f" {self.exchange} id={self.client_id}"
+        )
 
-    async def get_ohlc(self,
-                       symbol: str,
-                       since: datetime = None,
-                       to: datetime = None,
-                       resolution_s: int = None,
-                       limit: int = None) -> List[OHLC]:
+    async def get_ohlc(
+        self,
+        symbol: str,
+        since: datetime = None,
+        to: datetime = None,
+        resolution_s: int = None,
+        limit: int = None,
+    ) -> List[OHLC]:
         raise NotImplementedError
 
     async def get_transfers(self, since: datetime = None) -> List[Transfer]:
@@ -197,17 +210,12 @@ class Exchange(Observer):
 
             result = []
             for raw_transfer in raw_transfers:
-
                 if raw_transfer.amount:
-                    market = Market(
-                        base=raw_transfer.coin,
-                        quote=self.client.currency
-                    )
+                    market = Market(base=raw_transfer.coin, quote=self.client.currency)
                     rate = await self.conversion_rate(market, raw_transfer.time)
 
                     transfer = Transfer(
-                        client_id=self.client_id,
-                        coin=raw_transfer.coin
+                        client_id=self.client_id, coin=raw_transfer.coin
                     )
 
                     transfer.execution = Execution(
@@ -220,17 +228,20 @@ class Exchange(Observer):
                         market_type=raw_transfer.market_type or MarketType.SPOT,
                         commission=raw_transfer.fee,
                         settle=raw_transfer.coin,
-                        transfer=transfer
+                        transfer=transfer,
                     )
                     result.append(transfer)
             return result
         else:
             return []
 
-    async def get_executions(self,
-                             since: datetime) -> tuple[List[Transfer], List[Execution], List[MiscIncome]]:
+    async def get_executions(
+        self, since: datetime
+    ) -> tuple[List[Transfer], List[Execution], List[MiscIncome]]:
         transfers = await self.get_transfers(since)
-        execs, misc = await self._get_executions(since, init=self.client.last_execution_sync is None)
+        execs, misc = await self._get_executions(
+            since, init=self.client.last_execution_sync is None
+        )
 
         # for transfer in transfers:
         #     if transfer.coin:
@@ -252,9 +263,9 @@ class Exchange(Observer):
         execs.sort(key=lambda e: e.time)
         return transfers, execs, misc
 
-    async def _get_executions(self,
-                              since: datetime,
-                              init=False) -> tuple[List[Execution], List[MiscIncome]]:
+    async def _get_executions(
+        self, since: datetime, init=False
+    ) -> tuple[List[Execution], List[MiscIncome]]:
         raise NotImplementedError
 
     @classmethod
@@ -271,10 +282,10 @@ class Exchange(Observer):
     async def start_ws(self):
         pass
 
-    async def _get_transfers(self,
-                             since: datetime = None,
-                             to: datetime = None) -> List[RawTransfer]:
-        logger.warning(f'Exchange {self.exchange} does not implement get_transfers')
+    async def _get_transfers(
+        self, since: datetime = None, to: datetime = None
+    ) -> List[RawTransfer]:
+        logger.warning(f"Exchange {self.exchange} does not implement get_transfers")
         return []
 
     async def get_balance(self, upnl=True) -> Balance:
@@ -288,12 +299,16 @@ class Exchange(Observer):
 
     @abc.abstractmethod
     async def _get_balance(self, time: datetime, upnl=True):
-        logger.error(f'Exchange {self.exchange} does not implement _get_balance')
-        raise NotImplementedError(f'Exchange {self.exchange} does not implement _get_balance')
+        logger.error(f"Exchange {self.exchange} does not implement _get_balance")
+        raise NotImplementedError(
+            f"Exchange {self.exchange} does not implement _get_balance"
+        )
 
     @abc.abstractmethod
-    def _sign_request(self, method: str, path: str, headers=None, params=None, data=None, **kwargs):
-        logger.error(f'Exchange {self.exchange} does not implement _sign_request')
+    def _sign_request(
+        self, method: str, path: str, headers=None, params=None, data=None, **kwargs
+    ):
+        logger.error(f"Exchange {self.exchange} does not implement _sign_request")
 
     def _set_rate_limit_parameters(self, response: ClientResponse):
         pass
@@ -301,7 +316,7 @@ class Exchange(Observer):
     @classmethod
     def _check_for_error(cls, response_json: dict, response: ClientResponse):
         if response.status == 401:
-            raise InvalidClientError(human='Invalid Credentials', response=response)
+            raise InvalidClientError(human="Invalid Credentials", response=response)
 
     @classmethod
     async def _process_response(cls, response: ClientResponse) -> dict:
@@ -309,9 +324,9 @@ class Exchange(Observer):
         try:
             response.raise_for_status()
         except ClientResponseError as e:
-            logger.error(f'{e}\n{response_json=}\n{response.reason=}')
+            logger.error(f"{e}\n{response_json=}\n{response.reason=}")
 
-            error = ''
+            error = ""
             if response.status == 400:
                 error = "400 Bad Request. This is probably an internal bug, please contact dev"
             elif response.status == 401:
@@ -323,18 +338,15 @@ class Exchange(Observer):
             elif response.status == 429:
                 raise RateLimitExceeded(
                     root_error=e,
-                    human="429 Rate Limit Exceeded. Please try again later."
+                    human="429 Rate Limit Exceeded. Please try again later.",
                 )
             elif 500 <= response.status < 600:
                 raise ExchangeUnavailable(
                     root_error=e,
-                    human=f"{response.status} Problem or Maintenance on {cls.exchange} servers."
+                    human=f"{response.status} Problem or Maintenance on {cls.exchange} servers.",
                 )
 
-            raise ResponseError(
-                root_error=e,
-                human=error
-            )
+            raise ResponseError(root_error=e, human=error)
 
         cls._check_for_error(response_json, response)
 
@@ -350,12 +362,14 @@ class Exchange(Observer):
 
     @classmethod
     def get_symbol(cls, market: Market) -> str:
-        logger.warning(f'Exchange {cls.exchange} does not implement get_symbol')
+        logger.warning(f"Exchange {cls.exchange} does not implement get_symbol")
         raise NotImplementedError
 
     @classmethod
     def is_equal(cls, market: Market) -> bool:
-        return market.quote == market.base or (cls.usd_like(market.quote) and cls.usd_like(market.base))
+        return market.quote == market.base or (
+            cls.usd_like(market.quote) and cls.usd_like(market.base)
+        )
 
     @classmethod
     def set_weights(cls, weight: int, response: ClientResponse):
@@ -375,7 +389,6 @@ class Exchange(Observer):
         """
         while True:
             try:
-
                 item = await cls._request_queue.get()
                 request = item.request
 
@@ -390,11 +403,13 @@ class Exchange(Observer):
                         limit.refill(ts)
 
                 try:
-                    async with cls._http.request(request.method,
-                                                 request.url,
-                                                 params=request.params,
-                                                 headers=request.headers,
-                                                 json=request.json) as resp:
+                    async with cls._http.request(
+                        request.method,
+                        request.url,
+                        params=request.params,
+                        headers=request.headers,
+                        json=request.json,
+                    ) as resp:
                         cls.set_weights(item.weight, resp)
                         resp = await cls._process_response(resp)
 
@@ -402,14 +417,16 @@ class Exchange(Observer):
                             cls._cache[item.request] = Cached(
                                 url=item.request.url,
                                 response=resp,
-                                expires=time.time() + 3600
+                                expires=time.time() + 3600,
                             )
 
                         item.future.set_result(resp)
                 except ResponseError as e:
                     if e.root_error.status == 401:
                         e = InvalidClientError(root_error=e.root_error, human=e.human)
-                    logger.error(f'Error while executing request: {e.human} {e.root_error}')
+                    logger.error(
+                        f"Error while executing request: {e.human} {e.root_error}"
+                    )
                     item.future.set_exception(e)
                 except RateLimitExceeded as e:
                     cls.state = State.RATE_LIMIT
@@ -420,20 +437,31 @@ class Exchange(Observer):
                 except ExchangeMaintenance as e:
                     cls.state = State.MAINTANENANCE
                 except Exception as e:
-                    logger.exception(f'Exception while execution request {item}')
+                    logger.exception(f"Exception while execution request {item}")
                     item.future.set_exception(e)
                 finally:
                     cls._request_queue.task_done()
             except Exception as e:
-                logger.exception('why')
+                logger.exception("why")
 
-    async def _request(self,
-                       method: str, path: str,
-                       headers=None, params=None, data=None,
-                       sign=True, cache=False,
-                       endpoint=None, dedupe=False, weight=None,
-                       **kwargs):
-        url = (endpoint or (self._SANDBOX_ENDPOINT if self.client.sandbox else self._ENDPOINT)) + path
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        headers=None,
+        params=None,
+        data=None,
+        sign=True,
+        cache=False,
+        endpoint=None,
+        dedupe=False,
+        weight=None,
+        **kwargs,
+    ):
+        url = (
+            endpoint
+            or (self._SANDBOX_ENDPOINT if self.client.sandbox else self._ENDPOINT)
+        ) + path
 
         params = OrderedDict(params or {})
         headers = headers or {}
@@ -464,7 +492,7 @@ class Exchange(Observer):
                 cache=cache,
                 weight=None,
                 request=request,
-                client_id=self.client_id
+                client_id=self.client_id,
             )
         )
         try:
@@ -473,21 +501,25 @@ class Exchange(Observer):
             if self.client_id:
                 async with self.db_maker() as db:
                     await db.execute(
-                        update(Client).where(Client.id == self.client_id).values(state=ClientState.INVALID)
+                        update(Client)
+                        .where(Client.id == self.client_id)
+                        .values(state=ClientState.INVALID)
                     )
                     await db.commit()
             raise
 
     def get(self, path: str, **kwargs):
-        return self._request('GET', path, **kwargs)
+        return self._request("GET", path, **kwargs)
 
     def post(self, path: str, **kwargs):
-        return self._request('POST', path, **kwargs)
+        return self._request("POST", path, **kwargs)
 
     def put(self, path: str, **kwargs):
-        return self._request('PUT', path, **kwargs)
+        return self._request("PUT", path, **kwargs)
 
-    async def conversion_rate(self, market: Market, date: datetime, resolution_s: int = None):
+    async def conversion_rate(
+        self, market: Market, date: datetime, resolution_s: int = None
+    ):
         if self.usd_like(market.base):
             return 1
 
@@ -502,10 +534,7 @@ class Exchange(Observer):
         #    return conversion.rate
 
         ticker = await self.get_ohlc(
-            self.get_symbol(market),
-            since=date,
-            resolution_s=None,
-            limit=1
+            self.get_symbol(market), since=date, resolution_s=None, limit=1
         )
         if ticker:
             return (ticker[0].open + ticker[0].close) / 2
@@ -517,7 +546,7 @@ class Exchange(Observer):
 
     @classmethod
     def usd_like(cls, coin: str):
-        return coin in ('USD', 'USDT', 'USDC', 'BUSD')
+        return coin in ("USD", "USDT", "USDC", "BUSD")
 
     @classmethod
     def _query_string(cls, params: Dict):
@@ -545,4 +574,4 @@ class Exchange(Observer):
         return date.fromtimestamp(int(ts_ms) / 1000)
 
     def __repr__(self):
-        return f'<Worker exchange={self.exchange} client_id={self.client_id}>'
+        return f"<Worker exchange={self.exchange} client_id={self.client_id}>"
