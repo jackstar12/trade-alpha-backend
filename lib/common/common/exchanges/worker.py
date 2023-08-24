@@ -304,7 +304,7 @@ class Worker(Observer):
 
                     while executions:
                         is_qty = sum(
-                            [e.effective_qty for e in executions], start=open_qty
+                            [e.effective_qty if e.qty else 0 for e in executions], start=open_qty
                         )
                         if is_qty != should_qty:
                             executions.pop(0)
