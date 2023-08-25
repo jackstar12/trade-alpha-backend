@@ -203,7 +203,7 @@ async def get_client_overview(
                     prev=start.get_currency(query_params.currency),
                     current=latest.get_currency(query_params.currency),
                     offset=sum(
-                        transfer.amount if query_params.currency else transfer.qty
+                        transfer.amount if query_params.currency else transfer.size
                         for transfer in transfers
                     ),
                 ),
