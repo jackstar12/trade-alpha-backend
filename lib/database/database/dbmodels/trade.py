@@ -103,17 +103,13 @@ class Trade(Base, Serializer, BaseMixin, CurrencyMixin, FilterMixin):
         uselist=False,
     )
 
-    #init_amount = relationship(
-    #    "Amount",
-    #    lazy="noload",
-    #    primaryjoin="and_(Trade.init_balance_id == foreign(Amount.balance_id), Trade.settle == foreign(Amount.currency))",
-    #    passive_deletes=True,
-    #    uselist=False,
-    #)
-
-    @property
-    def init_amount(self):
-        return self.init_balance.get_amount(self.settle)
+    init_amount = relationship(
+        "Amount",
+        lazy="noload",
+        primaryjoin="and_(Trade.init_balance_id == foreign(Amount.balance_id), Trade.settle == foreign(Amount.currency))",
+        passive_deletes=True,
+        uselist=False,
+    )
 
     max_pnl_id = Column(
         Integer, ForeignKey("pnldata.id", ondelete="SET NULL"), nullable=True

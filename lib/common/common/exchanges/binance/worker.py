@@ -257,7 +257,7 @@ class BinanceFutures(_BinanceBaseClient):
                 time=self.parse_ms_dt(trade["time"]),
                 realized_pnl=Decimal(trade["realizedPnl"]),
                 commission=Decimal(trade["commission"]),
-                settle="USD",
+                settle="USDT",
                 reduce=True,
                 type=ExecType.TRADE,
                 market_type=MarketType.DERIVATIVES,
@@ -319,7 +319,7 @@ class BinanceFutures(_BinanceBaseClient):
                         realized_pnl=amount if type == ExecType.LIQUIDATION else 0,
                         commission=amount if type == ExecType.FUNDING else 0,
                         # realized_pnl=amount,
-                        settle="USD",
+                        settle="USDT",
                         time=self.parse_ms_dt(income["time"]),
                         type=type,
                     )
@@ -348,14 +348,24 @@ class BinanceFutures(_BinanceBaseClient):
             asset for asset in response["assets"] if asset["asset"] in ("USDT", "BUSD")
         ]
 
+        realized = sum(Decimal(asset["walletBalance"]) for asset in usd_assets)
+        unrealized = sum(
+            Decimal(asset["marginBalance"]) - Decimal(asset["walletBalance"])
+            for asset in usd_assets
+        )
+
         return balance.Balance(
-            realized=sum(Decimal(asset["walletBalance"]) for asset in usd_assets),
-            unrealized=sum(
-                Decimal(asset["marginBalance"]) - Decimal(asset["walletBalance"])
-                for asset in usd_assets
-            ),
+            realized=realized,
+            unrealized=unrealized,
             time=time if time else datetime.now(pytz.utc),
-            extra_currencies=[],
+            extra_currencies=[
+                balance.Amount(
+                    currency="USDT",
+                    rate=1,
+                    realized=realized,
+                    unrealized=unrealized,
+                )
+            ],
         )
 
     async def _get_positions(self) -> list[Position]:
@@ -453,7 +463,7 @@ class BinanceFutures(_BinanceBaseClient):
                     type=execType,
                     realized_pnl=Decimal(data["rp"]),
                     commission=Decimal(data["n"]),
-                    settle="USD",
+                    settle="USDT",
                 )
                 await self._on_execution(trade)
 

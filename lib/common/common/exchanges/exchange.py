@@ -154,14 +154,11 @@ class Exchange(Observer):
 
     _ENDPOINT: str
     _SANDBOX_ENDPOINT: str
-    _cache: Dict[Request, Cached] = {}
+    _cache: Dict[str, Cached] = {}
 
     # Networking
     _response_result = ""
-    _request_queue: PriorityQueue[RequestItem] = PriorityQueue()
     _response_error = ""
-    _request_task: Task = None
-    _http: aiohttp.ClientSession = None
 
     # Rate Limiting
     _limits = [create_limit(interval_seconds=60, max_amount=60, default_weight=1)]
@@ -188,14 +185,6 @@ class Exchange(Observer):
             logger.warning(f"Got exeuction {e}, but no handler:")
 
         self._on_execution = on_execution or _on_execution
-
-        cls = self.__class__
-
-        if cls._http is None or cls._http.closed:
-            cls._http = http_session
-
-        if cls._request_task is None:
-            cls._request_task = asyncio.create_task(cls._request_handler())
 
         self._logger = logging.getLogger(
             __name__ + f" {self.exchange} id={self.client_id}"
@@ -400,74 +389,6 @@ class Exchange(Observer):
         for limit in cls._limits:
             limit.amount -= weight or limit.default_weight
 
-    @classmethod
-    async def _request_handler(cls):
-        """
-        Task which is responsible for putting out the requests
-        for this specific Exchange.
-
-        All requests have to be put onto the :cls._request_queue:
-        so that the handler can properly Knockkek ist geil execute them according to the current
-        rate limit states. If there is enough weight available it will also
-        decide to run requests in parallel.
-        """
-        while True:
-            try:
-                item = await cls._request_queue.get()
-                request = item.request
-
-                ts = time.monotonic()
-
-                # Provide some basic limiting by default
-                for limit in cls._limits:
-                    limit.refill(ts)
-                    if limit.validate(item.weight):
-                        await limit.sleep_for_weight(item.weight)
-                        ts = time.monotonic()
-                        limit.refill(ts)
-
-                try:
-                    async with cls._http.request(
-                        request.method,
-                        request.url,
-                        params=request.params,
-                        headers=request.headers,
-                        json=request.json,
-                    ) as resp:
-                        cls.set_weights(item.weight, resp)
-                        resp = await cls._process_response(resp)
-
-                        if item.cache:
-                            cls._cache[item.request] = Cached(
-                                url=item.request.url,
-                                response=resp,
-                                expires=time.time() + 3600,
-                            )
-
-                        item.future.set_result(resp)
-                except ResponseError as e:
-                    if e.root_error.status == 401:
-                        e = InvalidClientError(root_error=e.root_error, human=e.human)
-                    logger.error(
-                        f"Error while executing request: {e.human} {e.root_error}"
-                    )
-                    item.future.set_exception(e)
-                except RateLimitExceeded as e:
-                    cls.state = State.RATE_LIMIT
-                    if e.retry_ts:
-                        await asyncio.sleep(time.monotonic() - e.retry_ts)
-                except ExchangeUnavailable:
-                    cls.state = State.OFFLINE
-                except ExchangeMaintenance:
-                    cls.state = State.MAINTANENANCE
-                except Exception as e:
-                    logger.exception(f"Exception while execution request {item}")
-                    item.future.set_exception(e)
-                finally:
-                    cls._request_queue.task_done()
-            except Exception:
-                logger.exception("why")
-
     async def _request(
         self,
         method: str,
@@ -493,34 +414,39 @@ class Exchange(Observer):
         if sign:
             self._sign_request(method, path, headers, params, data)
 
-        request = Request(
-            method,
-            url,
-            path,
-            headers,
-            params,
-            data,
-        )
-
-        if cache:
-            cached = self._cache.get(request)
+        if cache and method == "GET":
+            cached = self._cache.get(url)
             if cached and time.time() < cached.expires:
                 return cached.response
 
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-        await self.__class__._request_queue.put(
-            RequestItem(
-                priority=Priority.MEDIUM,
-                future=future,
-                cache=cache,
-                weight=None,
-                request=request,
-                client_id=self.client_id,
-            )
-        )
         try:
-            return await future
+            ts = time.monotonic()
+            for limit in self._limits:
+                limit.refill(ts)
+                if limit.validate():
+                    await limit.sleep_for_weight()
+                    ts = time.monotonic()
+                    limit.refill(ts)
+
+            async with self._http.request(
+                    method,
+                    url,
+                    params=params,
+                    headers=headers,
+                    json=data,
+            ) as resp:
+                self.set_weights(None, resp)
+                resp = await self._process_response(resp)
+
+                if cache:
+                    self._cache[url] = Cached(
+                        url=url,
+                        response=resp,
+                        expires=time.time() + 3600,
+                    )
+
+                return resp
+
         except InvalidClientError:
             if self.client_id:
                 async with self.db_maker() as db:
@@ -531,6 +457,24 @@ class Exchange(Observer):
                     )
                     await db.commit()
             raise
+        except ResponseError as e:
+            if e.root_error.status == 401:
+                e = InvalidClientError(root_error=e.root_error, human=e.human)
+            logger.error(
+                f"Error while executing request: {e.human} {e.root_error}"
+            )
+            raise e
+        except RateLimitExceeded as e:
+            self.state = State.RATE_LIMIT
+            if e.retry_ts:
+                await asyncio.sleep(time.monotonic() - e.retry_ts)
+        except ExchangeUnavailable:
+            self.state = State.OFFLINE
+        except ExchangeMaintenance:
+            self.state = State.MAINTANENANCE
+        except Exception as e:
+            logger.exception(f"Exception while executing request {e}")
+            raise e
 
     def get(self, path: str, **kwargs):
         return self._request("GET", path, **kwargs)

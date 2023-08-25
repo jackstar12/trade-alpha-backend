@@ -321,9 +321,10 @@ class Worker(Observer):
 
                     for trade in all_trades:
                         try:
-                            ohlc_data = await self.exchange.get_ohlc(
-                                symbol, since=trade.open_time, to=trade.close_time
-                            )
+                            if trade.open_time != trade.close_time:
+                                ohlc_data = await self.exchange.get_ohlc(
+                                    symbol, since=trade.open_time, to=trade.close_time
+                                )
                         except ResponseError:
                             continue
                         dummy = Trade.from_execution(
