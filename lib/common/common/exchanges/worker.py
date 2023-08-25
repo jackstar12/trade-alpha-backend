@@ -467,7 +467,7 @@ class Worker(Observer):
         return client
 
     async def _update_realized_balance(self, db: AsyncSession):
-        balance = await self.exchange.get_balance(upnl=False)
+        balance = await self.exchange.get_balance()
 
         if balance:
             client = await self._get_client(db)

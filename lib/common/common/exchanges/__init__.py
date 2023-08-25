@@ -40,12 +40,12 @@ EXCHANGE_TICKERS = {
 }
 
 SANDBOX_CLIENTS = [
-    # ClientCreate(
-    #    exchange=BinanceFutures.exchange,
-    #    api_key="6ec9e23293ee07f187a8fbe4b575e6102da766daaa3e356db5d898ddfbb74684",
-    #    api_secret="e9d2849343a017e466873810431b256bf13333ec257ead90618becb0f1a59ac6",
-    #    sandbox=True
-    # ),
+    ClientCreate(
+       exchange=BinanceFutures.exchange,
+       api_key="6ec9e23293ee07f187a8fbe4b575e6102da766daaa3e356db5d898ddfbb74684",
+       api_secret="e9d2849343a017e466873810431b256bf13333ec257ead90618becb0f1a59ac6",
+       sandbox=True
+    ),
     ClientCreate(
         exchange=BybitDerivatives.exchange,
         api_key="NmLYouOiPq3wRlu5x3",

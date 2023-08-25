@@ -140,7 +140,7 @@ async def test_exchange(client, session_maker, http_session, ccxt_client):
 
     async def get_total_position_size():
         positions = await exchange.get_positions()
-        return sum(position.effective_qty for position in positions.get(symbol))
+        return sum(position.effective_qty for position in positions.get(symbol, []))
 
     previous = await get_total_position_size()
 

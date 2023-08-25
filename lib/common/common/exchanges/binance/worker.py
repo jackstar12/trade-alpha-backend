@@ -48,7 +48,7 @@ class _BinanceBaseClient(Exchange, ABC):
     _response_error = "msg"
 
     def _sign_request(
-        self, method: str, path: str, headers=None, params=None, data=None, **kwargs
+            self, method: str, path: str, headers=None, params=None, data=None, **kwargs
     ) -> None:
         ts = int(time.time() * 1000)
         headers["X-MBX-APIKEY"] = self.client.api_key
@@ -61,7 +61,7 @@ class _BinanceBaseClient(Exchange, ABC):
 
     # https://binance-docs.github.io/apidocs/spot/en/#get-future-account-transaction-history-list-user_data
     async def _get_internal_transfers(
-        self, type: Type, since: datetime, to: Optional[datetime] = None
+            self, type: Type, since: datetime, to: Optional[datetime] = None
     ) -> List[RawTransfer]:
         since = since or utc_now() - timedelta(days=180)
         if self.client.sandbox:
@@ -173,17 +173,17 @@ class BinanceFutures(_BinanceBaseClient):
             limit.amount -= weight or limit.default_weight
 
     async def _get_transfers(
-        self, since: Optional[datetime] = None, to: Optional[datetime] = None
+            self, since: Optional[datetime] = None, to: Optional[datetime] = None
     ) -> List[RawTransfer]:
         return await self._get_internal_transfers(Type.USDM, since, to)
 
     async def get_ohlc(
-        self,
-        symbol: str,
-        since: Optional[datetime] = None,
-        to: Optional[datetime] = None,
-        resolution_s: Optional[int] = None,
-        limit: Optional[int] = None,
+            self,
+            symbol: str,
+            since: Optional[datetime] = None,
+            to: Optional[datetime] = None,
+            resolution_s: Optional[int] = None,
+            limit: Optional[int] = None,
     ) -> List[OHLC]:
         # https://binance-docs.github.io/apidocs/futures/en/#mark-price-kline-candlestick-data
 
@@ -267,7 +267,7 @@ class BinanceFutures(_BinanceBaseClient):
         )
 
     async def _get_executions(
-        self, since: datetime, init=False
+            self, since: datetime, init=False
     ) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
         since_ts = self._parse_datetime(
             since or datetime.now(pytz.utc) - timedelta(days=180)
@@ -348,25 +348,17 @@ class BinanceFutures(_BinanceBaseClient):
             asset for asset in response["assets"] if asset["asset"] in ("USDT", "BUSD")
         ]
 
-        realized = sum(Decimal(asset["walletBalance"]) for asset in usd_assets)
-        unrealized = sum(
-            Decimal(asset["marginBalance"]) - Decimal(asset["walletBalance"])
-            for asset in usd_assets
-        )
-
-        return balance.Balance(
-            realized=realized,
-            unrealized=unrealized,
-            time=time if time else datetime.now(pytz.utc),
-            extra_currencies=[
-                balance.Amount(
-                    currency="USDT",
-                    rate=1,
-                    realized=realized,
-                    unrealized=unrealized,
-                )
-            ],
-        )
+        return [
+            balance.Amount(
+                currency="USDT",
+                rate=1,
+                realized=sum(Decimal(asset["walletBalance"]) for asset in usd_assets),
+                unrealized=sum(
+                    Decimal(asset["marginBalance"]) - Decimal(asset["walletBalance"])
+                    for asset in usd_assets
+                ),
+            )
+        ]
 
     async def _get_positions(self) -> list[Position]:
         response = await self.get("/fapi/v2/account")
@@ -512,8 +504,7 @@ class BinanceSpot(_BinanceBaseClient):
             response = results[1]
             tickers = results[0]
 
-        total_balance = Decimal(0)
-        extra_currencies: list[balance.Amount] = []
+        amounts: list[balance.Amount] = []
 
         ticker_prices = {ticker["symbol"]: ticker["price"] for ticker in tickers}
         data = response["balances"]
@@ -526,7 +517,7 @@ class BinanceSpot(_BinanceBaseClient):
                     if self.usd_like(currency)
                     else Decimal(ticker_prices.get(f"{currency}USDT", 0.0))
                 )
-                extra_currencies.append(
+                amounts.append(
                     balance.Amount(
                         currency=currency,
                         realized=amount,
@@ -534,14 +525,7 @@ class BinanceSpot(_BinanceBaseClient):
                         rate=price,
                     )
                 )
-                total_balance += amount * price
-
-        return balance.Balance(
-            realized=total_balance,
-            unrealized=Decimal(0),
-            time=time,
-            extra_currencies=extra_currencies,
-        )
+        return amounts
 
     # async def _get_executions(self,
     #                           since: datetime,
@@ -549,6 +533,6 @@ class BinanceSpot(_BinanceBaseClient):
     #     result = await self.get('/api/v3/myTrades', )
 
     async def _get_transfers(
-        self, since: Optional[datetime] = None, to: Optional[datetime] = None
+            self, since: Optional[datetime] = None, to: Optional[datetime] = None
     ) -> List[RawTransfer]:
         return await self._get_internal_transfers(Type.SPOT, since, to)

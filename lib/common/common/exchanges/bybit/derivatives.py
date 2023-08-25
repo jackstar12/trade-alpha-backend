@@ -118,13 +118,11 @@ class BybitDerivatives(_BybitBaseClient):
             ),
         )
 
-        total_realized = total_unrealized = Decimal(0)
-        extra_currencies: list[Amount] = []
+        amounts: list[Amount] = []
 
         ticker_prices = {
             ticker["symbol"]: Decimal(ticker["lastPrice"]) for ticker in tickers["list"]
         }
-        err_msg = None
         for balance in balances["list"]:
             realized = Decimal(balance["walletBalance"])
             unrealized = Decimal(balance["equity"]) - realized
@@ -142,7 +140,7 @@ class BybitDerivatives(_BybitBaseClient):
                     continue
 
             if realized:
-                extra_currencies.append(
+                amounts.append(
                     Amount(
                         currency=coin,
                         realized=realized,
@@ -150,15 +148,7 @@ class BybitDerivatives(_BybitBaseClient):
                         rate=price,
                     )
                 )
-            total_realized += realized * price
-            total_unrealized += unrealized * price
-
-        return Balance(
-            realized=total_realized,
-            unrealized=total_unrealized,
-            extra_currencies=extra_currencies,
-            error=err_msg,
-        )
+        return amounts
 
     async def get_ohlc(
         self,

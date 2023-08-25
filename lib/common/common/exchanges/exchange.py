@@ -42,8 +42,7 @@ from database.models.miscincome import MiscIncome
 from database.models.observer import Observer
 from database.models.ohlc import OHLC
 
-if TYPE_CHECKING:
-    from database.dbmodels.balance import Balance
+from database.dbmodels.balance import Balance, Amount
 
 logger = logging.getLogger(__name__)
 
@@ -287,9 +286,17 @@ class Exchange(Observer):
         logger.warning(f"Exchange {self.exchange} does not implement get_transfers")
         return []
 
-    async def get_balance(self, upnl=True) -> Balance:
+    async def get_balance(self) -> Balance:
         now = utc_now()
-        balance = await self._get_balance(now, upnl=upnl)
+        amounts = await self._get_balance(now, upnl=False)
+
+        balance = Balance(
+            extra_currencies=amounts,
+            client_id=self.client_id,
+            time=now
+        )
+        balance.evaluate()
+
         if not balance.time:
             balance.time = now
         self._last_fetch = balance
@@ -308,11 +315,12 @@ class Exchange(Observer):
 
     @abc.abstractmethod
     async def _get_positions(self) -> list[Position]:
-        pass
+        raise NotImplementedError(
+            f"Exchange {self.exchange} does not implement _get_positions"
+        )
 
     @abc.abstractmethod
-    async def _get_balance(self, time: datetime, upnl=True):
-        logger.error(f"Exchange {self.exchange} does not implement _get_balance")
+    async def _get_balance(self, time: datetime, upnl=True) -> list[Amount]:
         raise NotImplementedError(
             f"Exchange {self.exchange} does not implement _get_balance"
         )
