@@ -257,7 +257,7 @@ class BinanceFutures(_BinanceBaseClient):
                 time=self.parse_ms_dt(trade["time"]),
                 realized_pnl=Decimal(trade["realizedPnl"]),
                 commission=Decimal(trade["commission"]),
-                settle="USDT",
+                settle="USD",
                 reduce=True,
                 type=ExecType.TRADE,
                 market_type=MarketType.DERIVATIVES,
@@ -319,7 +319,7 @@ class BinanceFutures(_BinanceBaseClient):
                         realized_pnl=amount if type == ExecType.LIQUIDATION else 0,
                         commission=amount if type == ExecType.FUNDING else 0,
                         # realized_pnl=amount,
-                        settle="USDT",
+                        settle="USD",
                         time=self.parse_ms_dt(income["time"]),
                         type=type,
                     )
@@ -453,7 +453,7 @@ class BinanceFutures(_BinanceBaseClient):
                     type=execType,
                     realized_pnl=Decimal(data["rp"]),
                     commission=Decimal(data["n"]),
-                    settle="USDT",
+                    settle="USD",
                 )
                 await self._on_execution(trade)
 
