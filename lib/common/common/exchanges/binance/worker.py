@@ -26,7 +26,6 @@ from database.enums import Side, ExecType
 from common.exchanges.binance.futures_websocket_client import FuturesWebsocketClient
 from common.exchanges.exchange import Exchange, create_limit, Position
 from database.models.market import Market
-from database.models.miscincome import MiscIncome
 from database.models.ohlc import OHLC
 from core.utils import utc_now
 
@@ -268,7 +267,7 @@ class BinanceFutures(_BinanceBaseClient):
 
     async def _get_executions(
             self, since: datetime, init=False
-    ) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
+    ) -> List[Execution]:
         since_ts = self._parse_datetime(
             since or datetime.now(pytz.utc) - timedelta(days=180)
         )
@@ -322,13 +321,6 @@ class BinanceFutures(_BinanceBaseClient):
                         settle="USDT",
                         time=self.parse_ms_dt(income["time"]),
                         type=type,
-                    )
-                )
-            elif income_type not in ("COMMISSION", "TRANSFER", "REALIZED_PNL"):
-                misc.append(
-                    MiscIncome(
-                        amount=Decimal(income["income"]),
-                        time=self.parse_ms_dt(income["time"]),
                     )
                 )
 

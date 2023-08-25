@@ -38,7 +38,6 @@ from database.errors import (
     InvalidClientError,
 )
 from database.models.market import Market
-from database.models.miscincome import MiscIncome
 from database.models.observer import Observer
 from database.models.ohlc import OHLC
 
@@ -235,9 +234,9 @@ class Exchange(Observer):
 
     async def get_executions(
         self, since: datetime
-    ) -> tuple[List[Transfer], List[Execution], List[MiscIncome]]:
+    ) -> List[Execution]:
         transfers = await self.get_transfers(since)
-        execs, misc = await self._get_executions(
+        execs = await self._get_executions(
             since, init=self.client.last_execution_sync is None
         )
 
@@ -259,11 +258,11 @@ class Exchange(Observer):
             if transfer.execution:
                 execs.append(transfer.execution)
         execs.sort(key=lambda e: e.time)
-        return transfers, execs, misc
+        return execs
 
     async def _get_executions(
         self, since: datetime, init=False
-    ) -> tuple[List[Execution], List[MiscIncome]]:
+    ) -> List[Execution]:
         raise NotImplementedError
 
     @classmethod

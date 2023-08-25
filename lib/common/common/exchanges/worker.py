@@ -227,7 +227,7 @@ class Worker(Observer):
 
             since = client.last_execution_sync
 
-            transfers, all_executions, misc = await self.exchange.get_executions(since)
+            all_executions = await self.exchange.get_executions(since)
 
             check_executions = await db_all(
                 select(Execution)
@@ -443,7 +443,6 @@ class Worker(Observer):
                 prev_balance = current_balance
 
             db.add_all(balances)
-            db.add_all(transfers)
             await db.flush()
 
             client.last_execution_sync = client.last_transfer_sync = core.utc_now()

@@ -17,7 +17,6 @@ from database.enums import Side, ExecType, MarketType
 from database.models import BaseModel
 from database.models.client import ClientCreate
 from database.models.market import Market
-from database.models.miscincome import MiscIncome
 from database.models.ohlc import OHLC
 from database.models.ticker import Ticker
 
@@ -191,7 +190,7 @@ class MockExchange(Exchange):
 
     async def _get_executions(
         self, since: datetime, init=False
-    ) -> tuple[Iterator[Execution], Iterator[MiscIncome]]:
+    ) -> List[Execution]:
         return [raw.to_exec(self.client) for raw in self.execs], []
         data = [
             dict(qty=1, price=10000, side=Side.SELL),
