@@ -90,6 +90,10 @@ class Balance(Base, _Common, Serializer, BaseMixin, ClientQueryMixin):
         for amount in self.extra_currencies:
             if amount.currency == ccy:
                 return amount
+
+        if ccy == self.currency:
+            return Amount(currency=ccy, realized=self.realized, unrealized=self.unrealized)
+
         amt = Amount(currency=ccy, realized=0, unrealized=0)
         self.extra_currencies.append(amt)
         return amt

@@ -265,7 +265,8 @@ create_trade_endpoint(
 create_trade_endpoint(
     "trade",
     Trade,
-    TradeDB.init_amount,
+    TradeDB.init_balance,
+    TradeDB.client,
     TradeDB.labels,
 )
 create_trade_endpoint(
@@ -277,7 +278,8 @@ create_trade_endpoint(
     TradeDB.max_pnl,
     TradeDB.min_pnl,
     TradeDB.labels,
-    TradeDB.init_amount,
+    TradeDB.client,
+    TradeDB.init_balance,
 )
 
 

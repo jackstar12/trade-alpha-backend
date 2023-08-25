@@ -306,7 +306,7 @@ class BinanceFutures(_BinanceBaseClient):
                 elif income_type == "REALIZED_PNL":
                     if get_safe(symbol, "tradeId") == trade_id:
                         current_commission[symbol] = None
-            if income_type == "INSURANCE_CLEAR" or income_type == "FUNDING_FEE":
+            if income_type == "INSURANCE_CLEAR" or income_type == "FUNDING_FEE" and False:
                 type = (
                     ExecType.FUNDING
                     if income_type == "FUNDING_FEE"
