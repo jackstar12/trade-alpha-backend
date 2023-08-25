@@ -38,14 +38,13 @@ TTable = TypeVar("TTable", bound=BaseMixin)
 
 def run_migrations():
     try:
-        path = "../../lib/database/"
+        path = "../../"
         alembic_cfg = Config(path + "alembic.ini")
         alembic_cfg.set_main_option("script_location", path + "alembic")
         command.upgrade(alembic_cfg, "head")
     except CommandError:
-        path = "./lib/database/"
-        alembic_cfg = Config(path + "alembic.ini")
-        alembic_cfg.set_main_option("script_location", path + "alembic")
+        alembic_cfg = Config("alembic.ini")
+        alembic_cfg.set_main_option("script_location", "alembic")
         command.upgrade(alembic_cfg, "head")
 
 
