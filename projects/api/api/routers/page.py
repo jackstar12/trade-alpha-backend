@@ -8,13 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.dependencies import get_db
 from api.users import CurrentUser
 from api.utils.responses import OK, NotFound
-from database.dbasync import db_unique, db_all
-from database.dbmodels.editing import Journal, Chapter
-from database.dbmodels.editing.pagemixin import PageMixin
-from database.dbmodels.editing.template import Template as DbTemplate
-from database.dbmodels.user import User
-from database.models import InputID
-from database.models.page import PageInfo, FullPage
+from lib.db.dbasync import db_unique, db_all
+from lib.db.models.editing import Journal, Chapter
+from lib.db.models.editing.pagemixin import PageMixin
+from lib.db.models.editing.template import Template as DbTemplate
+from lib.db.models.user import User
+from lib.models import InputID
+from lib.models.page import PageInfo, FullPage
 
 router = APIRouter(tags=["page"], dependencies=[], prefix="/pages")
 

@@ -9,14 +9,8 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 COPY projects/collector/pyproject.toml /app/projects/collector/pyproject.toml
 COPY projects/collector/collector/__init__.py /app/projects/collector/collector/__init__.py
 
-COPY projects/collector/../../lib/common/pyproject.toml /app/projects/collector/../../lib/common/pyproject.toml
-COPY projects/collector/../../lib/common/common/__init__.py /app/projects/collector/../../lib/common/common/__init__.py
-
-COPY projects/collector/../../lib/common/../database/pyproject.toml /app/projects/collector/../../lib/common/../database/pyproject.toml
-COPY projects/collector/../../lib/common/../database/database/__init__.py /app/projects/collector/../../lib/common/../database/database/__init__.py
-
-COPY projects/collector/../../lib/core/pyproject.toml /app/projects/collector/../../lib/core/pyproject.toml
-COPY projects/collector/../../lib/core/core/__init__.py /app/projects/collector/../../lib/core/core/__init__.py
+COPY projects/collector/../../lib/pyproject.toml /app/projects/collector/../../lib/pyproject.toml
+COPY projects/collector/../../lib/lib/__init__.py /app/projects/collector/../../lib/lib/__init__.py
 
 
 

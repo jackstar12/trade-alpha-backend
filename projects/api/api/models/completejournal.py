@@ -3,10 +3,10 @@ from decimal import Decimal
 from typing import List, Optional, NamedTuple, Set, Any
 
 from api.routers.authgrant import AuthGrantInfo
-from database.models import BaseModel, OutputID, InputID
+from lib.models import BaseModel, OutputID, InputID
 from api.models.template import TemplateInfo, TemplateDetailed
-from database.dbmodels.editing.journal import IntervalType, JournalType
-from database.models.document import DocumentModel
+from lib.db.models.editing.journal import IntervalType, JournalType
+from lib.models.document import DocumentModel
 
 MISSING = object()
 

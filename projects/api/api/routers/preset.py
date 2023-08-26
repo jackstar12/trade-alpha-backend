@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from api.crudrouter import add_crud_routes
 from api.models.preset import PresetInfo, PresetCreate
-from database.dbmodels.editing.preset import Preset
+from lib.db.models.editing.preset import Preset
 
 router = APIRouter(prefix="/presets")
 

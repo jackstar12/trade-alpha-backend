@@ -1,11 +1,11 @@
 import asyncio
 from datetime import datetime, timedelta
 from collections import deque
-from database.models.coin import Coin
-from database.models.volumeratio import VolumeRatio
+from lib.models.coin import Coin
+from lib.models.volumeratio import VolumeRatio
 from typing import Optional, Dict, List
 
-from database.models.singleton import Singleton
+from lib.models.singleton import Singleton
 import aiohttp
 
 

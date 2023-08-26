@@ -7,11 +7,11 @@ from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select, and_
 
 from collector.services.baseservice import BaseService
-from database.dbasync import db_all, db_select
-from database.dbmodels.event import Event, EventState
-from database.dbmodels.evententry import EventEntry
-from common.messenger import Category, TableNames, EventSpace
-from database.models.balance import Balance
+from lib.db.dbasync import db_all, db_select
+from lib.db.models.event import Event, EventState
+from lib.db.models.evententry import EventEntry
+from lib.messenger import Category, TableNames, EventSpace
+from lib.models.balance import Balance
 
 
 @dataclass

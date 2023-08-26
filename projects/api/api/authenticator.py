@@ -10,7 +10,7 @@ from fastapi_users.authentication import Strategy
 from pydantic import UUID4
 
 from api.settings import settings
-from database.dbmodels.user import User
+from lib.db.models.user import User
 
 
 class Authenticator:

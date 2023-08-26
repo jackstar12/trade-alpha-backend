@@ -5,8 +5,8 @@ from fastapi import HTTPException
 from fastapi.encoders import jsonable_encoder
 from starlette.responses import JSONResponse
 
-from core import json as customjson
-from database.models import BaseModel
+from lib import json as customjson
+from lib.models import BaseModel
 
 ResultT = TypeVar("ResultT", bound=BaseModel)
 

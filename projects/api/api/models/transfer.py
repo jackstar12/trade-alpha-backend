@@ -2,9 +2,9 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from database.models import OutputID
-from database.models import OrmBaseModel
-from database.dbmodels.transfer import TransferType
+from lib.models import OutputID
+from lib.models import OrmBaseModel
+from lib.db.models.transfer import TransferType
 
 
 class Transfer(OrmBaseModel):

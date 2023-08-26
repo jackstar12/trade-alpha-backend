@@ -18,21 +18,21 @@ from api.users import (
     get_table_auth_dependency,
 )
 from api.utils.responses import BadRequest, OK, ResponseModel, NotFound
-from core.utils import groupby
-from database import utils as dbutils
-from database.dbasync import db_first, redis, db_unique, wrap_greenlet, db_all
-from database.dbmodels import Client
-from database.dbmodels.authgrant import AuthGrant, EventGrant, AssociationType
-from database.dbmodels.client import add_client_checks
-from database.dbmodels.event import Event as EventDB, EventState
-from database.dbmodels.evententry import (
+from lib.utils import groupby
+from lib.db import utils as dbutils
+from lib.db.dbasync import db_first, redis, db_unique, wrap_greenlet, db_all
+from lib.db.models import Client
+from lib.db.models.authgrant import AuthGrant, EventGrant, AssociationType
+from lib.db.models.client import add_client_checks
+from lib.db.models.event import Event as EventDB, EventState
+from lib.db.models.evententry import (
     EventEntry as EventEntryDB,
     EventScore as EventScoreDB,
 )
-from database.dbmodels.user import User
-from database.models import BaseModel, InputID, OutputID, OrmBaseModel
-from database.models.document import DocumentModel
-from database.models.eventinfo import (
+from lib.db.models.user import User
+from lib.models import BaseModel, InputID, OutputID, OrmBaseModel
+from lib.models.document import DocumentModel
+from lib.models.eventinfo import (
     EventInfo,
     EventDetailed,
     EventCreate,

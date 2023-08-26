@@ -8,16 +8,16 @@ from apscheduler.job import Job
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlalchemy import select, and_, or_
 
-from common.exchanges import EXCHANGES
+from lib.exchanges import EXCHANGES
 from collector.services.baseservice import BaseService
 from collector.services.dataservice import DataService
-from database.dbasync import db_all, db_unique
-from database.dbmodels import Balance
-from database.dbmodels.client import Client, ClientState, ClientType
-from database.dbmodels.trade import Trade
-from database.errors import InvalidClientError
-from common.exchanges.worker import Worker
-from common.messenger import TableNames, Category
+from lib.db.dbasync import db_all, db_unique
+from lib.db.models import Balance
+from lib.db.models.client import Client, ClientState, ClientType
+from lib.db.models.trade import Trade
+from lib.db.errors import InvalidClientError
+from lib.exchanges.worker import Worker
+from lib.messenger import TableNames, Category
 
 
 class ExchangeJob(NamedTuple):

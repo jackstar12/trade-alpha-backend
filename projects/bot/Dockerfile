@@ -9,14 +9,8 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 COPY projects/bot/pyproject.toml /app/projects/bot/pyproject.toml
 COPY projects/bot/bot/__init__.py /app/projects/bot/bot/__init__.py
 
-COPY projects/bot/../../lib/common/pyproject.toml /app/projects/bot/../../lib/common/pyproject.toml
-COPY projects/bot/../../lib/common/common/__init__.py /app/projects/bot/../../lib/common/common/__init__.py
-
-COPY projects/bot/../../lib/common/../database/pyproject.toml /app/projects/bot/../../lib/common/../database/pyproject.toml
-COPY projects/bot/../../lib/common/../database/database/__init__.py /app/projects/bot/../../lib/common/../database/database/__init__.py
-
-COPY projects/bot/../../lib/core/pyproject.toml /app/projects/bot/../../lib/core/pyproject.toml
-COPY projects/bot/../../lib/core/core/__init__.py /app/projects/bot/../../lib/core/core/__init__.py
+COPY projects/bot/../../lib/pyproject.toml /app/projects/bot/../../lib/pyproject.toml
+COPY projects/bot/../../lib/lib/__init__.py /app/projects/bot/../../lib/lib/__init__.py
 
 
 

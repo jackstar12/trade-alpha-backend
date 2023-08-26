@@ -6,15 +6,15 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import select
 
-from common.exchanges import SANDBOX_CLIENTS, EXCHANGES, BybitDerivatives
-from common.exchanges.exchange import Position
-from common.messenger import TableNames, Category
-from common.test_utils.fixtures import Channel, Messages
-from common.test_utils.mockexchange import MockExchange, RawExec, MockCreate
-from core import utc_now
-from database.dbasync import db_select_all, db_all
-from database.dbmodels.trade import Trade
-from database.enums import Side
+from lib.exchanges import SANDBOX_CLIENTS, EXCHANGES, BybitDerivatives
+from lib.exchanges.exchange import Position
+from lib.messenger import TableNames, Category
+from lib.test_utils.fixtures import Channel, Messages
+from lib.test_utils.mockexchange import MockExchange, RawExec, MockCreate
+from lib.utils import utc_now
+from lib.db.dbasync import db_select_all, db_all
+from lib.db.models.trade import Trade
+from lib.db.enums import Side
 
 pytestmark = pytest.mark.anyio
 
@@ -158,7 +158,7 @@ async def test_exchange(client, session_maker, http_session, ccxt_client):
     if client.exchange == BybitDerivatives.exchange:
         await asyncio.sleep(20)
 
-    _, fetched_execs, _ = await exchange.get_executions(now)
+    fetched_execs = await exchange.get_executions(now)
     assert len(execs) == len(fetched_execs)
 
     new_balance = await exchange.get_balance()

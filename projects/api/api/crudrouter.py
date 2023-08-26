@@ -12,10 +12,10 @@ from sqlalchemy.sql import Select, Update, Delete
 from api.dependencies import get_db
 from api.users import CurrentUser
 from api.utils.responses import OK, NotFound, BadRequest
-from database.dbasync import db_all, TEager, db_select
-from database.dbmodels.user import User
-from database.dbsync import BaseMixin
-from database.models import BaseModel, OrmBaseModel, CreateableModel, InputID
+from lib.db.dbasync import db_all, TEager, db_select
+from lib.db.models.user import User
+from lib.db.dbsync import BaseMixin
+from lib.models import BaseModel, OrmBaseModel, CreateableModel, InputID
 
 TStmt = Select | Update | Delete
 

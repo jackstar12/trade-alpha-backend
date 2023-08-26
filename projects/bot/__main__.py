@@ -15,15 +15,15 @@ from bot.cogs import balance, history, events, misc, user, alert, leaderboard
 from bot.config import PREFIX, DATA_PATH, REKT_MESSAGES, REKT_GUILDS
 from bot.env import environment
 from bot.rpc import create_rpc_server
-from common.messenger import Messenger
-from core.utils import setup_logger
-from database.dbasync import async_session, db_all, redis, db_select
-from database.dbmodels.client import Client
-from database.dbmodels.discord.discorduser import DiscordUser
-from database.dbmodels.discord.guild import Guild as GuildDB
-from database.dbmodels.discord.guildassociation import GuildAssociation
-from database.enums import Tier
-from database.utils import run_migrations
+from lib.messenger import Messenger
+from lib.utils import setup_logger
+from lib.db.dbasync import async_session, db_all, redis, db_select
+from lib.db.models.client import Client
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.db.models.discord.guild import Guild as GuildDB
+from lib.db.models.discord.guildassociation import GuildAssociation
+from lib.db.enums import Tier
+from lib.db.utils import run_migrations
 
 intents = discord.Intents().default()
 intents.members = True

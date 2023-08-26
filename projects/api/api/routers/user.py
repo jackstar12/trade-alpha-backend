@@ -7,17 +7,17 @@ from starlette.background import BackgroundTasks
 
 from api.dependencies import get_db
 from api.models.user import UserRead
-from database.models.user import UserPublicInfo
+from lib.models.user import UserPublicInfo
 from api.users import CurrentUser
 from api.users import get_current_user
 from api.utils.responses import OK, ResponseModel
-from database.dbasync import redis
-from database.dbmodels.user import User
-from database.models.user import ProfileData, UserProfile
+from lib.db.dbasync import redis
+from lib.db.models.user import User
+from lib.models.user import ProfileData, UserProfile
 from api.models.alert import Alert
 from api.models.client import ClientInfo
-from database.models import BaseModel
-from database.models.document import DocumentModel
+from lib.models import BaseModel
+from lib.models.document import DocumentModel
 
 router = APIRouter(
     tags=["transfer"],

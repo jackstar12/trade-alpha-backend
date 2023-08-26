@@ -6,7 +6,7 @@ from discord_slash import cog_ext, SlashContext
 
 from bot import utils
 from bot.cogs.cogbase import CogBase
-from common.exchanges import EXCHANGES
+from lib.exchanges import EXCHANGES
 
 
 class MiscCog(CogBase):

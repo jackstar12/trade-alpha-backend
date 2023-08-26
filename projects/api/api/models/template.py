@@ -1,9 +1,9 @@
 from typing import Optional
 
 from api.routers.authgrant import AuthGrantInfo
-from database.dbmodels.editing.template import TemplateType
-from database.models import BaseModel, InputID, OutputID
-from database.models.document import DocumentModel
+from lib.db.models.editing.template import TemplateType
+from lib.models import BaseModel, InputID, OutputID
+from lib.models.document import DocumentModel
 
 
 class TemplateCreate(BaseModel):

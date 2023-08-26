@@ -12,12 +12,12 @@ from api.dependencies import get_db
 from api.users import CurrentUser, get_auth_grant_dependency
 from api.models.completejournal import DetailedChapter, ChapterCreate, ChapterUpdate
 from api.utils.responses import OK
-from database.dbasync import db_unique
-from database.dbmodels.authgrant import AuthGrant, ChapterGrant, AssociationType
-from database.dbmodels.editing.chapter import Chapter as DbChapter
-from database.dbmodels.editing.journal import Journal
-from database.dbmodels.user import User
-from database.models import InputID
+from lib.db.dbasync import db_unique
+from lib.db.models.authgrant import AuthGrant, ChapterGrant, AssociationType
+from lib.db.models.editing.chapter import Chapter as DbChapter
+from lib.db.models.editing.journal import Journal
+from lib.db.models.user import User
+from lib.models import InputID
 
 router = APIRouter(tags=["chapter"], prefix="/chapter")
 

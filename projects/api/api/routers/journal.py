@@ -21,18 +21,18 @@ from api.models.completejournal import (
     JournalDetailedInfo,
 )
 from api.utils.responses import BadRequest, OK, CustomJSONResponse
-from database.dbasync import db_unique, db_all, wrap_greenlet
-from database.dbmodels.authgrant import (
+from lib.db.dbasync import db_unique, db_all, wrap_greenlet
+from lib.db.models.authgrant import (
     JournalGrant,
     AuthGrant,
     ChapterGrant,
     AssociationType,
 )
-from database.dbmodels.editing.chapter import Chapter as DbChapter
-from database.dbmodels.client import add_client_checks, Client
-from database.dbmodels.editing.journal import Journal, JournalType
-from database.dbmodels.user import User
-from database.models import InputID
+from lib.db.models.editing.chapter import Chapter as DbChapter
+from lib.db.models.client import add_client_checks, Client
+from lib.db.models.editing.journal import Journal, JournalType
+from lib.db.models.user import User
+from lib.models import InputID
 
 router = APIRouter(
     tags=["journal"],

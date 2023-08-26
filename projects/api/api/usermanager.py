@@ -6,7 +6,7 @@ from fastapi import Depends, Request
 from fastapi_users import BaseUserManager, UUIDIDMixin, models, exceptions
 
 from api.authenticator import Authenticator
-from database.dbmodels.user import User
+from lib.db.models.user import User
 
 if TYPE_CHECKING:
     from api.users import UserDatabase

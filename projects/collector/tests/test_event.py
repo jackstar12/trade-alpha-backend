@@ -2,9 +2,9 @@ from datetime import timedelta
 
 import pytest
 
-from common.test_utils.fixtures import Channel, Messages
-from common.messenger import TableNames, EventSpace
-from common.test_utils.mock import event_mock
+from lib.test_utils.fixtures import Channel, Messages
+from lib.messenger import TableNames, EventSpace
+from lib.test_utils.mock import event_mock
 
 pytestmark = pytest.mark.anyio
 

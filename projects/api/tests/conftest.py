@@ -4,9 +4,9 @@ import pytest
 from fastapi.encoders import jsonable_encoder
 from fastapi.testclient import TestClient
 
-from common.exchanges.channel import Channel
-from common.test_utils.fixtures import Messages
-from database.models.client import ClientCreate
+from lib.exchanges.channel import Channel
+from lib.test_utils.fixtures import Messages
+from lib.models.client import ClientCreate
 from api.models.client import ClientInfo
 from api.app import app
 

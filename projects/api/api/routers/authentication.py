@@ -8,8 +8,8 @@ from api.authenticator import Authenticator
 from api.dependencies import get_authenticator, get_db
 from api.models.user import UserRead
 from api.utils.responses import OK, CustomJSONResponse
-from database.dbasync import db_select
-from database.dbmodels.user import User
+from lib.db.dbasync import db_select
+from lib.db.models.user import User
 
 router = APIRouter(
     tags=["authentication"],

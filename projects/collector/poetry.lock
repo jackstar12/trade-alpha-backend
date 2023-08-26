@@ -489,48 +489,6 @@ files = [
 ]
 
 [[package]]
-name = "common"
-version = "0.1.0"
-description = ""
-optional = false
-python-versions = ">=3.10, <3.11"
-files = []
-develop = true
-
-[package.dependencies]
-aiohttp = "^3.7.4"
-aioredis = "2.0.1"
-ccxt = "1.59.1"
-core = {path = "../core", develop = true}
-database = {path = "../database", develop = true}
-pydantic = "1.8.2"
-SQLAlchemy = {version = "1.4.40", extras = ["asyncio"]}
-sqlalchemy_utils = "0.38.2"
-
-[package.source]
-type = "directory"
-url = "../../lib/common"
-
-[[package]]
-name = "core"
-version = "0.1.0"
-description = ""
-optional = false
-python-versions = ">=3.10, <3.11"
-files = []
-develop = true
-
-[package.dependencies]
-orjson = "3.6.8"
-pydantic = "1.8.2"
-python-dotenv = "0.19.0"
-pytz = "2022.4"
-
-[package.source]
-type = "directory"
-url = "../../lib/core"
-
-[[package]]
 name = "cryptography"
 version = "41.0.3"
 description = "cryptography is a package which provides cryptographic recipes and primitives to Python developers."
@@ -574,33 +532,6 @@ sdist = ["build"]
 ssh = ["bcrypt (>=3.1.5)"]
 test = ["pretend", "pytest (>=6.2.0)", "pytest-benchmark", "pytest-cov", "pytest-xdist"]
 test-randomorder = ["pytest-randomly"]
-
-[[package]]
-name = "database"
-version = "0.1.0"
-description = ""
-optional = false
-python-versions = ">=3.10, <3.11"
-files = []
-develop = true
-
-[package.dependencies]
-aioredis = "2.0.1"
-alembic = "1.7.6"
-asyncpg = "0.25.0"
-core = {path = "../core", develop = true}
-discord-py = "1.7.1"
-fastapi-users = {version = "10.1.5", extras = ["sqlalchemy"]}
-fastapi_users_db_sqlalchemy = "4.0.3"
-numpy = "1.22.4"
-psycopg2-binary = "2.9.3"
-python-dateutil = "2.8.2"
-SQLAlchemy = {version = "1.4.40", extras = ["asyncio"]}
-sqlalchemy_utils = "0.38.2"
-
-[package.source]
-type = "directory"
-url = "../../lib/database"
 
 [[package]]
 name = "discord-py"
@@ -670,13 +601,13 @@ test = ["pytest (>=6)"]
 
 [[package]]
 name = "fastapi"
-version = "0.101.1"
+version = "0.102.0"
 description = "FastAPI framework, high performance, easy to learn, fast to code, ready for production"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "fastapi-0.101.1-py3-none-any.whl", hash = "sha256:aef5f8676eb1b8389952e1fe734abe20f04b71f6936afcc53b320ba79b686a4b"},
-    {file = "fastapi-0.101.1.tar.gz", hash = "sha256:7b32000d14ca9992f7461117b81e4ef9ff0c07936af641b4fe40e67d5f9d63cb"},
+    {file = "fastapi-0.102.0-py3-none-any.whl", hash = "sha256:34db27d0af54ee0d92c540e83c6ee6a11de93f63bbdf73fda54fff9a10c52569"},
+    {file = "fastapi-0.102.0.tar.gz", hash = "sha256:e3652cb9bdf4df1dedda4fce9454e9f75a8c969b5cdd3faf1bd5c6f5d2daab08"},
 ]
 
 [package.dependencies]
@@ -823,6 +754,38 @@ files = [
     {file = "iniconfig-2.0.0-py3-none-any.whl", hash = "sha256:b6a85871a79d2e3b22d2d1b94ac2824226a63c6b741c88f7ae975f18b6778374"},
     {file = "iniconfig-2.0.0.tar.gz", hash = "sha256:2d91e135bf72d31a410b17c16da610a82cb55f6b0477d1a902134b24a455b8b3"},
 ]
+
+[[package]]
+name = "lib"
+version = "0.1.0"
+description = ""
+optional = false
+python-versions = ">=3.10, <3.11"
+files = []
+develop = true
+
+[package.dependencies]
+aiohttp = "^3.7.4"
+aioredis = "2.0.1"
+alembic = "1.7.6"
+asyncpg = "0.25.0"
+ccxt = "1.59.1"
+discord-py = "1.7.1"
+fastapi-users = {version = "10.1.5", extras = ["sqlalchemy"]}
+fastapi_users_db_sqlalchemy = "4.0.3"
+numpy = "1.22.4"
+orjson = "3.6.8"
+psycopg2-binary = "2.9.3"
+pydantic = "1.8.2"
+python-dateutil = "2.8.2"
+python-dotenv = "0.19.0"
+pytz = "2022.4"
+SQLAlchemy = {version = "1.4.40", extras = ["asyncio"]}
+sqlalchemy_utils = "0.38.2"
+
+[package.source]
+type = "directory"
+url = "../../lib"
 
 [[package]]
 name = "makefun"
@@ -1699,4 +1662,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.10, <3.11"
-content-hash = "9dfcf1b3a0798e509049d7cc4a9ef27bd759345145ed639d93603ae6fe358dd7"
+content-hash = "64ad79f375a1fcbdd772f2eeac1fc86ce96d853ebf426f5cbc34f8b5025ebdc4"

@@ -1,4 +1,4 @@
-from database.models import OrmBaseModel, OutputID
+from lib.models import OrmBaseModel, OutputID
 
 
 class PresetInfo(OrmBaseModel):

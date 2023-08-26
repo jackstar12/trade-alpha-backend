@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 
 from api.crudrouter import add_crud_routes
-from database.dbmodels.action import Action
-from database.models.action import ActionInfo, ActionCreate
+from lib.db.models.action import Action
+from lib.models.action import ActionInfo, ActionCreate
 
 router = APIRouter(tags=["action"], prefix="/action")
 

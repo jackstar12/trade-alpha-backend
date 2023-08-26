@@ -7,7 +7,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from collector.services.actionservice import ActionService
 from collector.services.eventservice import EventService
-from database.dbasync import redis, async_maker
+from lib.db.dbasync import redis, async_maker
 from collector.services.cointracker import CoinTracker
 from collector.services.alertservice import AlertService
 from collector.services.dataservice import DataService
@@ -15,10 +15,10 @@ from collector.services.balanceservice import (
     ExtendedBalanceService,
     BasicBalanceService,
 )
-from core.utils import setup_logger
+from lib.utils import setup_logger
 from collector.services.baseservice import BaseService
-from database.redis.rpc import Server
-from database.utils import run_migrations
+from lib.db.redis.rpc import Server
+from lib.db.utils import run_migrations
 
 redis_server = Server("discord", redis)
 

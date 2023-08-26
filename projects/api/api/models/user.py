@@ -3,7 +3,7 @@ from typing import Optional
 
 from fastapi_users import schemas
 
-from database.models.user import ProfileData
+from lib.models.user import ProfileData
 
 
 class OAuthInfo(schemas.BaseOAuthAccount):

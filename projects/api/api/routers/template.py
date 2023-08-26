@@ -15,13 +15,13 @@ from api.models.template import (
 )
 from api.users import CurrentUser, get_auth_grant_dependency, DefaultGrant
 from api.utils.responses import OK, CustomJSONResponse, NotFound
-from database.dbasync import db_unique, db_all, db_del_filter, opt_op, wrap_greenlet
-from database.dbmodels import Client
-from database.dbmodels.authgrant import TemplateGrant, AuthGrant, AssociationType
-from database.dbmodels.editing import Journal
-from database.dbmodels.editing.template import Template as DbTemplate, TemplateType
-from database.dbmodels.user import User
-from database.models import InputID
+from lib.db.dbasync import db_unique, db_all, db_del_filter, opt_op, wrap_greenlet
+from lib.db.models import Client
+from lib.db.models.authgrant import TemplateGrant, AuthGrant, AssociationType
+from lib.db.models.editing import Journal
+from lib.db.models.editing.template import Template as DbTemplate, TemplateType
+from lib.db.models.user import User
+from lib.models import InputID
 
 router = APIRouter(
     tags=["template"],

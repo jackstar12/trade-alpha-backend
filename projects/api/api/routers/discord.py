@@ -6,24 +6,24 @@ from sqlalchemy.dialects.postgresql import insert as insertpg
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import get_db, get_dc_rpc_client
-from database.models import InputID
+from lib.models import InputID
 from api.models.discord_user import DiscordUserInfo
 from api.users import CurrentUser
 from api.utils.client import get_user_client
 from api.utils.responses import OK, BadRequest, ResponseModel, InternalError
-from database.dbasync import db_select_all, db_select
-from database.dbmodels import GuildAssociation as GuildAssociationDB
-from database.dbmodels.discord.guild import Guild as GuildDB
-from database.dbmodels.user import User
-from database.models import BaseModel
-from database.models.discord.guild import (
+from lib.db.dbasync import db_select_all, db_select
+from lib.db.models import GuildAssociation as GuildAssociationDB
+from lib.db.models.discord.guild import Guild as GuildDB
+from lib.db.models.user import User
+from lib.models import BaseModel
+from lib.models.discord.guild import (
     UserRequest,
     Guild as GuildModel,
     GuildRequest,
     GuildData,
 )
-from database.redis import rpc
-from core.utils import groupby_unique
+from lib.db.redis import rpc
+from lib.utils import groupby_unique
 
 router = APIRouter(tags=["discord"])
 

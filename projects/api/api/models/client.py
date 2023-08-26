@@ -4,17 +4,17 @@ from typing import Dict, Optional, TypedDict
 from fastapi import Query
 from pydantic import UUID4
 
-import database.dbmodels.client as qmxin
+import lib.db.models.client as qmxin
 from api.models.template import TemplateInfo
 from api.models.transfer import Transfer
-from database.models.trade import BasicTrade
-from database.dbmodels.client import ClientType, ClientState
-from database.enums import IntervalType
-from database.models import BaseModel, OutputID, InputID
-from database.models.balance import Balance
-from database.models.client import ClientCreate, ClientApiInfo
-from database.models.eventinfo import EventBasicInfo
-from database.models.interval import Interval, FullInterval
+from lib.models.trade import BasicTrade
+from lib.db.models.client import ClientType, ClientState
+from lib.db.enums import IntervalType
+from lib.models import BaseModel, OutputID, InputID
+from lib.models.balance import Balance
+from lib.models.client import ClientCreate, ClientApiInfo
+from lib.models.eventinfo import EventBasicInfo
+from lib.models.interval import Interval, FullInterval
 
 
 def get_query_params(
