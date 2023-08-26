@@ -1,8 +1,6 @@
-import asyncio
 from functools import wraps
 
 import aiohttp
-import pytest
 import requests
 from apscheduler.executors.asyncio import AsyncIOExecutor
 from apscheduler.schedulers.asyncio import AsyncIOScheduler

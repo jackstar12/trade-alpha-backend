@@ -10,7 +10,7 @@ from lib.exchanges.channel import Channel
 from lib.exchanges.exchange import Exchange, Position
 from lib.exchanges.exchangeticker import ExchangeTicker, Subscription
 from lib.utils import utc_now
-from lib.db.models import Execution, Balance, Client, User
+from lib.db.models import Execution, Balance, Client, User, Amount
 from lib.db.models.client import ClientType, ExchangeInfo
 from lib.db.models.transfer import RawTransfer
 from lib.db.enums import Side, ExecType, MarketType
@@ -212,7 +212,9 @@ class MockExchange(Exchange):
 
     # https://binance-docs.github.io/apidocs/futures/en/#account-information-v2-user_data
     async def _get_balance(self, time: datetime, upnl=True):
-        return Balance(realized=100, unrealized=0, time=utc_now(), extra_currencies=[])
+        return [
+            Amount(currency="USD", realized=100, unrealized=0),
+        ]
 
     @classmethod
     def get_symbol(cls, market: Market) -> str:

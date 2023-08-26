@@ -158,7 +158,7 @@ async def test_exchange(client, session_maker, http_session, ccxt_client):
     if client.exchange == BybitDerivatives.exchange:
         await asyncio.sleep(20)
 
-    _, fetched_execs, _ = await exchange.get_executions(now)
+    fetched_execs = await exchange.get_executions(now)
     assert len(execs) == len(fetched_execs)
 
     new_balance = await exchange.get_balance()
