@@ -4,17 +4,17 @@ import time
 import pytz
 from sqlalchemy import select
 
-from common.exchanges.exchangeticker import Subscription
-from database.dbasync import db_all, async_session
+from lib.exchanges.exchangeticker import Subscription
+from lib.db.dbasync import db_all, async_session
 from collector.services.baseservice import BaseService
-from common.exchanges.channel import Channel
-from database.models.observer import Observable, Observer
+from lib.exchanges.channel import Channel
+from lib.models.observer import Observable, Observer
 import ccxt.async_support as ccxt
 from datetime import datetime, timedelta
 from collections import deque
-from database.dbmodels.coin import Coin, Volume, OI
-from database.models.trade import Trade
-from database.models.volumeratio import VolumeRatio
+from lib.db.models.coin import Coin, Volume, OI
+from lib.models.trade import Trade
+from lib.models.volumeratio import VolumeRatio
 from typing import Optional, Dict, List
 
 import aiohttp

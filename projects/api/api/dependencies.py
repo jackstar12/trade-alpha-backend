@@ -10,13 +10,13 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.authenticator import Authenticator
-from database.dbmodels.mixins.filtermixin import FilterParam
+from lib.db.models.mixins.filtermixin import FilterParam
 from api.settings import settings
-from database.dbasync import redis, async_maker
-from common.messenger import Messenger
-from database.dbsync import BaseMixin
-from database.models import BaseModel
-from database.redis import rpc
+from lib.db.dbasync import redis, async_maker
+from lib.messenger import Messenger
+from lib.db.dbsync import BaseMixin
+from lib.models import BaseModel
+from lib.db.redis import rpc
 
 default_authenticator = Authenticator(
     redis,

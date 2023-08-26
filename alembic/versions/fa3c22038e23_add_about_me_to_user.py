@@ -13,8 +13,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-import database
-from database.dbmodels.types import Document
+import lib.db
+from lib.db.models.types import Document
 
 revision = 'fa3c22038e23'
 down_revision = 'a068507680cd'

@@ -1,7 +1,7 @@
 import pytest
 
-from common.exchanges import SANDBOX_CLIENTS
-from database.models.client import ClientCreate
+from lib.exchanges import SANDBOX_CLIENTS
+from lib.models.client import ClientCreate
 
 pytestmark = pytest.mark.anyio
 

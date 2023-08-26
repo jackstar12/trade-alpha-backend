@@ -9,11 +9,11 @@ from sqlalchemy import delete
 from bot import config
 from bot import utils
 from bot.cogs.cogbase import CogBase
-from database import utils as dbutils
-from database.dbasync import db_exec, async_session
-from database.dbmodels.balance import Balance
-from database.dbmodels.client import Client
-from database.dbmodels.discord.discorduser import DiscordUser
+from lib.db import utils as dbutils
+from lib.db.dbasync import db_exec, async_session
+from lib.db.models.balance import Balance
+from lib.db.models.client import Client
+from lib.db.models.discord.discorduser import DiscordUser
 
 
 class HistoryCog(CogBase):

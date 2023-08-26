@@ -3,17 +3,17 @@ from typing import List, Dict
 
 from sqlalchemy import select
 
-from common.exchanges.exchangeticker import Subscription
-from database.redis import TableNames
-from database.dbasync import db_all
-from database.dbmodels.alert import Alert
+from lib.exchanges.exchangeticker import Subscription
+from lib.db.redis import TableNames
+from lib.db.dbasync import db_all
+from lib.db.models.alert import Alert
 from collector.services.baseservice import BaseService
-from common.exchanges.channel import Channel
+from lib.exchanges.channel import Channel
 from collector.services.dataservice import DataService, ExchangeInfo
-from database.enums import Side
-from common.messenger import Category
-from database.models.observer import Observer
-from database.models.ticker import Ticker
+from lib.db.enums import Side
+from lib.messenger import Category
+from lib.models.observer import Observer
+from lib.models.ticker import Ticker
 
 
 class AlertService(BaseService, Observer):

@@ -25,11 +25,11 @@ from api.models.user import UserRead, UserCreate
 from api.routers import labelgroup
 from api.users import fastapi_users, auth_backend
 from api.utils.responses import OK
-from core.utils import setup_logger
-from database.dbmodels import Event, Client
-from database.dbmodels.action import Action
-from database.dbmodels.authgrant import AuthGrant
-from database.utils import run_migrations
+from lib.utils import setup_logger
+from lib.db.models import Event, Client
+from lib.db.models.action import Action
+from lib.db.models.authgrant import AuthGrant
+from lib.db.utils import run_migrations
 
 VERSION = 1
 # PREFIX = f'/api/v{VERSION}'

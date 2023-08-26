@@ -6,10 +6,10 @@ from api.dependencies import get_messenger, get_db
 from api.users import CurrentUser
 from api.models.transfer import Transfer
 from api.utils.responses import OK, NotFound
-from database.dbasync import db_exec, db_first
-from database.dbmodels.client import Client, add_client_checks
-from database.dbmodels.transfer import Transfer as TransferDB
-from database.dbmodels.user import User
+from lib.db.dbasync import db_exec, db_first
+from lib.db.models.client import Client, add_client_checks
+from lib.db.models.transfer import Transfer as TransferDB
+from lib.db.models.user import User
 
 router = APIRouter(
     tags=["transfer"],

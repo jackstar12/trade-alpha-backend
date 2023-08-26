@@ -11,9 +11,9 @@ from alembic import op
 from sqlalchemy.orm import Session
 
 from sqlalchemy.dialects import postgresql
-from database.dbmodels import Client, Balance, Execution
-from database.dbmodels.trade import Trade
-from database.dbmodels.transfer import Transfer
+from lib.db.models import Client, Balance, Execution
+from lib.db.models.trade import Trade
+from lib.db.models.transfer import Transfer
 from sqlalchemy import update, delete
 from sqlalchemy.orm import Session
 

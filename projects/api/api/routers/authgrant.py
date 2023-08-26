@@ -9,14 +9,14 @@ from api.crudrouter import add_crud_routes, Route
 from api.dependencies import get_db
 from api.users import CurrentUser, DefaultGrant
 from api.utils.responses import BadRequest, OK, Unauthorized
-from database.dbasync import wrap_greenlet, db_unique, opt_op
-from database.dbmodels import User
-from database.models import BaseModel
-from database.models.authgrant import AuthGrantCreate, AuthGrantInfo
+from lib.db.dbasync import wrap_greenlet, db_unique, opt_op
+from lib.db.models import User
+from lib.models import BaseModel
+from lib.models.authgrant import AuthGrantCreate, AuthGrantInfo
 
-from database.dbmodels.authgrant import AuthGrant, AssociationType
+from lib.db.models.authgrant import AuthGrant, AssociationType
 
-from database.models import InputID
+from lib.models import InputID
 
 
 router = APIRouter(tags=["Auth Grant"], prefix="/auth-grant")

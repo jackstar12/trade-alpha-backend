@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 
 import api.utils.client as client_utils
-import core
+from lib import utils
 from api.dependencies import get_messenger, get_db, FilterQueryParamsDep
-from database.models.execution import Execution
-from database.models.trade import (
+from lib.models.execution import Execution
+from lib.models.trade import (
     Trade,
     BasicTrade,
     DetailledTrade,
@@ -32,20 +32,20 @@ from api.utils.responses import (
     ResponseModel,
     Unauthorized,
 )
-from database.dbasync import db_first, db_all
-from database.dbmodels import TradeDB as TradeDB, Chapter, Execution as ExecutionDB
-from database.dbmodels.authgrant import AuthGrant, AssociationType, ChapterGrant
-from database.dbmodels.client import ClientQueryParams
-from database.dbmodels.client import add_client_checks
-from database.dbmodels.label import Label as LabelDB
-from database.dbmodels.mixins.filtermixin import FilterParam
-from database.dbmodels.pnldata import PnlData
-from database.dbmodels.trade import trade_association
-from database.dbmodels.user import User
-from database.models import BaseModel, OutputID, InputID
-from database.models.document import DocumentModel
-from database.redis.client import ClientCacheKeys
-from database.utils import query_table
+from lib.db.dbasync import db_first, db_all
+from lib.db.models import TradeDB as TradeDB, Chapter, Execution as ExecutionDB
+from lib.db.models.authgrant import AuthGrant, AssociationType, ChapterGrant
+from lib.db.models.client import ClientQueryParams
+from lib.db.models.client import add_client_checks
+from lib.db.models.label import Label as LabelDB
+from lib.db.models.mixins.filtermixin import FilterParam
+from lib.db.models.pnldata import PnlData
+from lib.db.models.trade import trade_association
+from lib.db.models.user import User
+from lib.models import BaseModel, OutputID, InputID
+from lib.models.document import DocumentModel
+from lib.db.redis.client import ClientCacheKeys
+from lib.db.utils import query_table
 
 router = APIRouter(
     tags=["trade"],
@@ -159,7 +159,7 @@ def create_trade_endpoint(path: str, model: Type[BasicTrade], *eager, **kwargs):
         data: list[model]
 
     TradeCache = client_utils.ClientCacheDependency(
-        core.join_args(ClientCacheKeys.TRADE, path), Trades, auth, get_trade_params
+        utils.join_args(ClientCacheKeys.TRADE, path), Trades, auth, get_trade_params
     )
 
     FilterQueryParams = FilterQueryParamsDep(TradeDB, model)

@@ -1,6 +1,6 @@
 from pydantic import SecretStr
 
-from core.env import EnvBase
+from lib.env import EnvBase
 
 
 class Env(EnvBase):

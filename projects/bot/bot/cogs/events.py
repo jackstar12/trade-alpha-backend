@@ -11,17 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from bot import utils
 from bot.cogs.cogbase import CogBase
 from bot.utils import create_complete_history, get_summary_embed, get_leaderboard_embed
-from database import utils as dbutils
-from database.dbasync import db_all, db_select, db_unique
-from database.dbasync import db_select_all
-from database.dbmodels import EventEntry, Client
-from database.dbmodels.discord.discorduser import DiscordUser
-from database.dbmodels.event import Event
-from database.dbmodels.event import EventState
-from database.dbmodels.user import User
-from database.errors import UserInputError
-from common.messenger import EventSpace
-from database.models.selectionoption import SelectionOption
+from lib.db import utils as dbutils
+from lib.db.dbasync import db_all, db_select, db_unique
+from lib.db.dbasync import db_select_all
+from lib.db.models import EventEntry, Client
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.db.models.event import Event
+from lib.db.models.event import EventState
+from lib.db.models.user import User
+from lib.db.errors import UserInputError
+from lib.messenger import EventSpace
+from lib.models.selectionoption import SelectionOption
 
 
 class EventsCog(CogBase):

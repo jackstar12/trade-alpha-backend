@@ -6,12 +6,12 @@ from discord_slash.utils.manage_commands import create_option, create_choice
 
 from bot import utils
 from bot.cogs.cogbase import CogBase
-from database import utils as dbutils
-from database.dbasync import async_session
-from database.dbmodels.alert import Alert
-from database.dbmodels.discord.discorduser import DiscordUser
-from common.exchanges import EXCHANGES
-from database.models.selectionoption import SelectionOption
+from lib.db import utils as dbutils
+from lib.db.dbasync import async_session
+from lib.db.models.alert import Alert
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.exchanges import EXCHANGES
+from lib.models.selectionoption import SelectionOption
 
 
 class AlertCog(CogBase):

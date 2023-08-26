@@ -12,8 +12,8 @@ from sqlalchemy import delete, update
 from sqlalchemy.orm import Session
 
 # revision identifiers, used by Alembic.
-from database.dbmodels import Client
-from database.dbmodels.trade import Trade
+from lib.db.models import Client
+from lib.db.models.trade import Trade
 
 revision = '150590cb8130'
 down_revision = '0a3782ac454d'

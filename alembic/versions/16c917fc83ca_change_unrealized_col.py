@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy import update
 from sqlalchemy.orm import Session
 
-from database.dbmodels import Balance
+from lib.db.models import Balance
 
 # revision identifiers, used by Alembic.
 revision = '16c917fc83ca'

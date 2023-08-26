@@ -6,7 +6,7 @@ from discord.ext.commands import Bot
 from discord.ext.commands.cog import Cog
 from discord_slash import SlashCommand
 
-from common.messenger import Messenger
+from lib.messenger import Messenger
 from typing import Optional
 
 

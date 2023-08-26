@@ -1,6 +1,6 @@
 # inside of a "create the database" script, first create
 # tables:
-from database.dbsync import Base, engine
+from lib.db.dbsync import Base, engine
 from alembic.config import Config
 from alembic import command
 

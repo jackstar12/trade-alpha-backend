@@ -28,7 +28,7 @@ from api.models.client import (
     ClientDetailed,
     ClientOverviewCache,
 )
-from database.models.trade import BasicTrade
+from lib.models.trade import BasicTrade
 from api.settings import settings
 from api.users import CurrentUser, get_auth_grant_dependency
 from api.utils.responses import (
@@ -40,23 +40,23 @@ from api.utils.responses import (
     InternalError,
     Unauthorized,
 )
-from common.exchanges import EXCHANGES
-from core.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
-from database.calc import create_intervals
-from database.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq
-from database.dbmodels import TradeDB, BalanceDB, Execution, Chapter
-from database.dbmodels.authgrant import ChapterGrant, AuthGrant
-from database.dbmodels.balance import Amount
-from database.dbmodels.client import Client, add_client_checks, ClientState, ClientRedis
-from database.dbmodels.client import ClientQueryParams
-from database.dbmodels.transfer import Transfer as TransferDB
-from database.dbmodels.user import User
-from database.enums import IntervalType
-from database.errors import InvalidClientError, ResponseError
-from database.models import OrmBaseModel, InputID
-from database.models.balance import Balance
-from database.models.interval import FullInterval
-from database.redis.client import ClientCacheKeys
+from lib.exchanges import EXCHANGES
+from lib.utils import validate_kwargs, groupby, date_string, sum_iter, utc_now
+from lib.db.calc import create_intervals
+from lib.db.dbasync import db_first, redis, async_maker, time_range, db_all, opt_eq
+from lib.db.models import TradeDB, BalanceDB, Execution, Chapter
+from lib.db.models.authgrant import ChapterGrant, AuthGrant
+from lib.db.models.balance import Amount
+from lib.db.models.client import Client, add_client_checks, ClientState, ClientRedis
+from lib.db.models.client import ClientQueryParams
+from lib.db.models.transfer import Transfer as TransferDB
+from lib.db.models.user import User
+from lib.db.enums import IntervalType
+from lib.db.errors import InvalidClientError, ResponseError
+from lib.models import OrmBaseModel, InputID
+from lib.models.balance import Balance
+from lib.models.interval import FullInterval
+from lib.db.redis.client import ClientCacheKeys
 
 router = APIRouter(
     tags=["client"],

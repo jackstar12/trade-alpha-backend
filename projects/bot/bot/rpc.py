@@ -4,17 +4,17 @@ import discord
 import discord.errors
 from fastapi.encoders import jsonable_encoder
 
-from core.env import ENV
-from database.dbasync import redis, db_select
-from database.dbmodels.discord.discorduser import DiscordUser
-from database.models.discord.guild import (
+from lib.env import ENV
+from lib.db.dbasync import redis, db_select
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.models.discord.guild import (
     UserRequest,
     GuildRequest,
     GuildData,
     MessageRequest,
 )
-from database.models.user import ProfileData
-from database.redis.rpc import Server
+from lib.models.user import ProfileData
+from lib.db.redis.rpc import Server
 from typing import Optional
 
 

@@ -26,10 +26,10 @@ from api.oauth import get_oauth_router
 from api.settings import settings
 from api.usermanager import UserManager
 from api.utils.responses import Unauthorized
-from core import utc_now, get_multiple_dict
-from database.dbasync import redis, db_eager, db_unique, TEager
-from database.dbmodels.authgrant import AuthGrant, GrantAssociaton
-from database.dbmodels.user import User, OAuthAccount
+from lib.utils import utc_now, get_multiple_dict
+from lib.db.dbasync import redis, db_eager, db_unique, TEager
+from lib.db.models.authgrant import AuthGrant, GrantAssociaton
+from lib.db.models.user import User, OAuthAccount
 
 
 class UserDatabase(Generic[ID, OAP], SQLAlchemyUserDatabase[User, ID]):

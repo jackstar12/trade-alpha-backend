@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional, Dict, List
 
-from database.models import BaseModel
+from lib.models import BaseModel
 
 
 class WebsocketMessage(BaseModel):

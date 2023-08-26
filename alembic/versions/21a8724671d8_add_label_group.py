@@ -11,7 +11,7 @@ from alembic import op
 from sqlalchemy.orm import Session
 
 from sqlalchemy.dialects import postgresql
-from database.dbmodels.user import User
+from lib.db.models.user import User
 
 # revision identifiers, used by Alembic.
 revision = '21a8724671d8'

@@ -9,12 +9,12 @@ from prettytable import PrettyTable
 from bot import config
 from bot import utils
 from bot.cogs.cogbase import CogBase
-from core.utils import date_string, round_ccy
-from database import utils as dbutils
-from database.calc import calc_daily
-from database.dbmodels.client import Client
-from database.dbmodels.discord.discorduser import DiscordUser
-from database.dbmodels.event import EventState
+from lib.utils import date_string, round_ccy
+from lib.db import utils as dbutils
+from lib.db.calc import calc_daily
+from lib.db.models.client import Client
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.db.models.event import EventState
 from typing import Optional
 
 

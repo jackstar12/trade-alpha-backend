@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, lazyload
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-from database.dbmodels import EventEntry
+from lib.db.models import EventEntry
 
 revision = 'a8e101b2ffbf'
 down_revision = '6953e25d67fe'

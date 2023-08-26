@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session, eagerload
 
 from sqlalchemy.dialects import postgresql
 
-from database.dbmodels import Trade
+from lib.db.models import Trade
 
 # revision identifiers, used by Alembic.
 revision = 'f0698bc63edd'

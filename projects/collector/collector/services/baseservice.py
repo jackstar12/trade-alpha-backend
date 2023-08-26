@@ -8,8 +8,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import sessionmaker
 
-from common.messenger import Messenger
-from core import call_unknown_function
+from lib.messenger import Messenger
+from lib.utils import call_unknown_function
 
 
 class BaseService:

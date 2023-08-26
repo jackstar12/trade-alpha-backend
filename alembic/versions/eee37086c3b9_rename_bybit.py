@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-from database.dbmodels import Client
+from lib.db.models import Client
 
 revision = 'eee37086c3b9'
 down_revision = 'd114ff70a3af'

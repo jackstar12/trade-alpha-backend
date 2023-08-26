@@ -14,9 +14,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-from database.dbmodels import Client, Balance, Execution
-from database.dbmodels.trade import Trade
-from database.dbmodels.transfer import Transfer
+from lib.db.models import Client, Balance, Execution
+from lib.db.models.trade import Trade
+from lib.db.models.transfer import Transfer
 
 revision = 'e845d16188d5'
 down_revision = '439d8fa64429'

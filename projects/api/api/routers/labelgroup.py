@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from api.crudrouter import add_crud_routes, Route
 from api.models.labelinfo import LabelGroupInfo, LabelGroupCreate
-from database.dbmodels.label import LabelGroup as LabelGroupDB
+from lib.db.models.label import LabelGroup as LabelGroupDB
 
 router = APIRouter(prefix="/label/group")
 

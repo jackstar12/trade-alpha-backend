@@ -9,9 +9,9 @@ from alembic import op
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
-from database.dbmodels import Client, Balance
-from database.dbmodels.trade import Trade
-from database.dbmodels.transfer import Transfer
+from lib.db.models import Client, Balance
+from lib.db.models.trade import Trade
+from lib.db.models.transfer import Transfer
 
 # revision identifiers, used by Alembic.
 revision = '0856da4f1911'

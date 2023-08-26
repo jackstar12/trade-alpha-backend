@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from core.env import EnvBase
+from lib.env import EnvBase
 
 
 class Settings(EnvBase):

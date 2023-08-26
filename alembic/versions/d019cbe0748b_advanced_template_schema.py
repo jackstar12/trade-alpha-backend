@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.dialects import postgresql
 # revision identifiers, used by Alembic.
-from database.dbmodels.editing import Template
+from lib.db.models.editing import Template
 
 revision = 'd019cbe0748b'
 down_revision = '2e2ccd52b7b1'

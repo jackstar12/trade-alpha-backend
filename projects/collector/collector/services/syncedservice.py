@@ -5,11 +5,11 @@ from typing import Dict, Optional, TypeVar, Generic, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.sql import Select
 
-from database.dbasync import db_unique
-from database.dbsync import Base
-from common.messenger import Category
-from common.messenger import Messenger, NameSpace
-from core.utils import CoroOrCallable
+from lib.db.dbasync import db_unique
+from lib.db.dbsync import Base
+from lib.messenger import Category
+from lib.messenger import Messenger, NameSpace
+from lib.utils import CoroOrCallable
 
 TTable = TypeVar("TTable", bound=Base)
 

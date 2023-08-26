@@ -1,8 +1,8 @@
 import asyncio
 import argparse
-from database import dbmodels
-import database.dbasync as db
-from database.utils import reset_client
+import lib.db.models as dbmodels
+import lib.db.dbasync as db
+from lib.db.utils import reset_client
 
 
 async def reset(client_id: int, full=False):

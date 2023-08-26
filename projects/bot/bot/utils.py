@@ -32,25 +32,25 @@ from scipy import interpolate
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import core
-import core.env as config
-import database.dbmodels as dbmodels
-from core.utils import calc_percentage, return_unknown_function, groupby
-from database import utils as dbutils
-from database.calc import transfer_gen
-from database.dbasync import async_session, db_all, async_maker, time_range, opt_eq
-from database.dbmodels.balance import Balance
-from database.dbmodels.discord.discorduser import DiscordUser
-from database.dbmodels.pnldata import PnlData
-from database.dbmodels.trade import Trade
-from database.dbmodels.transfer import Transfer
-from database.dbmodels.user import User
-from database.errors import UserInputError, InternalError
-from database.models.eventinfo import Leaderboard
-from database.models.selectionoption import SelectionOption
+from lib import utils
+import lib.env as config
+import lib.db.models as dbmodels
+from lib.utils import calc_percentage, return_unknown_function, groupby
+from lib.db import utils as dbutils
+from lib.db.calc import transfer_gen
+from lib.db.dbasync import async_session, db_all, async_maker, time_range, opt_eq
+from lib.db.models.balance import Balance
+from lib.db.models.discord.discorduser import DiscordUser
+from lib.db.models.pnldata import PnlData
+from lib.db.models.trade import Trade
+from lib.db.models.transfer import Transfer
+from lib.db.models.user import User
+from lib.db.errors import UserInputError, InternalError
+from lib.models.eventinfo import Leaderboard
+from lib.models.selectionoption import SelectionOption
 
 if TYPE_CHECKING:
-    from database.dbmodels.client import Client
+    from lib.db.models.client import Client
 
 # Some consts to make TF tables prettier
 MINUTE = 60
@@ -497,8 +497,8 @@ async def create_history(
                 upnl_by_trade = {}
                 offset = 0
                 amount = None
-                for prev_item, item, next_item in core.prev_now_next(
-                    core.combine_time_series(history.data, pnl_data)
+                for prev_item, item, next_item in utils.prev_now_next(
+                    utils.combine_time_series(history.data, pnl_data)
                 ):
                     if isinstance(item, PnlData):
                         upnl_by_trade[item.trade_id] = item.unrealized_ccy(currency)

@@ -2,9 +2,9 @@ from decimal import Decimal
 from enum import Enum
 from typing import List, NamedTuple, Any, Tuple
 
-from database.models import BaseModel, OutputID
-from database.models.trade import DetailledTrade
-from database.enums import Filter
+from lib.models import BaseModel, OutputID
+from lib.models.trade import DetailledTrade
+from lib.db.enums import Filter
 
 
 class Calculation(Enum):

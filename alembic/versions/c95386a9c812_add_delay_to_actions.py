@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from sqlalchemy.dialects import postgresql
 
-from database.dbmodels.action import ActionType
+from lib.db.models.action import ActionType
 
 # revision identifiers, used by Alembic.
 revision = 'c95386a9c812'

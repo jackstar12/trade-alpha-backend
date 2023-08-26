@@ -1,8 +1,8 @@
 from typing import List
 
-from database.models.user import ProfileData
-from database.models import OrmBaseModel
-from database.models.discord.guild import Guild
+from lib.models.user import ProfileData
+from lib.models import OrmBaseModel
+from lib.models.discord.guild import Guild
 
 
 class DiscordUserInfo(OrmBaseModel):

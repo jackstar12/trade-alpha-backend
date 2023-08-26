@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 
 # revision identifiers, used by Alembic.
-from database.dbmodels import Event
+from lib.db.models import Event
 
 revision = 'd1f13f442d97'
 down_revision = 'f6be99aae636'

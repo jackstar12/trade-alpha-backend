@@ -17,8 +17,8 @@ config = context.config
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
-from database.dbsync import Base
-from database.env import ENV
+from lib.db.dbsync import Base
+from lib.db.env import ENV
 import os
 
 target_metadata = Base.metadata

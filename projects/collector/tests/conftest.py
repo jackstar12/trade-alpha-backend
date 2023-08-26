@@ -14,13 +14,13 @@ from collector.services.balanceservice import (
 )
 from collector.services.dataservice import DataService
 from collector.services.eventservice import EventService
-from common.test_utils.fixtures import *
-from database.dbasync import db_select
-from database.dbmodels.client import Client
-from database.dbmodels.user import User
-from common.exchanges import CCXT_CLIENTS
-from common.messenger import TableNames, Category
-from core.utils import setup_logger
+from lib.test_utils.fixtures import *
+from lib.db.dbasync import db_select
+from lib.db.models.client import Client
+from lib.db.models.user import User
+from lib.exchanges import CCXT_CLIENTS
+from lib.messenger import TableNames, Category
+from lib.utils import setup_logger
 
 
 pytestmark = pytest.mark.anyio

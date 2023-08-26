@@ -9,9 +9,9 @@ from requests import Response
 
 from api.routers.event import EventUpdate, EventJoinBody
 from api.utils.responses import ResponseModel
-from common.exchanges import SANDBOX_CLIENTS
-from common.test_utils.mock import event_mock
-from database.models.eventinfo import EventInfo, EventDetailed, Leaderboard, EventEntry
+from lib.exchanges import SANDBOX_CLIENTS
+from lib.test_utils.mock import event_mock
+from lib.models.eventinfo import EventInfo, EventDetailed, Leaderboard, EventEntry
 
 T = TypeVar("T")
 

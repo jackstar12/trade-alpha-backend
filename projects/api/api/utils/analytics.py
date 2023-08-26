@@ -11,10 +11,10 @@ from api.models.analytics import (
     Performance,
     Calculation,
 )
-from database.models.trade import DetailledTrade
+from lib.models.trade import DetailledTrade
 from api.models.websocket import ClientConfig
-from database.dbmodels.client import Client
-from database.enums import Filter
+from lib.db.models.client import Client
+from lib.db.enums import Filter
 
 logger = logging.getLogger(__name__)
 

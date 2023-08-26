@@ -1,7 +1,7 @@
-from database.dbmodels import User
-from database.dbmodels.label import Label, LabelGroup
-from database.models import BaseModel, OutputID, InputID, CreateableModel
-from database.models import OrmBaseModel
+from lib.db.models import User
+from lib.db.models.label import Label, LabelGroup
+from lib.models import BaseModel, OutputID, InputID, CreateableModel
+from lib.models import OrmBaseModel
 
 
 class CreateLabel(CreateableModel):
